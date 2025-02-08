@@ -19,14 +19,42 @@ const Register = () => {
   };
 
   return (
-    <div>
-      <h2>Register</h2>
-      <form onSubmit={handleRegister}>
-        <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
-        <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <button type="submit">Register</button>
-      </form>
+    <div className="flex items-center justify-center h-screen bg-gray-900 text-white">
+      <div className="w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-lg">
+        <h2 className="text-3xl font-bold text-center">Register</h2>
+        <form className="mt-6" onSubmit={handleRegister}>
+          <input
+            type="text"
+            placeholder="Username"
+            className="w-full p-3 my-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            className="w-full p-3 my-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            className="w-full p-3 my-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button
+            className="w-full py-3 mt-4 text-lg font-semibold bg-green-500 rounded-lg hover:bg-green-600"
+            type="submit"
+          >
+            Sign Up
+          </button>
+        </form>
+        <p className="mt-4 text-center text-gray-400">
+          Already have an account? <a href="/login" className="text-green-400 hover:underline">Login here</a>
+        </p>
+      </div>
     </div>
   );
 };
