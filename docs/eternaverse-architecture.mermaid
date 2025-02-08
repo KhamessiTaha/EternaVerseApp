@@ -1,0 +1,36 @@
+graph TD
+    A[Frontend React App] --> B[API Gateway]
+    B --> C[Universe Simulation Engine]
+    B --> D[ML Physics Predictor]
+    B --> E[User Management]
+    
+    C --> F[Physics Engine]
+    C --> G[Quantum System]
+    C --> H[Anomaly Generator]
+    
+    D --> I[TensorFlow Model]
+    D --> J[Physics Formulas DB]
+    
+    F --> K[Constants Manager]
+    F --> L[Evolution Calculator]
+    
+    G --> M[Quantum State]
+    G --> N[Entanglement Sim]
+    
+    H --> O[Random Events]
+    H --> P[Chaos Theory]
+    
+    subgraph "Custom Physics ML Model"
+        I
+        J
+    end
+    
+    subgraph "Core Simulation"
+        F
+        G
+        H
+    end
+    
+    subgraph "User Systems"
+        E
+    end
