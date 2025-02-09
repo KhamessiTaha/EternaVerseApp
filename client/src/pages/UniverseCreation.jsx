@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 const UniverseCreation = () => {
   const navigate = useNavigate();
+  const [difficulty, setDifficulty] = useState("Beginner");
   const [params, setParams] = useState({
     gravity: 9.8,
     darkEnergy: 0.7,
@@ -15,8 +16,8 @@ const UniverseCreation = () => {
   };
 
   const handleStartSimulation = () => {
-    console.log("Starting simulation with:", params);
-    navigate("/simulation-dashboard"); 
+    console.log("Starting simulation with:", { difficulty, params });
+    navigate("/simulation-dashboard", { state: { difficulty, params } });
   };
 
   return (
@@ -29,6 +30,22 @@ const UniverseCreation = () => {
       >
         <h2 className="text-3xl font-bold text-center mb-6">Create Your Universe</h2>
 
+        {/* Difficulty Selection */}
+        <label className="block mb-4">
+          <span className="text-gray-300">Select Difficulty</span>
+          <select
+            name="difficulty"
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value)}
+            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="Beginner">Beginner</option>
+            <option value="Intermediate">Intermediate</option>
+            <option value="Advanced">Advanced</option>
+          </select>
+        </label>
+
+        {/* Universal Constants Inputs */}
         <div className="space-y-4">
           <label className="block">
             <span className="text-gray-300">Gravity Strength</span>
