@@ -1,96 +1,64 @@
-import { useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Clock, Orbit, History, Award, Users, Settings } from "lucide-react";
+import { getUserUniverses, deleteUniverse } from "../api/universeApi";
 
 const Dashboard = () => {
-  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [universes, setUniverses] = useState([]);
 
-  const stats = [
-    { value: "3", label: "Active Universes" },
-    { value: "147", label: "Civilizations Emerged" },
-    { value: "2.3B", label: "Years Simulated" },
-    { value: "89%", label: "Stability Rating" },
-  ];
+  useEffect(() => {
+    const fetchUniverses = async () => {
+      try {
+        const data = await getUserUniverses();
+        setUniverses(data);
+      } catch (error) {
+        console.error("Error fetching universes:", error);
+      }
+    };
+    fetchUniverses();
+  }, []);
 
-  const menuItems = [
-    {
-      title: "Create New Universe",
-      icon: <Orbit className="w-6 h-6" />,
-      description: "Start a new universe simulation with custom parameters",
-      action: () => navigate("/universe-creation"),
-      color: "bg-blue-500 hover:bg-blue-600",
-    },
-    {
-      title: "Active Simulations",
-      icon: <Clock className="w-6 h-6" />,
-      description: "View and manage your running universe simulations",
-      action: () => navigate("/simulation-dashboard"),
-      color: "bg-green-500 hover:bg-green-600",
-    },
-    {
-      title: "Simulation History",
-      icon: <History className="w-6 h-6" />,
-      description: "Browse through your past universe simulations",
-      action: () => console.log("History clicked"),
-      color: "bg-purple-500 hover:bg-purple-600",
-    },
-    {
-      title: "Achievements",
-      icon: <Award className="w-6 h-6" />,
-      description: "View your cosmic achievements and rewards",
-      action: () => console.log("Achievements clicked"),
-      color: "bg-yellow-500 hover:bg-yellow-600",
-    },
-    {
-      title: "Multiplayer Hub",
-      icon: <Users className="w-6 h-6" />,
-      description: "Collaborate with other universe creators",
-      action: () => console.log("Multiplayer clicked"),
-      color: "bg-pink-500 hover:bg-pink-600",
-    },
-    {
-      title: "Settings",
-      icon: <Settings className="w-6 h-6" />,
-      description: "Configure your simulation preferences",
-      action: () => console.log("Settings clicked"),
-      color: "bg-gray-500 hover:bg-gray-600",
-    },
-  ];
+  const handleDelete = async (id) => {
+    try {
+      await deleteUniverse(id);
+      setUniverses(universes.filter((u) => u._id !== id));
+    } catch (error) {
+      console.error("Failed to delete universe:", error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 pt-20">
-      {/* Welcome Section */}
       <div className="max-w-7xl mx-auto">
-        <h2 className="text-4xl font-bold mb-2">Welcome back, {user.username}!</h2>
-        <p className="text-gray-400 mb-8">Continue your journey as a universe creator</p>
+        <h2 className="text-4xl font-bold mb-2">Your Universes</h2>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          {stats.map((stat, index) => (
-            <div key={index} className="bg-gray-800 rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-blue-400">{stat.value}</div>
-              <div className="text-gray-400">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Main Menu Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {menuItems.map((item, index) => (
-            <button
-              key={index}
-              onClick={item.action}
-              className={`${item.color} rounded-lg p-6 text-left transition-all transform hover:scale-105`}
-            >
-              <div className="flex items-center gap-4 mb-2">
-                {item.icon}
-                <h3 className="text-xl font-semibold">{item.title}</h3>
+          {universes.length === 0 ? (
+            <p className="text-gray-400">No universes created yet.</p>
+          ) : (
+            universes.map((universe) => (
+              <div key={universe._id} className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-xl font-semibold">{universe.name}</h3>
+                <p className="text-gray-400">Difficulty: {universe.difficulty}</p>
+                <p className="text-gray-400">Age: {universe.currentState?.age || 0} years</p>
+                
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => navigate(`/simulation-dashboard/${universe._id}`)}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded"
+                  >
+                    View
+                  </button>
+                  <button
+                    onClick={() => handleDelete(universe._id)}
+                    className="px-4 py-2 bg-red-500 hover:bg-red-600 rounded"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <p className="text-gray-200 text-sm">{item.description}</p>
-            </button>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>

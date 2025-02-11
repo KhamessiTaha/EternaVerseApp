@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
+const universeRoutes = require("./routes/universe");
 
 
 dotenv.config();
@@ -16,6 +17,7 @@ app.use(cors());
 app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/universe", universeRoutes);
 
 app.get("/", (req, res) => {
   res.send("EternaVerseApp API is running...");

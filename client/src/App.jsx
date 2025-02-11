@@ -40,7 +40,7 @@ function App() {
           }
         />
         <Route
-          path="/simulation-dashboard"
+          path="/simulation-dashboard/:id"
           element={
             <ProtectedRoute>
               <SimulationDashboard />
