@@ -15,7 +15,7 @@ const constantsSchema = new mongoose.Schema({
   },
   speedOfLight: { 
     type: Number, 
-    default: 299792458,
+    default: 299792458, 
     validate: {
       validator: function(v) {
         return v >= 299000000 && v <= 300000000;
