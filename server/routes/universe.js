@@ -1,6 +1,8 @@
 const express = require("express");
 const Universe = require("../models/Universe");
 const verifyToken = require("../middleware/authMiddleware");
+const PhysicsEngine = require("../utils/physicsEngine");
+
 
 const router = express.Router();
 
@@ -16,6 +18,11 @@ router.post("/create", verifyToken, async (req, res) => {
       difficulty,
       constants,
       initialConditions,
+      currentState: {
+        age: 0,
+        expansionRate: 1.0,
+        entropy: 0.1,
+      },
     });
 
     await newUniverse.save();
@@ -56,6 +63,28 @@ router.put("/:id", verifyToken, async (req, res) => {
     );
     if (!updatedUniverse) return res.status(404).json({ message: "Universe not found" });
     res.json({ message: "Universe updated successfully", universe: updatedUniverse });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PROGRESS Universe Over Time
+router.put("/:id/progress", verifyToken, async (req, res) => {
+  try {
+    const universe = await Universe.findOne({ _id: req.params.id, userId: req.user.id });
+
+    if (!universe) {
+      return res.status(404).json({ message: "Universe not found" });
+    }
+
+    // Initialize the Physics Engine
+    const physicsEngine = new PhysicsEngine(universe);
+    const updatedUniverse = physicsEngine.simulateStep();
+
+    // Save the updated universe to the database
+    await updatedUniverse.save();
+
+    res.json({ message: "Universe progressed", universe: updatedUniverse });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
