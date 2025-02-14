@@ -3,142 +3,149 @@ const seedrandom = require("seedrandom");
 class PhysicsEngine {
   constructor(universe) {
     this.universe = universe;
-    this.timeStep = 10;
+    this.timeStep = 1e9; // 1 million years per step
     this.rng = seedrandom(universe.seed);
     this.constants = {
-      H0: 67.4 / 1e9, // Hubble Constant
+      H0: 67.4 / (3.09e19), // Hubble Constant in per second
       c: 299792458, // Speed of light
       G: 6.674e-11, // Gravitational constant
       darkMatterDensity: 0.26,
       darkEnergyDensity: 0.74,
-      criticalDensity: 2.7e-27, // kg/m³
+      criticalDensity: 8.62e-27, // kg/m³
       planckTemperature: 1.417e32, // Kelvin
+      observableGalaxies: 2e12, // Approximate number of galaxies in observable universe
+      averageStarsPerGalaxy: 1e11, // Average stars per galaxy
     };
   }
 
   updateExpansion() {
     const { H0, c } = this.constants;
-    const scaleFactor = Math.exp(H0 * this.universe.currentState.age);
     
-    // Update age and expansion
+    // Update age in years
     this.universe.currentState.age += this.timeStep;
-    this.universe.currentState.expansionRate = H0 * scaleFactor;
     
-    // Temperature evolution with more accurate cosmic cooling
-    this.universe.currentState.temperature = this.constants.planckTemperature / 
-      Math.pow(scaleFactor, 2);
+    // Calculate scale factor (normalized to current time)
+    const scaleFactor = Math.exp(H0 * this.universe.currentState.age * 365.25 * 24 * 3600);
     
-    // Entropy increases based on expansion and structure formation
-    const entropyIncrease = (0.02 * this.timeStep * 
-      (1 + this.universe.currentState.blackHoleCount / 1e6));
-    this.universe.currentState.entropy += entropyIncrease;
+    // Update expansion rate (H(t) = H0 * sqrt(Ωm/a³ + ΩΛ))
+    const matterTerm = this.constants.darkMatterDensity / Math.pow(scaleFactor, 3);
+    const darkEnergyTerm = this.constants.darkEnergyDensity;
+    this.universe.currentState.expansionRate = H0 * Math.sqrt(matterTerm + darkEnergyTerm);
     
-    // Relativistic time dilation
-    const velocityFraction = this.universe.currentState.expansionRate / c;
-    this.universe.currentState.timeDilation = velocityFraction < 1 ? 
-      1 / Math.sqrt(1 - Math.pow(velocityFraction, 2)) : 
-      Number.POSITIVE_INFINITY;
+    // Temperature evolution (T ∝ 1/a)
+    this.universe.currentState.temperature = 2.725 / scaleFactor; // Starting from current CMB temperature
+    
+    // Entropy increases logarithmically with universe expansion
+    this.universe.currentState.entropy += Math.log(1 + (this.timeStep / this.universe.currentState.age));
   }
 
   updateStructures() {
-    const { darkMatterDensity, criticalDensity } = this.constants;
+    const age = this.universe.currentState.age;
     
-    // Enhanced structure formation model
-    const currentDensity = criticalDensity / Math.pow(this.universe.currentState.expansionRate, 3);
-    const structureFormationEfficiency = Math.exp(-this.universe.currentState.age / 1000);
+    // No structure formation before 100 million years
+    if (age < 1e8) return;
     
-    // Galaxy formation based on matter density and cosmic web
-    const newGalaxies = (darkMatterDensity * currentDensity * 
-      structureFormationEfficiency * this.timeStep) / 1e5;
-    this.universe.currentState.galaxyCount += newGalaxies;
+    // Galaxy formation rate (peaks at 2-3 billion years, then declines)
+    const galaxyPeakAge = 2.5e9;
+    const galaxyFormationRate = Math.exp(-(Math.pow(age - galaxyPeakAge, 2) / (2 * Math.pow(2e9, 2))));
     
-    // Star formation with feedback mechanisms
-    const stellarFeedback = 1 - (this.universe.currentState.blackHoleCount / 
-      this.universe.currentState.starCount || 0);
-    const newStars = (this.universe.currentState.galaxyCount * 
-      0.01 * stellarFeedback * this.timeStep) / 1e3;
-    this.universe.currentState.starCount += newStars;
+    // Target total galaxies based on observable universe
+    const targetGalaxies = this.constants.observableGalaxies * 
+      Math.min(Math.pow(age / 13.8e9, 3), 1); // Scale based on current universe age
     
-    // Black hole formation with merger events
-    const mergerRate = this.universe.currentState.blackHoleCount * 
-      (this.universe.currentState.galaxyCount / 1e5) * this.timeStep;
-    const newBlackHoles = (newStars * 0.001) + (mergerRate * 0.1);
-    this.universe.currentState.blackHoleCount += newBlackHoles;
+    // Smooth approach to target galaxy count
+    const galaxyDelta = (targetGalaxies - this.universe.currentState.galaxyCount) * 
+      (galaxyFormationRate * this.timeStep / 1e9);
+    this.universe.currentState.galaxyCount += Math.max(0, galaxyDelta);
+    
+    // Star formation rate (peaks around 10 billion years)
+    const starPeakAge = 10e9;
+    const starFormationRate = Math.exp(-(Math.pow(age - starPeakAge, 2) / (2 * Math.pow(5e9, 2))));
+    
+    // Target stars based on average per galaxy
+    const targetStars = this.universe.currentState.galaxyCount * 
+      this.constants.averageStarsPerGalaxy;
+    
+    const starDelta = (targetStars - this.universe.currentState.starCount) * 
+      (starFormationRate * this.timeStep / 1e9);
+    this.universe.currentState.starCount += Math.max(0, starDelta);
+    
+    // Black hole formation (approximately 0.01% of stars end up as black holes)
+    this.universe.currentState.blackHoleCount = this.universe.currentState.starCount * 0.0001;
   }
 
   updateLifeEvolution() {
-    // Enhanced Drake equation implementation
-    const starLifespan = 1e4; // Average stellar lifetime in MY
-    const metallicity = Math.min(this.universe.currentState.age / 1000, 1);
-    const habitableZoneFraction = 0.02 * metallicity;
+    const age = this.universe.currentState.age;
     
-    // Calculate habitable systems based on stellar evolution
-    const newHabitableSystems = (this.universe.currentState.starCount * 
-      habitableZoneFraction * (1 - Math.exp(-this.timeStep / starLifespan)));
-    this.universe.currentState.habitableSystemsCount += newHabitableSystems;
+    // No life before 1 billion years
+    if (age < 1e9) return;
     
-    // Life emergence with environmental factors
-    const temperatureFactor = this.getTemperatureSuitability();
-    const stabilityFactor = Math.pow(this.universe.currentState.stabilityIndex, 2);
-    const lifeProbability = 0.0001 * temperatureFactor * stabilityFactor;
+    // Metallicity builds up over time
+    const metallicity = Math.min((age - 1e9) / 1e10, 1);
     
-    // Update life-bearing planets
-    const newLifeBearingPlanets = this.universe.currentState.habitableSystemsCount * 
-      lifeProbability * this.timeStep / 100;
-    this.universe.currentState.lifeBearingPlanetsCount += newLifeBearingPlanets;
+    // Only 1% of stars might support habitable zones
+    const habitableZoneFraction = 0.01 * metallicity;
     
-    // Civilization evolution with technological advancement
-    const techAdvancementRate = 0.00001 * Math.pow(this.universe.currentState.age / 1000, 0.5);
-    this.universe.currentState.civilizationCount += 
-      (this.universe.currentState.lifeBearingPlanetsCount * 
-       techAdvancementRate * this.timeStep) / 1e6;
+    // Calculate habitable systems
+    this.universe.currentState.habitableSystemsCount = 
+      this.universe.currentState.starCount * habitableZoneFraction;
+    
+    // Extremely rare chance for life to emerge (1 in 1 billion habitable systems)
+    const lifeProbability = 1e-9 * this.getTemperatureSuitability() * metallicity;
+    
+    // Calculate life-bearing planets
+    this.universe.currentState.lifeBearingPlanetsCount = 
+      this.universe.currentState.habitableSystemsCount * lifeProbability;
+    
+    // Even rarer chance for civilizations (1 in 1 billion life-bearing planets)
+    const civProbability = 1e-9;
+    this.universe.currentState.civilizationCount = 
+      Math.floor(this.universe.currentState.lifeBearingPlanetsCount * civProbability);
   }
 
   getTemperatureSuitability() {
-    const optimalTemp = 300; // K
     const temp = this.universe.currentState.temperature;
-    return Math.exp(-Math.pow((Math.log10(temp) - Math.log10(optimalTemp)), 2) / 2);
+    const optimalTemp = 300; // K
+    return Math.exp(-Math.pow((temp - optimalTemp) / 100, 2));
   }
 
   updateStability() {
-    const maxEntropy = 1e12;
-    const entropyFactor = 1 - (this.universe.currentState.entropy / maxEntropy);
-    const expansionFactor = 1 / (1 + Math.pow(this.universe.currentState.expansionRate, 2));
-    const structureFactor = Math.min(this.universe.currentState.galaxyCount / 1e5, 1);
+    const age = this.universe.currentState.age;
+    
+    // Stability decreases very slowly over time due to entropy increase
+    const entropyFactor = Math.exp(-this.universe.currentState.entropy / 1e12);
+    
+    // Structure formation contributes to stability
+    const structureFactor = Math.min(this.universe.currentState.galaxyCount / 
+      this.constants.observableGalaxies, 1);
+    
+    // Dark energy becomes more dominant over time
+    const darkEnergyFactor = Math.exp(-age / 1e14);
     
     this.universe.currentState.stabilityIndex = 
-      (entropyFactor + expansionFactor + structureFactor) / 3;
+      (entropyFactor + structureFactor + darkEnergyFactor) / 3;
   }
 
   generateAnomalies() {
+    // Only generate anomalies every 100 million years on average
+    if (this.rng() > this.timeStep / 1e8) return;
+    
     const anomalyTypes = {
       blackHoleMerger: {
-        probability: this.universe.currentState.blackHoleCount / 1e6,
-        effects: {
-          gravitationalWaves: true,
-          localSpacetimeDistortion: true
-        }
+        probability: 0.4 * (this.universe.currentState.blackHoleCount / 1e8),
+        effects: { gravitationalWaves: true }
       },
       darkEnergySurge: {
-        probability: this.constants.darkEnergyDensity / 0.7,
-        effects: {
-          expansionRateIncrease: true,
-          localVoidFormation: true
-        }
+        probability: 0.1 * this.constants.darkEnergyDensity,
+        effects: { expansionRateIncrease: true }
       },
       supernovaChain: {
-        probability: this.universe.currentState.starCount / 1e10,
-        effects: {
-          metalEnrichment: true,
-          neighboringStarDestabilization: true
-        }
+        probability: 0.3 * (this.universe.currentState.starCount / 1e12),
+        effects: { metalEnrichment: true }
       },
       quantumTunneling: {
-        probability: this.universe.currentState.entropy / 1e12,
-        effects: {
-          localEntropyDecrease: true,
-          smallScaleFluctuations: true
-        }
+        probability: 0.2,
+        effects: { localEntropyDecrease: true }
       }
     };
 
@@ -148,7 +155,7 @@ class PhysicsEngine {
         type,
         severity: Math.round(this.rng() * 10),
         effects: data.effects,
-        timestamp: this.universe.currentState.age
+        timestamp: new Date(this.universe.currentState.age * 1000)
       }));
 
     this.universe.anomalies = [...this.universe.anomalies, ...newAnomalies];
