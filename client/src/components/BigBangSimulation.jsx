@@ -163,7 +163,7 @@ const BigBangSimulation = () => {
               anchorX="center"
               anchorY="middle"
             >
-              Pre-Big Bang
+              Pre-Big Bang ... (Nothing To See here) 
             </Text>
             <OrbitControls 
               enablePan={true}
