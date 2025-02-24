@@ -9,6 +9,7 @@ import UniverseCreation from "./pages/UniverseCreation";
 import SimulationDashboard from "./pages/SimulationDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NavHeader from "./components/NavHeader";
+import BigBangPage from "./pages/BigBangPage";
 import './index.css'; 
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
         <Route path="/register" element={!user ? <Register /> : <Navigate to="/login" />} />
+        <Route path="/big-bang" element={<BigBangPage />} />
 
         {/* Protected Routes */}
         <Route
