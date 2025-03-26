@@ -144,7 +144,7 @@ const BigBangSimulation = () => {
             ))}
           </div>
         </div>
-      )}
+      )} 
 
       {/* Right Sidebar - Composition and Elemental Abundance */}
       <div className="absolute top-16 right-0 z-10 bg-black bg-opacity-70 p-4 rounded-l-lg">
