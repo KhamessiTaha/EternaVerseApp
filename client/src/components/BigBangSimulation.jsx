@@ -111,16 +111,6 @@ const BigBangSimulation = () => {
           >
             {autoPlay ? "Manual Control" : "Auto Play"}
           </button>
-          <input
-            type="range"
-            min="0.1"
-            max="10"
-            step="0.1"
-            value={timeScale}
-            onChange={(e) => setTimeScale(parseFloat(e.target.value))}
-            className="w-24"
-          />
-          <span className="text-white text-sm">{timeScale}x</span>
         </div>
       </div>
 
