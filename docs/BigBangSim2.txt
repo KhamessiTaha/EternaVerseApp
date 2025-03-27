@@ -1,0 +1,906 @@
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useRef, useState, useMemo, useEffect, forwardRef } from "react";
+import { Points, PointMaterial, Text, OrbitControls, Stars, Sky } from "@react-three/drei";
+import * as THREE from "three";
+import { EffectComposer, Bloom, Noise } from "@react-three/postprocessing";
+import { Physics, usePlane, useBox } from "@react-three/cannon";
+
+// Constants based on your database structure
+const PHYSICAL_CONSTANTS = {
+  gravitationalConstant: 6.6743e-11,
+  speedOfLight: 299792458,
+  planckConstant: 6.626e-34,
+  fineStructureConstant: 0.007297,
+  darkEnergyDensity: 0.7,
+  darkMatterDensity: 0.26,
+  matterDensity: 0.04
+};
+
+const INITIAL_CONDITIONS = {
+  matterAntimatterRatio: 1.0000001,
+  quantumFluctuations: 0.00001,
+  cosmicInflationRate: 1,
+  initialTemperature: 1e32,
+  initialDensity: 1e97
+};
+
+const BigBangSimulation = ({ universe, onStageChange, onAnomalyDetected }) => {
+  const [stage, setStage] = useState("quantum-fluctuations");
+  const [paused, setPaused] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
+  const [resetAnimation, setResetAnimation] = useState(0);
+  const [anomalies, setAnomalies] = useState([]);
+  const [stabilityIndex, setStabilityIndex] = useState(1.0);
+  const [cosmicTime, setCosmicTime] = useState(0);
+  const [temperature, setTemperature] = useState(INITIAL_CONDITIONS.initialTemperature);
+  const [density, setDensity] = useState(INITIAL_CONDITIONS.initialDensity);
+  const [expansionRate, setExpansionRate] = useState(0);
+  const [matterRatio, setMatterRatio] = useState(INITIAL_CONDITIONS.matterAntimatterRatio);
+  const [quantumFlux, setQuantumFlux] = useState(INITIAL_CONDITIONS.quantumFluctuations);
+  const [inflationRate, setInflationRate] = useState(INITIAL_CONDITIONS.cosmicInflationRate);
+  const [particleCounts, setParticleCounts] = useState({
+    quarks: 0,
+    leptons: 0,
+    bosons: 0,
+    hadrons: 0,
+    atoms: 0
+  });
+
+  // Simulation parameters from universe object
+  useEffect(() => {
+    if (universe) {
+      setMatterRatio(universe.initialConditions.matterAntimatterRatio);
+      setQuantumFlux(universe.initialConditions.quantumFluctuations);
+      setInflationRate(universe.initialConditions.cosmicInflationRate);
+      setTemperature(universe.currentState.temperature);
+      setStabilityIndex(universe.currentState.stabilityIndex);
+    }
+  }, [universe]);
+
+  // Cosmic evolution timer
+  useEffect(() => {
+    let timer;
+    if (!paused) {
+      timer = setInterval(() => {
+        setCosmicTime(prev => prev + 1);
+        
+        // Update physical parameters based on time
+        const newTemp = INITIAL_CONDITIONS.initialTemperature / (1 + cosmicTime * 0.01);
+        setTemperature(newTemp);
+        
+        const newDensity = INITIAL_CONDITIONS.initialDensity / (1 + cosmicTime * 0.05);
+        setDensity(newDensity);
+        
+        // Calculate expansion rate based on dark energy and matter density
+        const expansion = Math.sqrt(
+          PHYSICAL_CONSTANTS.darkEnergyDensity + 
+          (PHYSICAL_CONSTANTS.matterDensity / Math.pow(1 + cosmicTime * 0.001, 3))
+        );
+        setExpansionRate(expansion);
+        
+        // Update particle counts as universe evolves
+        if (cosmicTime > 10 && cosmicTime < 100) {
+          setParticleCounts({
+            quarks: Math.floor(1e6 * (1 - Math.exp(-cosmicTime * 0.1))),
+            leptons: Math.floor(5e5 * (1 - Math.exp(-cosmicTime * 0.08))),
+            bosons: Math.floor(2e5 * (1 - Math.exp(-cosmicTime * 0.05))),
+            hadrons: 0,
+            atoms: 0
+          });
+        } else if (cosmicTime >= 100 && cosmicTime < 1000) {
+          setParticleCounts({
+            quarks: 1e6,
+            leptons: 5e5,
+            bosons: 2e5,
+            hadrons: Math.floor(5e5 * (1 - Math.exp(-(cosmicTime-100) * 0.01))),
+            atoms: 0
+          });
+        } else if (cosmicTime >= 1000) {
+          setParticleCounts({
+            quarks: 1e6,
+            leptons: 5e5,
+            bosons: 2e5,
+            hadrons: 5e5,
+            atoms: Math.floor(1e5 * (1 - Math.exp(-(cosmicTime-1000) * 0.001)))
+          });
+        }
+        
+        // Check for anomalies based on stability index
+        if (Math.random() < (1 - stabilityIndex) * 0.1) {
+          const newAnomaly = generateAnomaly(cosmicTime);
+          setAnomalies(prev => [...prev, newAnomaly]);
+          if (onAnomalyDetected) onAnomalyDetected(newAnomaly);
+        }
+        
+        // Update stability index
+        setStabilityIndex(prev => {
+          const newStability = prev * 0.999; // Natural decay
+          // Apply effects from anomalies
+          const anomalyEffect = anomalies.reduce((acc, anomaly) => 
+            acc * (1 - anomaly.severity * 0.01), 1);
+          return Math.max(0, Math.min(1, newStability * anomalyEffect));
+        });
+      }, 100);
+    }
+    return () => clearInterval(timer);
+  }, [paused, cosmicTime, stabilityIndex, anomalies, onAnomalyDetected]);
+
+  const generateAnomaly = (time) => {
+    const anomalyTypes = [
+      "quantum-fluctuation",
+      "dark-energy-surge",
+      "black-hole-merger",
+      "false-vacuum-decay",
+      "matter-antimatter-imbalance"
+    ];
+    const type = anomalyTypes[Math.floor(Math.random() * anomalyTypes.length)];
+    const severity = Math.random() * 0.5 + 0.1 * (time / 1000);
+    
+    return {
+      type,
+      severity,
+      location: [Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50],
+      time: cosmicTime,
+      resolved: false
+    };
+  };
+
+  const resolveAnomaly = (index) => {
+    setAnomalies(prev => {
+      const newAnomalies = [...prev];
+      newAnomalies[index].resolved = true;
+      return newAnomalies;
+    });
+    setStabilityIndex(prev => Math.min(1, prev + 0.05));
+  };
+
+  const stageTimings = {
+    "quantum-fluctuations": 4000,
+    "inflation": 3000,
+    "reheating": 4000,
+    "particle-formation": 5000,
+    "nucleosynthesis": 5000,
+    "cmb-formation": 5000,
+    "structure-formation": 6000,
+    "galaxy-formation": 7000,
+    "stellar-evolution": 8000,
+    "planetary-formation": 9000,
+    "life-emergence": 10000
+  };
+
+  const handleStageChange = (newStage) => {
+    setStage(newStage);
+    setResetAnimation(prev => prev + 1);
+    if (onStageChange) onStageChange(newStage);
+  };
+
+  const togglePause = () => setPaused(!paused);
+  const toggleInfo = () => setShowInfo(!showInfo);
+
+  const stageInfo = {
+    "quantum-fluctuations": "Quantum fluctuations represent tiny variations in energy that appear and disappear due to the Heisenberg uncertainty principle, setting the stage for the birth of our universe.",
+    "inflation": "During cosmic inflation, the universe expanded exponentially, doubling in size every 10⁻³⁴ seconds. This rapid expansion smoothed out irregularities but preserved quantum fluctuations that would later form galaxies.",
+    "reheating": "As inflation ended, the energy that drove it was converted into a hot, dense plasma of particles and radiation, reheating the universe to extreme temperatures.",
+    "particle-formation": "As the universe cooled, quarks combined to form protons and neutrons. Electrons, photons, and neutrinos also emerged during this era.",
+    "nucleosynthesis": "Within the first three minutes after the Big Bang, protons and neutrons fused to form the nuclei of light elements: primarily hydrogen (75%) and helium (25%), with trace amounts of lithium.",
+    "cmb-formation": "After nucleosynthesis, the universe continued to expand and cool. Around 380,000 years after the Big Bang, it became cool enough for electrons to combine with nuclei, forming neutral atoms. This allowed photons to travel freely, creating the Cosmic Microwave Background (CMB).",
+    "structure-formation": "Matter begins to clump together under gravity, forming the first large-scale structures in the universe.",
+    "galaxy-formation": "Gas clouds collapse to form the first protogalaxies, which will evolve into the diverse galaxies we see today.",
+    "stellar-evolution": "The first stars ignite, fusing hydrogen into heavier elements and seeding the universe with the building blocks of planets and life.",
+    "planetary-formation": "Dust and gas around young stars coalesce into protoplanetary disks, forming planets, asteroids, and other celestial bodies.",
+    "life-emergence": "Under the right conditions, complex molecules form and self-organize into the first primitive life forms."
+  };
+
+  return (
+    <div className="w-full h-screen bg-black relative">
+      {/* Top Bar */}
+      <div className="absolute top-0 left-0 right-0 z-10 bg-black bg-opacity-70 p-4 flex justify-between items-center">
+        <div className="flex items-center space-x-4">
+          <h2 className="text-xl font-bold text-white">
+            {stage.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} 
+            (T+{cosmicTime.toExponential(2)}s)
+          </h2>
+          <button
+            onClick={toggleInfo}
+            className="px-4 py-2 rounded bg-indigo-700 hover:bg-indigo-600 text-white text-sm transition-all duration-200"
+          >
+            {showInfo ? "Hide Info" : "Show Info"}
+          </button>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={togglePause}
+            className="px-4 py-2 rounded bg-indigo-700 hover:bg-indigo-600 text-white text-sm transition-all duration-200"
+          >
+            {paused ? "Resume" : "Pause"}
+          </button>
+          <div className="px-4 py-2 text-white text-sm">
+            Stability: {(stabilityIndex * 100).toFixed(1)}%
+          </div>
+          <div className="px-4 py-2 text-white text-sm">
+            Temp: {temperature.toExponential(2)} K
+          </div>
+        </div>
+      </div>
+
+      {/* Left Sidebar - Universe Parameters */}
+      <div className="absolute top-16 left-0 z-10 bg-black bg-opacity-70 p-4 rounded-r-lg w-64">
+        <h3 className="text-lg font-bold mb-2 text-white">Universe Parameters</h3>
+        <div className="text-sm text-white space-y-1">
+          <p>Age: {(cosmicTime / 3.154e7).toExponential(2)} years</p>
+          <p>Expansion Rate: {expansionRate.toExponential(2)}</p>
+          <p>Matter Ratio: {matterRatio.toFixed(7)}</p>
+          <p>Quantum Flux: {quantumFlux.toExponential(2)}</p>
+          <p>Inflation Rate: {inflationRate.toFixed(2)}</p>
+          
+          <h4 className="font-bold mt-2">Particle Counts</h4>
+          <p>Quarks: {particleCounts.quarks.toExponential(2)}</p>
+          <p>Leptons: {particleCounts.leptons.toExponential(2)}</p>
+          <p>Bosons: {particleCounts.bosons.toExponential(2)}</p>
+          <p>Hadrons: {particleCounts.hadrons.toExponential(2)}</p>
+          <p>Atoms: {particleCounts.atoms.toExponential(2)}</p>
+        </div>
+      </div>
+
+      {/* Right Sidebar - Anomalies */}
+      <div className="absolute top-16 right-0 z-10 bg-black bg-opacity-70 p-4 rounded-l-lg w-64">
+        <h3 className="text-lg font-bold mb-2 text-white">Active Anomalies</h3>
+        <div className="text-sm text-white space-y-2 max-h-96 overflow-y-auto">
+          {anomalies.length === 0 ? (
+            <p>No active anomalies</p>
+          ) : (
+            anomalies.map((anomaly, index) => (
+              <div 
+                key={index} 
+                className={`p-2 rounded ${anomaly.resolved ? 'bg-green-900' : 'bg-red-900'}`}
+              >
+                <p>{anomaly.type.replace(/-/g, ' ')}</p>
+                <p>Severity: {(anomaly.severity * 100).toFixed(1)}%</p>
+                {!anomaly.resolved && (
+                  <button 
+                    onClick={() => resolveAnomaly(index)}
+                    className="mt-1 px-2 py-1 bg-blue-600 rounded text-xs"
+                  >
+                    Resolve
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Current Stage Info */}
+      {showInfo && (
+        <div className="absolute bottom-4 left-4 z-10 bg-black bg-opacity-70 p-4 rounded-lg max-w-md">
+          <p className="text-sm text-white">{stageInfo[stage]}</p>
+        </div>
+      )}
+
+      {/* Canvas for Simulation */}
+      <Canvas camera={{ position: [0, 0, 35], fov: 60 }}>
+        <color attach="background" args={["#000000"]} />
+        <ambientLight intensity={0.1} />
+        <pointLight
+          position={[0, 0, 0]}
+          intensity={5}
+          color={stage === "reheating" ? "#ffcc00" : "#ffaa44"}
+          distance={200}
+        />
+        
+        <Universe
+          stage={stage}
+          paused={paused}
+          resetAnimation={resetAnimation}
+          timeScale={1}
+          anomalies={anomalies}
+          stabilityIndex={stabilityIndex}
+          temperature={temperature}
+          expansionRate={expansionRate}
+          particleCounts={particleCounts}
+        />
+        
+        <OrbitControls
+          enablePan={true}
+          enableZoom={true}
+          enableRotate={true}
+          minDistance={5}
+          maxDistance={500}
+        />
+        
+        <EffectComposer>
+          <Bloom
+            intensity={1.5}
+            kernelSize={3}
+            luminanceThreshold={0.4}
+            luminanceSmoothing={0.2}
+          />
+          <Noise opacity={0.02} />
+        </EffectComposer>
+      </Canvas>
+    </div>
+  );
+};
+
+const Universe = ({ 
+  stage, 
+  paused, 
+  resetAnimation, 
+  timeScale, 
+  anomalies,
+  stabilityIndex,
+  temperature,
+  expansionRate,
+  particleCounts
+}) => {
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  const { camera } = useThree();
+
+  // Refs for different particle systems
+  const quantumRef = useRef();
+  const inflationRef = useRef();
+  const particlesRef = useRef();
+  const galaxiesRef = useRef();
+  const anomalyRefs = useRef([]);
+
+  // Update anomaly refs when anomalies change
+  useEffect(() => {
+    anomalyRefs.current = anomalyRefs.current.slice(0, anomalies.length);
+  }, [anomalies]);
+
+  useFrame((_, delta) => {
+    if (!paused) {
+      setTimeElapsed(prev => prev + delta * timeScale);
+    }
+
+    // Animate camera based on stage
+    if (stage === "quantum-fluctuations") {
+      camera.position.lerp(new THREE.Vector3(0, 0, 5), 0.01);
+    } else if (stage === "inflation" || stage === "reheating") {
+      camera.position.lerp(new THREE.Vector3(0, 0, 10), 0.01);
+    } else if (stage === "particle-formation" || stage === "nucleosynthesis") {
+      camera.position.lerp(new THREE.Vector3(0, 0, 20), 0.01);
+    } else if (stage === "cmb-formation") {
+      camera.position.lerp(new THREE.Vector3(0, 0, 30), 0.01);
+    } else if (stage === "structure-formation" || stage === "galaxy-formation") {
+      camera.position.lerp(new THREE.Vector3(0, 0, 50), 0.01);
+    } else {
+      camera.position.lerp(new THREE.Vector3(0, 0, 100), 0.01);
+    }
+  });
+
+  // Temperature to color mapping
+  const temperatureToColor = (temp) => {
+    // Normalize temperature to 0-1 range (log scale)
+    const t = Math.log10(temp / 2.725 + 1) / 12;
+    const r = Math.min(1, Math.max(0, 0.8 + t * 0.5));
+    const g = Math.min(1, Math.max(0, 0.5 - Math.abs(t - 0.5) * 1.5));
+    const b = Math.min(1, Math.max(0, 1 - t * 1.2));
+    return new THREE.Color(r, g, b);
+  };
+
+  // Generate quantum fluctuation particles
+  const quantumCount = 200;
+  const quantumData = useMemo(() => {
+    const positions = new Float32Array(quantumCount * 3);
+    const sizes = new Float32Array(quantumCount);
+    const colors = new Float32Array(quantumCount * 3);
+
+    for (let i = 0; i < quantumCount; i++) {
+      positions[i * 3] = (Math.random() - 0.5) * 0.1;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 0.1;
+
+      sizes[i] = 0.05 + Math.random() * 0.1;
+
+      const tempColor = temperatureToColor(INITIAL_CONDITIONS.initialTemperature);
+      colors[i * 3] = tempColor.r * (0.9 + Math.random() * 0.1);
+      colors[i * 3 + 1] = tempColor.g * (0.9 + Math.random() * 0.1);
+      colors[i * 3 + 2] = tempColor.b * (0.9 + Math.random() * 0.1);
+    }
+
+    return { positions, sizes, colors };
+  }, []);
+
+  // Generate inflation particles
+  const inflationCount = 10000;
+  const inflationData = useMemo(() => {
+    const positions = new Float32Array(inflationCount * 3);
+    const colors = new Float32Array(inflationCount * 3);
+    const sizes = new Float32Array(inflationCount);
+
+    for (let i = 0; i < inflationCount; i++) {
+      positions[i * 3] = 0;
+      positions[i * 3 + 1] = 0;
+      positions[i * 3 + 2] = 0;
+
+      const tempColor = temperatureToColor(INITIAL_CONDITIONS.initialTemperature * 0.1);
+      colors[i * 3] = tempColor.r * (0.8 + Math.random() * 0.2);
+      colors[i * 3 + 1] = tempColor.g * (0.8 + Math.random() * 0.2);
+      colors[i * 3 + 2] = tempColor.b * (0.8 + Math.random() * 0.2);
+
+      sizes[i] = 0.03 + Math.random() * 0.03;
+    }
+
+    return { positions, colors, sizes };
+  }, []);
+
+  // Generate particles for later stages
+  const particleCount = 20000;
+  const particleData = useMemo(() => {
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
+    const velocities = new Float32Array(particleCount * 3);
+    const types = new Uint8Array(particleCount);
+
+    for (let i = 0; i < particleCount; i++) {
+      positions[i * 3] = 0;
+      positions[i * 3 + 1] = 0;
+      positions[i * 3 + 2] = 0;
+
+      velocities[i * 3] = (Math.random() - 0.5) * 0.001;
+      velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.001;
+      velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.001;
+
+      const typeRoll = Math.random();
+      if (typeRoll < 0.75) {
+        types[i] = 0; // hydrogen
+        colors[i * 3] = 0.6 + Math.random() * 0.2;
+        colors[i * 3 + 1] = 0.7 + Math.random() * 0.2;
+        colors[i * 3 + 2] = 0.9 + Math.random() * 0.1;
+      } else if (typeRoll < 0.99) {
+        types[i] = 1; // helium
+        colors[i * 3] = 0.8 + Math.random() * 0.1;
+        colors[i * 3 + 1] = 0.8 + Math.random() * 0.1;
+        colors[i * 3 + 2] = 0.6 + Math.random() * 0.1;
+      } else {
+        types[i] = 2; // lithium
+        colors[i * 3] = 0.9 + Math.random() * 0.1;
+        colors[i * 3 + 1] = 0.3 + Math.random() * 0.2;
+        colors[i * 3 + 2] = 0.1 + Math.random() * 0.1;
+      }
+
+      sizes[i] = Math.random() * 0.05 + 0.01;
+    }
+
+    return { positions, colors, sizes, velocities, types };
+  }, []);
+
+  // Generate galaxies for later stages
+  const galaxyCount = 1000;
+  const galaxyData = useMemo(() => {
+    const positions = new Float32Array(galaxyCount * 3);
+    const colors = new Float32Array(galaxyCount * 3);
+    const sizes = new Float32Array(galaxyCount);
+    const rotations = new Float32Array(galaxyCount * 3);
+
+    for (let i = 0; i < galaxyCount; i++) {
+      // Position galaxies in a web-like structure
+      const r = Math.pow(Math.random(), 2) * 100;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = r * Math.cos(phi);
+
+      // Color based on galaxy type (spiral, elliptical, irregular)
+      const galaxyType = Math.random();
+      if (galaxyType < 0.7) {
+        // Spiral - blueish
+        colors[i * 3] = 0.4 + Math.random() * 0.3;
+        colors[i * 3 + 1] = 0.5 + Math.random() * 0.3;
+        colors[i * 3 + 2] = 0.8 + Math.random() * 0.2;
+      } else if (galaxyType < 0.9) {
+        // Elliptical - yellowish
+        colors[i * 3] = 0.8 + Math.random() * 0.2;
+        colors[i * 3 + 1] = 0.7 + Math.random() * 0.2;
+        colors[i * 3 + 2] = 0.4 + Math.random() * 0.2;
+      } else {
+        // Irregular - reddish
+        colors[i * 3] = 0.8 + Math.random() * 0.2;
+        colors[i * 3 + 1] = 0.4 + Math.random() * 0.2;
+        colors[i * 3 + 2] = 0.4 + Math.random() * 0.2;
+      }
+
+      sizes[i] = 0.5 + Math.random() * 1.5;
+      
+      // Random rotation
+      rotations[i * 3] = Math.random() * Math.PI * 2;
+      rotations[i * 3 + 1] = Math.random() * Math.PI * 2;
+      rotations[i * 3 + 2] = Math.random() * Math.PI * 2;
+    }
+
+    return { positions, colors, sizes, rotations };
+  }, []);
+
+  // Particle texture
+  const particleTexture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const context = canvas.getContext("2d");
+
+    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
+    gradient.addColorStop(0.2, "rgba(240, 240, 255, 0.9)");
+    gradient.addColorStop(0.5, "rgba(160, 180, 255, 0.5)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 128, 128);
+
+    return new THREE.CanvasTexture(canvas);
+  }, []);
+
+  // Galaxy texture
+  const galaxyTexture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const context = canvas.getContext("2d");
+
+    // Create spiral galaxy pattern
+    for (let i = 0; i < 360; i += 5) {
+      const angle = (i * Math.PI) / 180;
+      const radius = 100;
+      const x = 128 + Math.cos(angle) * radius;
+      const y = 128 + Math.sin(angle) * radius;
+
+      const spiralGradient = context.createRadialGradient(128, 128, 10, x, y, 30);
+      spiralGradient.addColorStop(0, `rgba(255, 255, 255, ${0.8 - i/500})`);
+      spiralGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+
+      context.fillStyle = spiralGradient;
+      context.beginPath();
+      context.arc(x, y, 30, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    // Add central bulge
+    const bulgeGradient = context.createRadialGradient(128, 128, 0, 128, 128, 30);
+    bulgeGradient.addColorStop(0, "rgba(255, 255, 200, 1)");
+    bulgeGradient.addColorStop(1, "rgba(100, 100, 50, 0)");
+
+    context.fillStyle = bulgeGradient;
+    context.beginPath();
+    context.arc(128, 128, 30, 0, Math.PI * 2);
+    context.fill();
+
+    return new THREE.CanvasTexture(canvas);
+  }, []);
+
+  // Animate quantum fluctuations
+  useFrame(() => {
+    if (paused) return;
+
+    if (stage === "quantum-fluctuations" && quantumRef.current) {
+      const positions = quantumRef.current.geometry.attributes.position.array;
+      const colors = quantumRef.current.geometry.attributes.color.array;
+      const sizes = quantumRef.current.geometry.attributes.size.array;
+
+      for (let i = 0; i < quantumCount; i++) {
+        const idx = i * 3;
+
+        if (Math.random() < 0.1) {
+          const r = Math.random() * 2;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos((Math.random() * 2) - 1);
+
+          positions[idx] = r * Math.sin(phi) * Math.cos(theta) * 0.5;
+          positions[idx + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.5;
+          positions[idx + 2] = r * Math.cos(phi) * 0.5;
+
+          const tempColor = temperatureToColor(temperature);
+          colors[idx] = tempColor.r * (0.9 + Math.random() * 0.1);
+          colors[idx + 1] = tempColor.g * (0.9 + Math.random() * 0.1);
+          colors[idx + 2] = tempColor.b * (0.9 + Math.random() * 0.1);
+
+          sizes[i] = 0.05 + Math.random() * 0.1;
+        } else if (Math.random() < 0.15) {
+          positions[idx] = (Math.random() - 0.5) * 0.1;
+          positions[idx + 1] = (Math.random() - 0.5) * 0.1;
+          positions[idx + 2] = (Math.random() - 0.5) * 0.1;
+          sizes[i] = 0;
+        }
+      }
+
+      quantumRef.current.geometry.attributes.position.needsUpdate = true;
+      quantumRef.current.geometry.attributes.color.needsUpdate = true;
+      quantumRef.current.geometry.attributes.size.needsUpdate = true;
+    }
+  });
+
+  // Animate inflation and reheating
+  useFrame(() => {
+    if (paused) return;
+
+    if ((stage === "inflation" || stage === "reheating") && inflationRef.current) {
+      const positions = inflationRef.current.geometry.attributes.position.array;
+      const sizes = inflationRef.current.geometry.attributes.size.array;
+      const colors = inflationRef.current.geometry.attributes.color.array;
+
+      const expansionRate = stage === "inflation" ? 1.3 : 1.05;
+
+      for (let i = 0; i < inflationCount; i++) {
+        const idx = i * 3;
+        const x = positions[idx];
+        const y = positions[idx + 1];
+        const z = positions[idx + 2];
+
+        if (stage === "inflation") {
+          if (x === 0 && y === 0 && z === 0 && Math.random() < 0.4) {
+            const r = 0.1;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+
+            positions[idx] = r * Math.sin(phi) * Math.cos(theta);
+            positions[idx + 1] = r * Math.sin(phi) * Math.sin(theta);
+            positions[idx + 2] = r * Math.cos(phi);
+          } else if (x !== 0 || y !== 0 || z !== 0) {
+            positions[idx] *= expansionRate;
+            positions[idx + 1] *= expansionRate;
+            positions[idx + 2] *= expansionRate;
+          }
+        } else if (stage === "reheating") {
+          if (x !== 0 || y !== 0 || z !== 0) {
+            positions[idx] *= expansionRate;
+            positions[idx + 1] *= expansionRate;
+            positions[idx + 2] *= expansionRate;
+
+            const tempColor = temperatureToColor(temperature);
+            colors[idx] = tempColor.r * (0.9 + Math.random() * 0.1);
+            colors[idx + 1] = tempColor.g * (0.9 + Math.random() * 0.1);
+            colors[idx + 2] = tempColor.b * (0.9 + Math.random() * 0.1);
+
+            sizes[i] = Math.min(0.15, sizes[i] + 0.001);
+          }
+        }
+      }
+
+      inflationRef.current.geometry.attributes.position.needsUpdate = true;
+      inflationRef.current.geometry.attributes.color.needsUpdate = true;
+      inflationRef.current.geometry.attributes.size.needsUpdate = true;
+    }
+  });
+
+  // Animate particles and galaxies
+  useFrame(() => {
+    if (paused) return;
+
+    if (
+      (stage === "particle-formation" || stage === "nucleosynthesis" || 
+       stage === "cmb-formation" || stage === "structure-formation") &&
+      particlesRef.current
+    ) {
+      const positions = particlesRef.current.geometry.attributes.position.array;
+      const colors = particlesRef.current.geometry.attributes.color.array;
+      const sizes = particlesRef.current.geometry.attributes.size.array;
+
+      const expansionRate = 
+        stage === "particle-formation" ? 1.01 : 
+        stage === "nucleosynthesis" ? 1.005 : 
+        stage === "cmb-formation" ? 1.001 : 1.0005;
+
+      for (let i = 0; i < particleCount; i++) {
+        const idx = i * 3;
+        const x = positions[idx];
+        const y = positions[idx + 1];
+        const z = positions[idx + 2];
+        const particleType = particleData.types[i];
+
+        if ((x === 0 && y === 0 && z === 0) && Math.random() < 0.2) {
+          const r = Math.pow(Math.random(), 0.5) * 5;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos((Math.random() * 2) - 1);
+
+          const perturbation = 
+            Math.sin(theta * 5) * Math.cos(phi * 3) * 0.1 +
+            Math.sin(theta * 7) * Math.sin(phi * 4) * 0.05;
+
+          positions[idx] = (r + perturbation) * Math.sin(phi) * Math.cos(theta);
+          positions[idx + 1] = (r + perturbation) * Math.sin(phi) * Math.sin(theta);
+          positions[idx + 2] = (r + perturbation) * Math.cos(phi);
+
+          const speed = 0.001 * (1 + Math.random() * 0.2);
+          const tangentialFactor = 0.1 * Math.random();
+
+          const radialVx = positions[idx] * speed;
+          const radialVy = positions[idx + 1] * speed;
+          const radialVz = positions[idx + 2] * speed;
+
+          const upX = 0;
+          const upY = 1;
+          const upZ = 0;
+
+          const tangentialVx = (radialVy * upZ - radialVz * upY) * tangentialFactor;
+          const tangentialVy = (radialVz * upX - radialVx * upZ) * tangentialFactor;
+          const tangentialVz = (radialVx * upY - radialVy * upX) * tangentialFactor;
+
+          particleData.velocities[idx] = radialVx + tangentialVx;
+          particleData.velocities[idx + 1] = radialVy + tangentialVy;
+          particleData.velocities[idx + 2] = radialVz + tangentialVz;
+        } else if (x !== 0 || y !== 0 || z !== 0) {
+          positions[idx] *= expansionRate;
+          positions[idx + 1] *= expansionRate;
+          positions[idx + 2] *= expansionRate;
+
+          positions[idx] += particleData.velocities[idx];
+          positions[idx + 1] += particleData.velocities[idx + 1];
+          positions[idx + 2] += particleData.velocities[idx + 2];
+
+          if (stage === "particle-formation") {
+            colors[idx] = Math.min(0.95, colors[idx] + 0.001);
+            colors[idx + 1] = Math.min(0.95, colors[idx + 1] + 0.0005);
+            colors[idx + 2] = Math.max(0.7, colors[idx + 2] - 0.0005);
+          } else if (stage === "nucleosynthesis") {
+            if (particleType === 0) {
+              colors[idx] = 0.6 + Math.random() * 0.1;
+              colors[idx + 1] = 0.7 + Math.random() * 0.1;
+              colors[idx + 2] = 0.9 + Math.random() * 0.1;
+            } else if (particleType === 1) {
+              colors[idx] = 0.8 + Math.random() * 0.1;
+              colors[idx + 1] = 0.8 + Math.random() * 0.1;
+              colors[idx + 2] = 0.6 + Math.random() * 0.1;
+            } else {
+              colors[idx] = 0.9 + Math.random() * 0.1;
+              colors[idx + 1] = 0.3 + Math.random() * 0.2;
+              colors[idx + 2] = 0.1 + Math.random() * 0.1;
+              sizes[i] = 0.08 + Math.random() * 0.04;
+            }
+          } else if (stage === "cmb-formation") {
+            const cmbTemp = 2.725 + (Math.random() - 0.5) * 0.01;
+            const color = temperatureToColor(cmbTemp);
+            colors[idx] = color.r;
+            colors[idx + 1] = color.g;
+            colors[idx + 2] = color.b;
+          }
+        }
+      }
+
+      particlesRef.current.geometry.attributes.position.needsUpdate = true;
+      particlesRef.current.geometry.attributes.color.needsUpdate = true;
+      particlesRef.current.geometry.attributes.size.needsUpdate = true;
+    }
+
+    // Animate galaxies
+    if ((stage === "galaxy-formation" || stage === "stellar-evolution" || 
+         stage === "planetary-formation" || stage === "life-emergence") && 
+        galaxiesRef.current) {
+      const positions = galaxiesRef.current.geometry.attributes.position.array;
+      const rotations = galaxiesRef.current.geometry.attributes.rotation?.array;
+
+      for (let i = 0; i < galaxyCount; i++) {
+        const idx = i * 3;
+        
+        // Apply Hubble expansion
+        positions[idx] *= 1.0001;
+        positions[idx + 1] *= 1.0001;
+        positions[idx + 2] *= 1.0001;
+
+        // Rotate galaxies
+        if (rotations) {
+          rotations[idx] += 0.001;
+          rotations[idx + 1] += 0.0005;
+          rotations[idx + 2] += 0.0007;
+        }
+      }
+
+      galaxiesRef.current.geometry.attributes.position.needsUpdate = true;
+      if (rotations) galaxiesRef.current.geometry.attributes.rotation.needsUpdate = true;
+    }
+  });
+
+  return (
+    <group>
+      {/* Quantum fluctuations */}
+      {stage === "quantum-fluctuations" && (
+        <Points ref={quantumRef} positions={quantumData.positions} sizes={quantumData.sizes} colors={quantumData.colors}>
+          <PointMaterial
+            size={0.1}
+            sizeAttenuation={true}
+            vertexColors
+            transparent
+            opacity={0.7}
+            alphaMap={particleTexture}
+            depthWrite={false}
+          />
+        </Points>
+      )}
+
+      {/* Inflation particles */}
+      {(stage === "inflation" || stage === "reheating") && (
+        <Points ref={inflationRef} positions={inflationData.positions} colors={inflationData.colors} sizes={inflationData.sizes}>
+          <PointMaterial
+            size={0.08}
+            sizeAttenuation={true}
+            vertexColors
+            transparent
+            alphaMap={particleTexture}
+            depthWrite={false}
+          />
+        </Points>
+      )}
+
+      {/* Particle formation and nucleosynthesis */}
+      {(stage === "particle-formation" || stage === "nucleosynthesis" || 
+        stage === "cmb-formation" || stage === "structure-formation") && (
+        <Points ref={particlesRef} positions={particleData.positions} colors={particleData.colors} sizes={particleData.sizes}>
+          <PointMaterial
+            size={0.06}
+            sizeAttenuation={true}
+            vertexColors
+            transparent
+            alphaMap={particleTexture}
+            depthWrite={false}
+          />
+        </Points>
+      )}
+
+      {/* Galaxy formation and beyond */}
+      {(stage === "galaxy-formation" || stage === "stellar-evolution" || 
+        stage === "planetary-formation" || stage === "life-emergence") && (
+        <Points ref={galaxiesRef} positions={galaxyData.positions} colors={galaxyData.colors} sizes={galaxyData.sizes}>
+          <PointMaterial
+            size={1.5}
+            sizeAttenuation={true}
+            vertexColors
+            transparent
+            alphaMap={galaxyTexture}
+            depthWrite={false}
+          />
+        </Points>
+      )}
+
+      {/* Anomalies visualization */}
+      {anomalies.map((anomaly, index) => (
+        <Anomaly
+          key={index}
+          ref={el => (anomalyRefs.current[index] = el)}
+          type={anomaly.type}
+          position={anomaly.location}
+          severity={anomaly.severity}
+          resolved={anomaly.resolved}
+          stabilityIndex={stabilityIndex}
+        />
+      ))}
+
+      {/* Background stars */}
+      <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+    </group>
+  );
+};
+
+const Anomaly = forwardRef(({ type, position, severity, resolved, stabilityIndex }, ref) => {
+  const size = severity * 5;
+  const color = type === "false-vacuum-decay" ? "red" : 
+                type === "dark-energy-surge" ? "purple" : 
+                type === "quantum-fluctuation" ? "cyan" : 
+                type === "black-hole-merger" ? "black" : "orange";
+
+  useFrame(() => {
+    if (ref.current) {
+      // Pulsing effect based on severity
+      const pulse = Math.sin(Date.now() * 0.001 * severity * 10) * 0.2 + 1;
+      ref.current.scale.set(pulse, pulse, pulse);
+    }
+  });
+
+  return (
+    <mesh ref={ref} position={position}>
+      <sphereGeometry args={[size, 16, 16]} />
+      <meshStandardMaterial 
+        color={color} 
+        transparent 
+        opacity={resolved ? 0.2 : 0.7}
+        emissive={color}
+        emissiveIntensity={resolved ? 0.1 : severity * 2}
+      />
+    </mesh>
+  );
+});
+
+Anomaly.displayName = "Anomaly";
+
+export default BigBangSimulation;

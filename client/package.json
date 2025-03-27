@@ -10,11 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@react-three/drei": "^10.0.2",
-    "@react-three/fiber": "^9.0.4",
+    "@react-three/cannon": "^6.6.0",
+    "@react-three/drei": "^10.0.5",
+    "@react-three/fiber": "^9.1.0",
     "@react-three/postprocessing": "^3.0.4",
     "axios": "^1.7.9",
     "framer-motion": "^12.4.1",
+    "leva": "^0.10.0",
     "lucide-react": "^0.475.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
