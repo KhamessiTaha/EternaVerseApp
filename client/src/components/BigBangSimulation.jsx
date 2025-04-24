@@ -1,290 +1,297 @@
-import { useRef, useEffect, useState, useMemo } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import * as THREE from 'three'
-import { EffectComposer, Bloom } from '@react-three/postprocessing'
-import { OrbitControls, Stars } from '@react-three/drei'
-import { useControls } from 'leva'
+import { useEffect, useRef, useState } from 'react';
+import * as THREE from 'three';
 
 const BigBangSimulation = () => {
-  const [stage, setStage] = useState('singularity')
-  const [timeElapsed, setTimeElapsed] = useState(0)
-  
-  // Simulation stages with durations (seconds)
-  const STAGES = {
-    singularity: 3,
-    expansion: 8,
-    particleFormation: 5,
-    galaxyFormation: 10,
-    cosmicWeb: 15
-  }
+  const mountRef = useRef(null);
+  const [simulationTime, setSimulationTime] = useState(0);
+  const [simulationStage, setSimulationStage] = useState('Pre-Big Bang');
+  const simulationRef = useRef({
+    scene: null,
+    camera: null,
+    renderer: null,
+    particles: null,
+    galaxies: [],
+    animationFrameId: null,
+    clock: new THREE.Clock(),
+    elapsedTime: 0
+  });
 
-  // Update simulation stage based on elapsed time
+  const constants = {
+    inflationRate: 1.3,
+    particleCount: 50000,
+    quantumFluctuation: 0.5,
+    matterRatio: 1.0001,
+    darkMatterStrength: 0.3
+  };
+
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeElapsed(prev => {
-        const newTime = prev + 0.1
-        updateStage(newTime)
-        return newTime
-      })
-    }, 100)
-    return () => clearInterval(timer)
-  }, [])
+    const simulation = simulationRef.current;
+    const mount = mountRef.current;
 
-  const updateStage = (time) => {
-    let accumulated = 0
-    for (const [stageName, duration] of Object.entries(STAGES)) {
-      if (time >= accumulated && time < accumulated + duration) {
-        if (stage !== stageName) setStage(stageName)
-        return
-      }
-      accumulated += duration
+    // Scene setup
+    simulation.scene = new THREE.Scene();
+    
+    // 2D Orthographic camera
+    const aspect = window.innerWidth / window.innerHeight;
+    simulation.camera = new THREE.OrthographicCamera(
+      -aspect * 100,
+      aspect * 100,
+      100,
+      -100,
+      0.1,
+      1000
+    );
+    simulation.camera.position.z = 10;
+
+    // Renderer setup
+    simulation.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance"
+    });
+    simulation.renderer.setSize(window.innerWidth, window.innerHeight);
+    mount.appendChild(simulation.renderer.domElement);
+
+    // Initialize particles
+    initParticles();
+
+    // Handle window resize
+    const handleResize = () => {
+      const aspect = window.innerWidth / window.innerHeight;
+      simulation.camera.left = -aspect * 100;
+      simulation.camera.right = aspect * 100;
+      simulation.camera.top = 100;
+      simulation.camera.bottom = -100;
+      simulation.camera.updateProjectionMatrix();
+      simulation.renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
+    startAnimationLoop();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      stopAnimationLoop();
+      mount.removeChild(simulation.renderer.domElement);
+      simulation.renderer.dispose();
+    };
+  }, []);
+
+  const initParticles = () => {
+    const simulation = simulationRef.current;
+    
+    // Create 2D particle system
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(constants.particleCount * 2);
+    const colors = new Float32Array(constants.particleCount * 3);
+    const velocities = new Float32Array(constants.particleCount * 2);
+
+    for (let i = 0; i < constants.particleCount; i++) {
+      // Start clustered in center
+      positions[i * 2] = (Math.random() - 0.5) * 0.1;
+      positions[i * 2 + 1] = (Math.random() - 0.5) * 0.1;
+      
+      // Initial velocities
+      velocities[i * 2] = (Math.random() - 0.5) * 0.05;
+      velocities[i * 2 + 1] = (Math.random() - 0.5) * 0.05;
+      
+      // Colors based on type
+      colors[i * 3] = Math.random() > 0.5 ? 1 : 0.8; // R
+      colors[i * 3 + 1] = Math.random() > 0.5 ? 0.6 : 0.3; // G
+      colors[i * 3 + 2] = Math.random() > 0.5 ? 0.4 : 0.1; // B
     }
-  }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 2));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 2));
+
+    const material = new THREE.PointsMaterial({
+      size: 0.1,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.8,
+      sizeAttenuation: false
+    });
+
+    simulation.particles = new THREE.Points(geometry, material);
+    simulation.scene.add(simulation.particles);
+  };
+
+  const startAnimationLoop = () => {
+    const simulation = simulationRef.current;
+    
+    const animate = () => {
+      updateSimulation();
+      simulation.renderer.render(simulation.scene, simulation.camera);
+      simulation.animationFrameId = requestAnimationFrame(animate);
+    };
+    
+    animate();
+  };
+
+  const stopAnimationLoop = () => {
+    cancelAnimationFrame(simulationRef.current.animationFrameId);
+  };
+
+  const updateSimulation = () => {
+    const simulation = simulationRef.current;
+    const delta = simulation.clock.getDelta();
+    simulation.elapsedTime += delta;
+    setSimulationTime(simulation.elapsedTime);
+
+    const positions = simulation.particles.geometry.attributes.position.array;
+    const velocities = simulation.particles.geometry.attributes.velocity.array;
+    const colors = simulation.particles.geometry.attributes.color.array;
+
+    // Simulation stages
+    if (simulation.elapsedTime < 1) {
+      setSimulationStage('Singularity');
+      handleSingularityPhase(positions, velocities);
+    } else if (simulation.elapsedTime < 3) {
+      setSimulationStage('Inflation');
+      handleInflationPhase(positions, velocities);
+    } else if (simulation.elapsedTime < 8) {
+      setSimulationStage('Particle Formation');
+      handleParticleFormation(positions, colors);
+    } else if (simulation.elapsedTime < 15) {
+      setSimulationStage('Structure Formation');
+      handleStructureFormation(positions, colors);
+    } else {
+      setSimulationStage('Galaxy Formation');
+      handleGalaxyFormation();
+    }
+
+    // Update particle positions
+    for (let i = 0; i < positions.length; i += 2) {
+      positions[i] += velocities[i] * delta * 10;
+      positions[i + 1] += velocities[i + 1] * delta * 10;
+    }
+
+    simulation.particles.geometry.attributes.position.needsUpdate = true;
+  };
+
+  const handleSingularityPhase = (positions, velocities) => {
+    // Add quantum fluctuations
+    for (let i = 0; i < positions.length; i += 2) {
+      velocities[i] += (Math.random() - 0.5) * 0.01;
+      velocities[i + 1] += (Math.random() - 0.5) * 0.01;
+    }
+  };
+
+  const handleInflationPhase = (positions, velocities) => {
+    const inflationFactor = Math.pow(simulationRef.current.elapsedTime, 2) * 0.5;
+    
+    for (let i = 0; i < positions.length; i += 2) {
+      const dx = positions[i];
+      const dy = positions[i + 1];
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance > 0) {
+        const dirX = dx / distance;
+        const dirY = dy / distance;
+        
+        // Expand outward with quantum fluctuations
+        const expansion = inflationFactor * (1 + (Math.random() - 0.5) * constants.quantumFluctuation);
+        positions[i] = dirX * expansion;
+        positions[i + 1] = dirY * expansion;
+      }
+    }
+  };
+
+  const handleParticleFormation = (positions, colors) => {
+    const structureFormation = simulationRef.current.elapsedTime - 3;
+    
+    for (let i = 0; i < positions.length; i += 2) {
+      // Matter/antimatter annihilation
+      if (Math.random() > constants.matterRatio) {
+        colors[i/2 * 3] = 0.2;  // Fade out
+        colors[i/2 * 3 + 1] = 0.2;
+        colors[i/2 * 3 + 2] = 0.2;
+      } else {
+        // Cluster formation
+        const clusterForce = Math.sin(structureFormation * 2) * 0.01;
+        positions[i] += (Math.random() - 0.5) * clusterForce;
+        positions[i + 1] += (Math.random() - 0.5) * clusterForce;
+      }
+    }
+  };
+
+  const handleStructureFormation = (positions, colors) => {
+    const darkMatterInfluence = constants.darkMatterStrength * (simulationRef.current.elapsedTime - 8);
+    
+    for (let i = 0; i < positions.length; i += 2) {
+      // Simulate dark matter gravitational wells
+      const angle = Math.atan2(positions[i + 1], positions[i]);
+      positions[i] += Math.cos(angle) * darkMatterInfluence * 0.01;
+      positions[i + 1] += Math.sin(angle) * darkMatterInfluence * 0.01;
+      
+      // Color by density
+      const density = Math.abs(positions[i]) + Math.abs(positions[i + 1]);
+      colors[i/2 * 3] = 0.5 + density * 0.1;
+      colors[i/2 * 3 + 1] = 0.3 + density * 0.05;
+      colors[i/2 * 3 + 2] = 0.1 + density * 0.02;
+    }
+  };
+
+  const handleGalaxyFormation = () => {
+    const simulation = simulationRef.current;
+    
+    // Create spiral galaxy patterns
+    if (simulation.galaxies.length < 20 && Math.random() < 0.01) {
+      const galaxyGeometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(10000 * 2);
+      const colors = new Float32Array(10000 * 3);
+
+      for (let i = 0; i < 10000; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.pow(Math.random(), 2) * 50;
+        const arm = Math.floor(Math.random() * 2) * Math.PI;
+        
+        positions[i * 2] = Math.cos(angle + arm) * radius;
+        positions[i * 2 + 1] = Math.sin(angle + arm) * radius;
+        
+        // Star colors
+        colors[i * 3] = 0.8 + Math.random() * 0.2;
+        colors[i * 3 + 1] = 0.6 + Math.random() * 0.2;
+        colors[i * 3 + 2] = 0.4 + Math.random() * 0.2;
+      }
+
+      galaxyGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 2));
+      galaxyGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const galaxy = new THREE.Points(
+        galaxyGeometry,
+        new THREE.PointsMaterial({ size: 0.2, vertexColors: true })
+      );
+
+      galaxy.position.set(
+        (Math.random() - 0.5) * 200,
+        (Math.random() - 0.5) * 200,
+        0
+      );
+
+      simulation.scene.add(galaxy);
+      simulation.galaxies.push(galaxy);
+    }
+
+    // Rotate existing galaxies
+    simulation.galaxies.forEach(galaxy => {
+      galaxy.rotation += 0.001;
+      galaxy.position.x += Math.sin(simulation.elapsedTime) * 0.01;
+      galaxy.position.y += Math.cos(simulation.elapsedTime) * 0.01;
+    });
+  };
 
   return (
-    <div style={{ width: '100vw', height: '100vh' }}>
-      <Canvas camera={{ position: [0, 0, 200], fov: 60 }}>
-        <ambientLight intensity={0.2} />
-        <pointLight position={[0, 0, 0]} intensity={2} distance={1000} />
-        
-        <SimulationStage stage={stage} timeElapsed={timeElapsed} />
-        
-        <EffectComposer>
-          <Bloom
-            intensity={stage === 'expansion' ? 2 : 1}
-            radius={0.5}
-            luminanceThreshold={0}
-            luminanceSmoothing={0.9}
-          />
-        </EffectComposer>
-        
-        <OrbitControls enableDamping dampingFactor={0.05} />
-      </Canvas>
+    <div className="relative w-full h-full">
+      <div ref={mountRef} className="w-full h-full" />
       
-      <div style={{
-        position: 'absolute',
-        bottom: '20px',
-        left: '20px',
-        color: 'white',
-        fontFamily: 'sans-serif',
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        padding: '10px',
-        borderRadius: '5px'
-      }}>
-        <h2>Big Bang Simulation</h2>
-        <p>Stage: {stage}</p>
-        <p>Time: {timeElapsed.toFixed(1)}s</p>
+      <div className="absolute top-4 left-4 p-3 bg-black bg-opacity-70 text-white rounded-lg">
+        <h2 className="text-lg font-bold">Time: {simulationTime.toFixed(2)}s</h2>
+        <p className="text-sm">Stage: {simulationStage}</p>
       </div>
     </div>
-  )
-}
+  );
+};
 
-const SimulationStage = ({ stage, timeElapsed }) => {
-  const particleSystemRef = useRef()
-  const galaxySystemRef = useRef()
-  const nebulaRef = useRef()
-  const { viewport } = useThree()
-
-  // Particle system parameters based on stage
-  const particleParams = useMemo(() => {
-    switch(stage) {
-      case 'singularity':
-        return { count: 0, size: 0, color: 0xffffff }
-      case 'expansion':
-        return { count: 20000, size: 2, color: 0xffaaaa }
-      case 'particleFormation':
-        return { count: 50000, size: 1.5, color: 0xaaaaff }
-      case 'galaxyFormation':
-        return { count: 100000, size: 1, color: 0x88aaff }
-      case 'cosmicWeb':
-        return { count: 150000, size: 0.8, color: 0x5599ff }
-      default:
-        return { count: 0, size: 0, color: 0xffffff }
-    }
-  }, [stage])
-
-  // Create particle system data
-  const particles = useMemo(() => {
-    const positions = new Float32Array(particleParams.count * 3)
-    const velocities = new Float32Array(particleParams.count * 3)
-    const colors = new Float32Array(particleParams.count * 3)
-    
-    const color = new THREE.Color(particleParams.color)
-    
-    for (let i = 0; i < particleParams.count; i++) {
-      const i3 = i * 3
-      
-      // Initial positions (all at origin for singularity)
-      positions[i3] = 0
-      positions[i3 + 1] = 0
-      positions[i3 + 2] = 0
-      
-      // Random velocities (spherical distribution)
-      const theta = Math.random() * Math.PI * 2
-      const phi = Math.acos(Math.random() * 2 - 1)
-      const speed = 0.5 + Math.random() * 0.5
-      
-      velocities[i3] = speed * Math.sin(phi) * Math.cos(theta)
-      velocities[i3 + 1] = speed * Math.sin(phi) * Math.sin(theta)
-      velocities[i3 + 2] = speed * Math.cos(phi)
-      
-      // Colors with slight variation
-      colors[i3] = color.r * (0.9 + Math.random() * 0.2)
-      colors[i3 + 1] = color.g * (0.9 + Math.random() * 0.2)
-      colors[i3 + 2] = color.b * (0.9 + Math.random() * 0.2)
-    }
-    
-    return { positions, velocities, colors }
-  }, [particleParams])
-
-  // Create galaxy system data (appears later)
-  const galaxies = useMemo(() => {
-    if (stage !== 'galaxyFormation' && stage !== 'cosmicWeb') return null
-    
-    const count = 5000
-    const positions = new Float32Array(count * 3)
-    const colors = new Float32Array(count * 3)
-    
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3
-      positions[i3] = (Math.random() - 0.5) * 1000
-      positions[i3 + 1] = (Math.random() - 0.5) * 1000
-      positions[i3 + 2] = (Math.random() - 0.5) * 1000
-      
-      // Galaxy colors (mostly white with some variation)
-      colors[i3] = 0.7 + Math.random() * 0.3
-      colors[i3 + 1] = 0.7 + Math.random() * 0.3
-      colors[i3 + 2] = 0.7 + Math.random() * 0.3
-    }
-    
-    return { positions, colors }
-  }, [stage])
-
-  // Create nebula texture (appears last)
-  const nebulaTexture = useMemo(() => {
-    if (stage !== 'cosmicWeb') return null
-    
-    const size = 512
-    const canvas = document.createElement('canvas')
-    canvas.width = size
-    canvas.height = size
-    const ctx = canvas.getContext('2d')
-    
-    // Radial gradient
-    const gradient = ctx.createRadialGradient(
-      size/2, size/2, size/8,
-      size/2, size/2, size/2
-    )
-    gradient.addColorStop(0, 'rgba(50, 0, 100, 0.8)')
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.0)')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, size, size)
-    
-    // Star noise
-    for (let i = 0; i < 1000; i++) {
-      ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.1})`
-      ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1)
-    }
-    
-    return new THREE.CanvasTexture(canvas)
-  }, [stage])
-
-  // Animation frame updates
-  useFrame((state, delta) => {
-    // Update main particle system
-    if (particleSystemRef.current) {
-      const positions = particleSystemRef.current.geometry.attributes.position.array
-      const velocities = particles.velocities
-      const expansionSpeed = 50 * (stage === 'expansion' ? 2 : 1)
-      
-      for (let i = 0; i < particleParams.count; i++) {
-        const i3 = i * 3
-        positions[i3] += velocities[i3] * expansionSpeed * delta
-        positions[i3 + 1] += velocities[i3 + 1] * expansionSpeed * delta
-        positions[i3 + 2] += velocities[i3 + 2] * expansionSpeed * delta
-      }
-      
-      particleSystemRef.current.geometry.attributes.position.needsUpdate = true
-    }
-    
-    // Rotate nebula slowly
-    if (nebulaRef.current) {
-      nebulaRef.current.rotation.y += 0.001
-    }
-  })
-
-  return (
-    <>
-      {/* Main particle system */}
-      {particleParams.count > 0 && (
-        <points ref={particleSystemRef}>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              array={particles.positions}
-              count={particleParams.count}
-              itemSize={3}
-            />
-            <bufferAttribute
-              attach="attributes-color"
-              array={particles.colors}
-              count={particleParams.count}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <pointsMaterial
-            size={particleParams.size}
-            vertexColors
-            transparent
-            opacity={0.8}
-            blending={THREE.AdditiveBlending}
-            depthTest={false}
-          />
-        </points>
-      )}
-      
-      {/* Galaxy system (appears later) */}
-      {galaxies && (
-        <points ref={galaxySystemRef}>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              array={galaxies.positions}
-              count={galaxies.positions.length / 3}
-              itemSize={3}
-            />
-            <bufferAttribute
-              attach="attributes-color"
-              array={galaxies.colors}
-              count={galaxies.colors.length / 3}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <pointsMaterial
-            size={1.5}
-            vertexColors
-            transparent
-            opacity={0.5}
-            blending={THREE.AdditiveBlending}
-            depthTest={false}
-          />
-        </points>
-      )}
-      
-      {/* Nebula background (appears last) */}
-      {nebulaTexture && (
-        <mesh ref={nebulaRef}>
-          <sphereGeometry args={[500, 32, 32]} />
-          <meshBasicMaterial
-            map={nebulaTexture}
-            side={THREE.BackSide}
-            transparent
-            opacity={0.7}
-          />
-        </mesh>
-      )}
-    </>
-  )
-}
-
-export default BigBangSimulation
+export default BigBangSimulation;
