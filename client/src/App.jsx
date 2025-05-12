@@ -23,10 +23,17 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
         <Route path="/register" element={!user ? <Register /> : <Navigate to="/login" />} />
-        <Route path="/gameplay/:universeId" element={<GameplayPage />} />
         <Route path="/big-bang" element={<BigBangPage />} />
 
         {/* Protected Routes */}
+        <Route
+          path="/gameplay/:id"
+          element={
+            <ProtectedRoute>
+              <GameplayPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard"
           element={

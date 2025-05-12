@@ -1,125 +1,99 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import axios from "axios";
+import seedrandom from "seedrandom";
+import { Stage, Layer, Circle, Text, Arrow } from "react-konva";
 
 const GameplayPage = () => {
-  const { universeId } = useParams();
+  const { id } = useParams();
   const [universe, setUniverse] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const navigate = useNavigate();
+  const [rng, setRng] = useState(() => () => Math.random());
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  const stageRef = useRef();
 
   useEffect(() => {
     const fetchUniverse = async () => {
       try {
-        setLoading(true);
         const token = localStorage.getItem("token");
-        
-        if (!token) {
-          setError("Authentication token not found. Please log in again.");
-          // Redirect to login page if no token exists
-          navigate("/login");
-          return;
-        }
-
-        const res = await axios.get(
-          `http://localhost:5000/api/universe/${universeId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`
-            },
-          }
-        );
-        
-        setUniverse(res.data);
-        setError(null);
+        const response = await axios.get(`http://localhost:5000/api/universe/${id}`, {
+          headers: { Authorization: token },
+        });
+        setUniverse(response.data);
+        setRng(() => seedrandom(response.data.seed));
       } catch (err) {
         console.error("Failed to load universe:", err);
-        
-        if (err.response) {
-          // Server responded with an error
-          if (err.response.status === 401) {
-            setError("Session expired. Please log in again.");
-            localStorage.removeItem("token"); // Clear invalid token
-            navigate("/login");
-          } else if (err.response.status === 400) {
-            setError("Invalid request. Check your authentication.");
-          } else if (err.response.status === 404) {
-            setError("Universe not found.");
-          } else {
-            setError(`Error: ${err.response.data.message || "Something went wrong"}`);
-          }
-        } else if (err.request) {
-          // Request made but no response received
-          setError("Server not responding. Please try again later.");
-        } else {
-          // Error setting up the request
-          setError(`Error: ${err.message}`);
-        }
-      } finally {
-        setLoading(false);
       }
     };
-
     fetchUniverse();
-  }, [universeId, navigate]);
+  }, [id]);
 
-  if (loading) return (
-    <div className="w-screen h-screen bg-black flex items-center justify-center">
-      <div className="text-white text-xl">Loading universe...</div>
-    </div>
-  );
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const moveAmount = 25;
+      if (e.key === "ArrowUp" || e.key === "w") setPosition((p) => ({ ...p, y: p.y + moveAmount }));
+      if (e.key === "ArrowDown" || e.key === "s") setPosition((p) => ({ ...p, y: p.y - moveAmount }));
+      if (e.key === "ArrowLeft" || e.key === "a") setPosition((p) => ({ ...p, x: p.x + moveAmount }));
+      if (e.key === "ArrowRight" || e.key === "d") setPosition((p) => ({ ...p, x: p.x - moveAmount }));
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
-  if (error) return (
-    <div className="w-screen h-screen bg-black flex items-center justify-center">
-      <div className="bg-red-900 bg-opacity-80 p-6 rounded text-white max-w-md">
-        <h2 className="text-xl font-bold mb-4">Error</h2>
-        <p>{error}</p>
-        <button 
-          onClick={() => navigate("/")}
-          className="mt-4 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
-        >
-          Return to Dashboard
-        </button>
-      </div>
-    </div>
-  );
+  if (!universe) return <div className="text-white p-8">Loading universe...</div>;
 
-  if (!universe) return null;
+  const galaxies = Array.from({ length: 200 }, () => ({
+    x: rng() * 5000 - 2500,
+    y: rng() * 5000 - 2500,
+    radius: rng() * 4 + 1,
+    color: `hsl(${rng() * 360}, 80%, 70%)`,
+  }));
 
   return (
-    <div className="w-screen h-screen bg-black text-white relative overflow-hidden">
-      {/* HUD / Info Panel */}
-      <div className="absolute top-4 left-4 bg-gray-800 bg-opacity-80 p-4 rounded">
-        <h2 className="text-xl font-bold">{universe.name}</h2>
-        <p>Difficulty: {universe.difficulty}</p>
-        <p>Age: {universe.currentState.age.toLocaleString()} years</p>
-        <p>Galaxies: {Math.round(universe.currentState.galaxyCount).toLocaleString()}</p>
-        <p>Civilizations: {Math.round(universe.currentState.civilizationCount)}</p>
-        <p>Entropy: {universe.currentState.entropy.toFixed(4)}</p>
-        <p>Stability Index: {universe.currentState.stabilityIndex.toFixed(3)}</p>
+    <div className="w-screen h-screen bg-black text-white relative">
+      <div className="absolute top-2 left-2 bg-black bg-opacity-70 p-2 rounded z-10">
+        <div><strong>{universe.name}</strong> - {universe.difficulty}</div>
+        <div>Age: {Math.round(universe.currentState.age / 1e9)}B yrs</div>
+        <div>Galaxies: {Math.round(universe.currentState.galaxyCount).toLocaleString()}</div>
+        <div>Temp: {universe.currentState.temperature.toFixed(2)} K</div>
+        <div>Entropy: {universe.currentState.entropy.toFixed(3)}</div>
       </div>
 
-      {/* Controls Panel */}
-      <div className="absolute bottom-4 right-4 bg-gray-800 bg-opacity-80 p-4 rounded">
-        <button 
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded mr-2"
-          onClick={() => console.log("Progress simulation")}
-        >
-          Progress
-        </button>
-        <button 
-          className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded"
-          onClick={() => navigate("/")}
-        >
-          Exit
-        </button>
-      </div>
+      <Stage width={window.innerWidth} height={window.innerHeight} ref={stageRef}>
+        <Layer>
+          {galaxies.map((g, i) => (
+            <Circle
+              key={i}
+              x={g.x + position.x + window.innerWidth / 2}
+              y={g.y + position.y + window.innerHeight / 2}
+              radius={g.radius}
+              fill={g.color}
+              shadowBlur={5}
+            />
+          ))}
 
-      {/* Placeholder for the simulation map */}
-      <div className="w-full h-full flex items-center justify-center text-gray-500">
-        <p>🌀 Simulation canvas will go here...</p>
-      </div>
+          {/* Optional: Draw Anomalies as arrows pointing to direction */}
+          {universe.anomalies?.slice(0, 5).map((a, i) => {
+            const targetX = a.location?.x ?? rng() * 1000;
+            const targetY = a.location?.y ?? rng() * 1000;
+            return (
+              <Arrow
+                key={i}
+                points={[
+                  window.innerWidth / 2,
+                  window.innerHeight / 2,
+                  targetX + position.x,
+                  targetY + position.y,
+                ]}
+                pointerLength={10}
+                pointerWidth={10}
+                stroke="red"
+                strokeWidth={2}
+              />
+            );
+          })}
+        </Layer>
+      </Stage>
     </div>
   );
 };

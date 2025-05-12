@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getUserUniverses, deleteUniverse } from "../api/universeApi";
-import { AlertCircle, Plus, Loader2, Trash2, Eye } from "lucide-react";
+import { AlertCircle, Plus, Loader2, Trash2, Eye , Rocket } from "lucide-react";
+
 
 
 
@@ -56,10 +57,10 @@ const UniverseCard = ({ universe, onDelete, onView }) => {
       <div className="flex gap-3 mt-4">
         <button
           onClick={onView}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-md transition-colors"
+        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-md font-semibold tracking-wide transition-all"
         >
-          <Eye size={18} />
-          View
+        <Rocket size={18} />
+        Enter Universe
         </button>
         <button
           onClick={handleDelete}
@@ -199,7 +200,7 @@ const Dashboard = () => {
                 key={universe._id}
                 universe={universe}
                 onDelete={() => handleDelete(universe._id)}
-                onView={() => navigate(`/simulation-dashboard/${universe._id}`)}
+                onView={() => navigate(`/gameplay/${universe._id}`)}
               />
             ))
           )}
