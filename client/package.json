@@ -19,6 +19,7 @@
     "konva": "^9.3.20",
     "leva": "^0.10.0",
     "lucide-react": "^0.475.0",
+    "phaser": "^3.88.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-konva": "^19.0.3",
