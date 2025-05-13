@@ -9,9 +9,9 @@ const Home = () => {
 
   const handleGetStarted = () => {
     if (user) {
-      navigate("/universe-creation");
+      navigate("/dashboard");
     } else {
-      navigate("/login", { state: { from: "/universe-creation" } });
+      navigate("/login", { state: { from: "/dashboard" } });
     }
   };
 
