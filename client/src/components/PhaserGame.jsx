@@ -21,12 +21,21 @@ const PhaserGame = ({ universe }) => {
           debug: false
         }
       },
+      scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+      },
       scene: {
         preload,
         create,
         update
       }
     };
+
+    let galaxies = [];
+    let minimap;
+    const minimapSize = 140;
+    const universeSize = 10000;
 
     function preload() {
       this.load.image("Player", "/assets/Player.png");
@@ -66,16 +75,23 @@ const PhaserGame = ({ universe }) => {
       // Procedural Galaxies
       const galaxyCount = 200;
       for (let i = 0; i < galaxyCount; i++) {
-        const x = rng() * 10000 - 5000;
-        const y = rng() * 10000 - 5000;
+        const x = rng() * universeSize - universeSize / 2;
+        const y = rng() * universeSize - universeSize / 2;
         const size = rng() * 30 + 10;
         const color = Phaser.Display.Color.HSVColorWheel()[Math.floor(rng() * 360)];
 
         const galaxy = this.add.graphics({ x, y });
         galaxy.fillStyle(Phaser.Display.Color.GetColor(color.r, color.g, color.b), 1);
         galaxy.fillCircle(0, 0, size);
-        galaxy.setDepth(-1); // behind the player
+        galaxy.setDepth(-1);
+
+        galaxies.push({ x, y });
       }
+
+      // Minimap graphics
+      minimap = this.add.graphics();
+      minimap.setScrollFactor(0);
+      minimap.setDepth(1000);
     }
 
     function update() {
@@ -94,6 +110,29 @@ const PhaserGame = ({ universe }) => {
       if (this.lights) {
         this.lights.lights[0]?.setPosition(this.player.x, this.player.y);
       }
+
+      // Minimap drawing
+      const scale = minimapSize / universeSize;
+      const mapX = config.width - minimapSize - 20;
+      const mapY = 20;
+
+      minimap.clear();
+      minimap.fillStyle(0x000000, 0.7);
+      minimap.fillRect(mapX - 2, mapY - 2, minimapSize + 4, minimapSize + 4);
+      minimap.fillStyle(0x111111, 0.9);
+      minimap.fillRect(mapX, mapY, minimapSize, minimapSize);
+
+      galaxies.forEach((g) => {
+        const mx = (g.x / universeSize) * minimapSize + mapX;
+        const my = (g.y / universeSize) * minimapSize + mapY;
+        minimap.fillStyle(0xaaaaaa, 1);
+        minimap.fillCircle(mx, my, 2);
+      });
+
+      const playerMX = (this.player.x / universeSize) * minimapSize + mapX;
+      const playerMY = (this.player.y / universeSize) * minimapSize + mapY;
+      minimap.fillStyle(0x00ffff, 1);
+      minimap.fillCircle(playerMX, playerMY, 4);
     }
 
     if (!gameRef.current) {
@@ -113,7 +152,7 @@ const PhaserGame = ({ universe }) => {
       <div className="absolute top-2 left-2 z-10 text-white text-sm px-4 py-2 bg-black bg-opacity-60 rounded">
         🌌 {universe.name} — {universe.difficulty}
       </div>
-      <div id="phaser-container" />
+      <div id="phaser-container" style={{ width: "100%", height: "100%" }} />
     </div>
   );
 };
