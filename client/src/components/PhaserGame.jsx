@@ -88,10 +88,33 @@ const PhaserGame = ({ universe }) => {
         galaxies.push({ x, y });
       }
 
-      // Minimap graphics
+      // Create minimap container
       minimap = this.add.graphics();
-      minimap.setScrollFactor(0);
-      minimap.setDepth(1000);
+      minimap.setScrollFactor(0);  // This makes the minimap stay fixed on screen
+      minimap.setDepth(1000);      // This ensures the minimap is drawn on top
+      
+      // Create a camera that doesn't move
+      this.minimapCamera = this.cameras.add(
+        window.innerWidth - minimapSize - 20, 
+        20, 
+        minimapSize, 
+        minimapSize
+      ).setZoom(0.01).setName('minimap');
+      
+      // Make the minimap camera fixed (not following the player)
+      this.minimapCamera.setScroll(0, 0);
+      this.minimapCamera.setBackgroundColor('rgba(0, 0, 0, 0.5)');
+      this.minimapCamera.setVisible(true);
+      
+      // Create a border for the minimap
+      this.minimapBorder = this.add.graphics().setScrollFactor(0).setDepth(999);
+      this.minimapBorder.lineStyle(2, 0xffffff, 0.8);
+      this.minimapBorder.strokeRect(
+        window.innerWidth - minimapSize - 20, 
+        20, 
+        minimapSize, 
+        minimapSize
+      );
     }
 
     function update() {
@@ -111,35 +134,67 @@ const PhaserGame = ({ universe }) => {
         this.lights.lights[0]?.setPosition(this.player.x, this.player.y);
       }
 
-      // Minimap drawing
-      const scale = minimapSize / universeSize;
-      const mapX = config.width - minimapSize - 20;
+      // Draw minimap
+      const mapX = window.innerWidth - minimapSize - 20;
       const mapY = 20;
-
+      
+      // Clear previous minimap drawing
       minimap.clear();
+      
+      // Draw minimap background
       minimap.fillStyle(0x000000, 0.7);
-      minimap.fillRect(mapX - 2, mapY - 2, minimapSize + 4, minimapSize + 4);
-      minimap.fillStyle(0x111111, 0.9);
       minimap.fillRect(mapX, mapY, minimapSize, minimapSize);
-
+      
+      // Draw galaxies on minimap
       galaxies.forEach((g) => {
-        const mx = (g.x / universeSize) * minimapSize + mapX;
-        const my = (g.y / universeSize) * minimapSize + mapY;
-        minimap.fillStyle(0xaaaaaa, 1);
-        minimap.fillCircle(mx, my, 2);
+        const scaleFactor = minimapSize / universeSize;
+        const mx = mapX + (g.x + universeSize / 2) * scaleFactor;
+        const my = mapY + (g.y + universeSize / 2) * scaleFactor;
+        
+        if (mx >= mapX && mx <= mapX + minimapSize && 
+            my >= mapY && my <= mapY + minimapSize) {
+          minimap.fillStyle(0xaaaaaa, 1);
+          minimap.fillCircle(mx, my, 1);
+        }
       });
-
-      const playerMX = (this.player.x / universeSize) * minimapSize + mapX;
-      const playerMY = (this.player.y / universeSize) * minimapSize + mapY;
+      
+      // Draw player on minimap
+      const playerScaleFactor = minimapSize / universeSize;
+      const playerMX = mapX + (this.player.x + universeSize / 2) * playerScaleFactor;
+      const playerMY = mapY + (this.player.y + universeSize / 2) * playerScaleFactor;
+      
       minimap.fillStyle(0x00ffff, 1);
-      minimap.fillCircle(playerMX, playerMY, 4);
+      minimap.fillCircle(playerMX, playerMY, 3);
+      
+      // Update minimap border position when window resizes
+      this.minimapBorder.clear();
+      this.minimapBorder.lineStyle(2, 0xffffff, 0.8);
+      this.minimapBorder.strokeRect(
+        window.innerWidth - minimapSize - 20, 
+        20, 
+        minimapSize, 
+        minimapSize
+      );
+      
+      // Update minimap camera position
+      this.minimapCamera.setPosition(window.innerWidth - minimapSize - 20, 20);
     }
 
     if (!gameRef.current) {
       gameRef.current = new Phaser.Game(config);
     }
 
+    // Handle window resize
+    const resizeHandler = () => {
+      if (gameRef.current) {
+        gameRef.current.scale.resize(window.innerWidth, window.innerHeight);
+      }
+    };
+    
+    window.addEventListener('resize', resizeHandler);
+
     return () => {
+      window.removeEventListener('resize', resizeHandler);
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
