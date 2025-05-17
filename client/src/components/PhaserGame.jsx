@@ -44,7 +44,7 @@ const PhaserGame = ({ universe }) => {
     function create() {
       // Create Player
       this.player = this.physics.add.sprite(0, 0, "Player")
-        .setScale(1.5)
+        .setScale(0.05)
         .setDamping(true)
         .setDrag(0.98)
         .setMaxVelocity(300)
