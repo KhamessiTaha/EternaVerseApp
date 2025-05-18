@@ -127,15 +127,25 @@ const PhaserGame = ({ universe }) => {
         });
 
         // Create interaction text (initially hidden)
-        const text = this.add.text(a.x, a.y - 40, `🛠 ${a.type} (F to fix)`, {
-          font: "16px monospace",
-          fill: "#ffffff",
-          backgroundColor: "#000000aa",
-          padding: { x: 8, y: 4 },
-        })
-        .setOrigin(0.5)
-        .setVisible(false)
-        .setDepth(1000);
+        const text = this.add.text(a.x, a.y - 40, `[${a.type}] PRESS F`, {
+  font: 'bold 16px "Press Start 2P", Courier, monospace',
+  fill: "#00ff00", // Classic green pixel color
+  backgroundColor: "#000000",
+  padding: { x: 8, y: 4 },
+  align: 'center',
+  stroke: "#003300", // Dark green outline
+  strokeThickness: 2,
+  shadow: {
+    offsetX: 2,
+    offsetY: 2,
+    color: '#003300',
+    blur: 0,
+    stroke: true
+  }
+})
+.setOrigin(0.5)
+.setVisible(false)
+.setDepth(1000);
 
         a.entity = anomaly;
         a.glow = glow;
