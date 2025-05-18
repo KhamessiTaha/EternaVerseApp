@@ -39,7 +39,7 @@ const PhaserGame = ({ universe }) => {
     let minimapBorder;
     let activeAnomalies = [];
     let fixKey;
-    let interactionText;
+    let interactionTexts = []; // Array to store all anomaly interaction texts
 
     const minimapSize = 140;
     const universeSize = 10000;
@@ -49,7 +49,6 @@ const PhaserGame = ({ universe }) => {
     }
 
     function create() {
-      // Player
       this.player = this.physics.add.sprite(0, 0, "Player")
         .setScale(0.05)
         .setDamping(true)
@@ -77,7 +76,7 @@ const PhaserGame = ({ universe }) => {
 
       fixKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
 
-      // Galaxies
+      // Create galaxies
       for (let i = 0; i < 200; i++) {
         const x = rng() * universeSize - universeSize / 2;
         const y = rng() * universeSize - universeSize / 2;
@@ -91,33 +90,66 @@ const PhaserGame = ({ universe }) => {
         galaxies.push({ x, y });
       }
 
-      // Anomalies
+      // Create anomalies
       anomalies = universe.anomalies.map((a) => ({
         x: a.location?.x ?? rng() * universeSize - universeSize / 2,
         y: a.location?.y ?? rng() * universeSize - universeSize / 2,
         type: a.type,
         severity: a.severity ?? 5,
         resolved: false,
+        glow: null,
+        interactionText: null, // Store reference to the text object
       }));
 
-      anomalies.forEach((a, i) => {
-        const anomaly = this.add.circle(a.x, a.y, 10 + a.severity, 0xff0000, 0.6);
-        anomaly.setStrokeStyle(2, 0xff5555);
-        anomaly.setDepth(0);
-        anomaly.setPipeline("Light2D");
-        this.lights.addLight(a.x, a.y, 100).setIntensity(0.6 + a.severity * 0.05);
-
-        this.physics.add.existing(anomaly);
-        this.physics.add.overlap(this.player, anomaly, () => {
-          anomaly.inRange = true;
+      anomalies.forEach((a) => {
+        // Create anomaly graphics with glow effect
+        const anomaly = this.add.graphics({ x: a.x, y: a.y });
+        anomaly.fillStyle(0xff0000, 0.6);
+        anomaly.fillCircle(0, 0, 10 + a.severity);
+        anomaly.lineStyle(2, 0xff5555, 1);
+        anomaly.strokeCircle(0, 0, 10 + a.severity);
+        
+        // Add glow effect
+        const glow = this.add.graphics({ x: a.x, y: a.y });
+        glow.fillStyle(0xff0000, 0.3);
+        glow.fillCircle(0, 0, 20 + a.severity * 2);
+        glow.setBlendMode(Phaser.BlendModes.ADD);
+        
+        // Add pulsing animation
+        this.tweens.add({
+          targets: glow,
+          scaleX: 1.2,
+          scaleY: 1.2,
+          alpha: 0.5,
+          duration: 1000 + a.severity * 100,
+          yoyo: true,
+          repeat: -1
         });
 
+        // Create interaction text (initially hidden)
+        const text = this.add.text(a.x, a.y - 40, `🛠 ${a.type} (F to fix)`, {
+          font: "16px monospace",
+          fill: "#ffffff",
+          backgroundColor: "#000000aa",
+          padding: { x: 8, y: 4 },
+        })
+        .setOrigin(0.5)
+        .setVisible(false)
+        .setDepth(1000);
+
         a.entity = anomaly;
+        a.glow = glow;
+        a.interactionText = text;
         a.inRange = false;
         activeAnomalies.push(a);
+
+        // Add light to anomaly
+        this.lights.addLight(a.x, a.y, 100 + a.severity * 10)
+          .setIntensity(0.6 + a.severity * 0.05)
+          .setColor(0xff3333);
       });
 
-      // Minimap
+      // Create minimap
       minimap = this.add.graphics().setScrollFactor(0).setDepth(1000);
       minimapBorder = this.add.graphics().setScrollFactor(0).setDepth(999);
       this.minimapCamera = this.cameras.add(
@@ -129,14 +161,6 @@ const PhaserGame = ({ universe }) => {
       this.minimapCamera.setScroll(0, 0).setBackgroundColor("rgba(0, 0, 0, 0.5)").setVisible(true);
       minimapBorder.lineStyle(2, 0xffffff, 0.8);
       minimapBorder.strokeRect(window.innerWidth - minimapSize - 20, 20, minimapSize, minimapSize);
-
-      // Interaction text
-      interactionText = this.add.text(20, window.innerHeight - 40, "", {
-        font: "16px monospace",
-        fill: "#ffffff",
-        backgroundColor: "#000000aa",
-        padding: { x: 8, y: 4 },
-      }).setScrollFactor(0).setDepth(1000);
     }
 
     function update() {
@@ -148,29 +172,42 @@ const PhaserGame = ({ universe }) => {
         (keys.up.isDown || keys.arrowUp.isDown ? -speed : keys.down.isDown || keys.arrowDown.isDown ? speed : 0)
       );
 
+      // Update player light
       this.lights.lights[0]?.setPosition(this.player.x, this.player.y);
 
-      // Detect interaction range
+      // Check for nearby anomalies
       let nearbyAnomaly = null;
       activeAnomalies.forEach((a) => {
+        if (a.resolved) return;
+        
         const dist = Phaser.Math.Distance.Between(a.x, a.y, this.player.x, this.player.y);
-        if (dist < 60 && !a.resolved) {
+        a.inRange = dist < 60 + a.severity * 2;
+        
+        // Update interaction text visibility and position
+        if (a.interactionText) {
+          a.interactionText.setVisible(a.inRange);
+          a.interactionText.setPosition(a.x, a.y - 40 - a.severity * 2);
+        }
+        
+        if (a.inRange) {
           nearbyAnomaly = a;
         }
       });
 
-      if (nearbyAnomaly) {
-        interactionText.setText(`🛠 Anomaly: ${nearbyAnomaly.type} (F to fix)`);
-        if (Phaser.Input.Keyboard.JustDown(fixKey)) {
-          nearbyAnomaly.entity.destroy();
-          nearbyAnomaly.resolved = true;
-          setResolvedCount((prev) => prev + 1);
+      // Handle anomaly fixing
+      if (nearbyAnomaly && Phaser.Input.Keyboard.JustDown(fixKey)) {
+        // Remove anomaly visuals
+        nearbyAnomaly.entity.destroy();
+        nearbyAnomaly.glow.destroy();
+        if (nearbyAnomaly.interactionText) {
+          nearbyAnomaly.interactionText.destroy();
         }
-      } else {
-        interactionText.setText("");
+        
+        nearbyAnomaly.resolved = true;
+        setResolvedCount((prev) => prev + 1);
       }
 
-      // Minimap logic
+      // Update minimap
       const mapX = window.innerWidth - minimapSize - 20;
       const mapY = 20;
       const scale = minimapSize / universeSize;
@@ -179,6 +216,7 @@ const PhaserGame = ({ universe }) => {
       minimap.fillStyle(0x000000, 0.7);
       minimap.fillRect(mapX, mapY, minimapSize, minimapSize);
 
+      // Draw galaxies on minimap
       galaxies.forEach((g) => {
         const mx = mapX + (g.x + universeSize / 2) * scale;
         const my = mapY + (g.y + universeSize / 2) * scale;
@@ -186,14 +224,16 @@ const PhaserGame = ({ universe }) => {
         minimap.fillCircle(mx, my, 1);
       });
 
+      // Draw anomalies on minimap
       anomalies.forEach((a) => {
         if (a.resolved) return;
         const ax = mapX + (a.x + universeSize / 2) * scale;
         const ay = mapY + (a.y + universeSize / 2) * scale;
         minimap.fillStyle(0xff4444, 1);
-        minimap.fillCircle(ax, ay, 2);
+        minimap.fillCircle(ax, ay, 2 + a.severity * 0.2);
       });
 
+      // Draw player on minimap
       const px = mapX + (this.player.x + universeSize / 2) * scale;
       const py = mapY + (this.player.y + universeSize / 2) * scale;
       minimap.fillStyle(0x00ffff, 1);
@@ -219,7 +259,7 @@ const PhaserGame = ({ universe }) => {
   return (
     <div className="w-screen h-screen bg-black">
       <div className="absolute top-2 left-2 z-10 text-white text-sm px-4 py-2 bg-black bg-opacity-60 rounded">
-        🌌 {universe.name} — {universe.difficulty} — 🛠 Fixed: {resolvedCount}
+        🌌 {universe.name} — {universe.difficulty} — 🛠 Fixed: {resolvedCount}/{universe.anomalies.length}
       </div>
       <div id="phaser-container" style={{ width: "100%", height: "100%" }} />
     </div>
