@@ -98,6 +98,7 @@ const PhaserGame = ({ universe }) => {
 
       // Create anomalies
       anomalies = universe.anomalies.map((a) => ({
+         _id: a._id,
         x: a.location?.x ?? rng() * universeSize - universeSize / 2,
         y: a.location?.y ?? rng() * universeSize - universeSize / 2,
         type: a.type,
