@@ -152,12 +152,17 @@ class PhysicsEngine {
     const newAnomalies = Object.entries(anomalyTypes)
       .filter(([_, data]) => this.rng() < data.probability)
       .map(([type, data]) => ({
+        _id: new mongoose.Types.ObjectId(), // ✅ assign unique id
         type,
         severity: Math.round(this.rng() * 10),
         effects: data.effects,
-        timestamp: new Date(this.universe.currentState.age * 1000)
+        timestamp: new Date(this.universe.currentState.age * 1000),
+        resolved: false,
+        location: {
+          x: this.rng() * 10000 - 5000,
+          y: this.rng() * 10000 - 5000
+        }
       }));
-
     this.universe.anomalies = [...this.universe.anomalies, ...newAnomalies];
   }
 

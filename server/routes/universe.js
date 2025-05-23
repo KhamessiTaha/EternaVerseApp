@@ -68,66 +68,24 @@ router.put("/:id", verifyToken, async (req, res) => {
   }
 });
 
-// FIX an anomaly in a universe
-router.put("/:id/fix-anomaly", verifyToken, async (req, res) => {
+
+// PATCH: Resolve a specific anomaly
+router.patch("/:id/resolve-anomaly/:anomalyId", verifyToken, async (req, res) => {
   try {
-    const { anomalyIndex } = req.body;
-    const universe = await Universe.findOne({ _id: req.params.id, userId: req.user.id });
+    const { id, anomalyId } = req.params;
+    const universe = await Universe.findOne({ _id: id, userId: req.user.id });
 
     if (!universe) return res.status(404).json({ message: "Universe not found" });
 
-    if (
-      typeof anomalyIndex !== "number" ||
-      anomalyIndex < 0 ||
-      anomalyIndex >= universe.anomalies.length
-    ) {
-      return res.status(400).json({ message: "Invalid anomaly index" });
-    }
+    const anomaly = universe.anomalies.find(a => a._id.toString() === anomalyId);
+    if (!anomaly) return res.status(404).json({ message: "Anomaly not found" });
 
-    const anomaly = universe.anomalies[anomalyIndex];
-
-    if (anomaly.resolved) {
-      return res.status(400).json({ message: "Anomaly already resolved" });
-    }
-
-    // Mark resolved
-    universe.anomalies[anomalyIndex].resolved = true;
-
-    // Update metrics
-    universe.metrics.playerInterventions += 1;
-
-    const total = universe.anomalies.length;
-    const resolved = universe.anomalies.filter((a) => a.resolved).length;
-    universe.metrics.anomalyResolutionRate = resolved / total;
-
+    anomaly.resolved = true;
     await universe.save();
 
-    res.json({ message: "Anomaly resolved", universe });
+    res.json({ message: "Anomaly resolved", anomaly });
   } catch (err) {
     res.status(500).json({ error: err.message });
-  }
-});
-
-// PATCH - Mark anomaly as resolved
-router.patch('/:id/anomalies/:anomalyIndex/resolve', verifyToken, async (req, res) => {
-  try {
-    const { id, anomalyIndex } = req.params;
-
-    const universe = await Universe.findOne({ _id: id, userId: req.user.id });
-    if (!universe) return res.status(404).json({ message: 'Universe not found' });
-
-    if (!universe.anomalies[anomalyIndex]) {
-      return res.status(404).json({ message: 'Anomaly not found' });
-    }
-
-    universe.anomalies[anomalyIndex].resolved = true;
-    universe.metrics.anomalyResolutionRate = (universe.metrics.anomalyResolutionRate || 0) + 1;
-
-    await universe.save();
-    res.json({ message: 'Anomaly resolved successfully', anomaly: universe.anomalies[anomalyIndex] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to resolve anomaly' });
   }
 });
 
