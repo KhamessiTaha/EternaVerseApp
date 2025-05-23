@@ -68,6 +68,46 @@ router.put("/:id", verifyToken, async (req, res) => {
   }
 });
 
+// FIX an anomaly in a universe
+router.put("/:id/fix-anomaly", verifyToken, async (req, res) => {
+  try {
+    const { anomalyIndex } = req.body;
+    const universe = await Universe.findOne({ _id: req.params.id, userId: req.user.id });
+
+    if (!universe) return res.status(404).json({ message: "Universe not found" });
+
+    if (
+      typeof anomalyIndex !== "number" ||
+      anomalyIndex < 0 ||
+      anomalyIndex >= universe.anomalies.length
+    ) {
+      return res.status(400).json({ message: "Invalid anomaly index" });
+    }
+
+    const anomaly = universe.anomalies[anomalyIndex];
+
+    if (anomaly.resolved) {
+      return res.status(400).json({ message: "Anomaly already resolved" });
+    }
+
+    // Mark resolved
+    universe.anomalies[anomalyIndex].resolved = true;
+
+    // Update metrics
+    universe.metrics.playerInterventions += 1;
+
+    const total = universe.anomalies.length;
+    const resolved = universe.anomalies.filter((a) => a.resolved).length;
+    universe.metrics.anomalyResolutionRate = resolved / total;
+
+    await universe.save();
+
+    res.json({ message: "Anomaly resolved", universe });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PROGRESS Universe Over Time
 router.put("/:id/progress", verifyToken, async (req, res) => {
   try {
