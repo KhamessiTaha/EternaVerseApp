@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
+import axios from "axios";
 
 const PhaserGame = ({ universe }) => {
   const gameRef = useRef(null);
