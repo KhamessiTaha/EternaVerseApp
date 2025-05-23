@@ -152,7 +152,7 @@ class PhysicsEngine {
     const newAnomalies = Object.entries(anomalyTypes)
       .filter(([_, data]) => this.rng() < data.probability)
       .map(([type, data]) => ({
-        _id: new mongoose.Types.ObjectId(), // ✅ assign unique id
+        _id: new mongoose.Types.ObjectId(),
         type,
         severity: Math.round(this.rng() * 10),
         effects: data.effects,
