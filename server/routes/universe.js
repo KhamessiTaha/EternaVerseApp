@@ -108,6 +108,30 @@ router.put("/:id/fix-anomaly", verifyToken, async (req, res) => {
   }
 });
 
+// PATCH - Mark anomaly as resolved
+router.patch('/:id/anomalies/:anomalyIndex/resolve', verifyToken, async (req, res) => {
+  try {
+    const { id, anomalyIndex } = req.params;
+
+    const universe = await Universe.findOne({ _id: id, userId: req.user.id });
+    if (!universe) return res.status(404).json({ message: 'Universe not found' });
+
+    if (!universe.anomalies[anomalyIndex]) {
+      return res.status(404).json({ message: 'Anomaly not found' });
+    }
+
+    universe.anomalies[anomalyIndex].resolved = true;
+    universe.metrics.anomalyResolutionRate = (universe.metrics.anomalyResolutionRate || 0) + 1;
+
+    await universe.save();
+    res.json({ message: 'Anomaly resolved successfully', anomaly: universe.anomalies[anomalyIndex] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to resolve anomaly' });
+  }
+});
+
+
 // PROGRESS Universe Over Time
 router.put("/:id/progress", verifyToken, async (req, res) => {
   try {
