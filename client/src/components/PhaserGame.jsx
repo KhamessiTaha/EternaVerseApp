@@ -219,7 +219,7 @@ const PhaserGame = ({ universe }) => {
 
         const token = localStorage.getItem("token");
         axios
-          .put(
+          .patch(
             `http://localhost:5000/api/universe/${universe._id}/resolve-anomaly/${nearbyAnomaly._id}`,
             {},
             { headers: { Authorization: token } }
