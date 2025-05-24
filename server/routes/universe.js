@@ -69,6 +69,23 @@ router.put("/:id", verifyToken, async (req, res) => {
 });
 
 
+// Clean up resolved anomalies
+router.patch("/:id/cleanup-anomalies", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const universe = await Universe.findOne({ _id: id, userId: req.user.id });
+    if (!universe) return res.status(404).json({ message: "Universe not found" });
+
+    universe.anomalies = universe.anomalies.filter(a => !a.resolved);
+    await universe.save();
+
+    res.json({ message: "Resolved anomalies removed", count: universe.anomalies.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // PATCH: Resolve a specific anomaly
 router.patch("/:id/resolve-anomaly/:anomalyId", verifyToken, async (req, res) => {
   try {

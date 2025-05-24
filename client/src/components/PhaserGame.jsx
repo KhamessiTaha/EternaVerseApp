@@ -97,16 +97,18 @@ const PhaserGame = ({ universe }) => {
       }
 
       // Create anomalies
-      anomalies = universe.anomalies.map((a) => ({
-        _id: a._id,
-        x: a.location?.x ?? rng() * universeSize - universeSize / 2,
-        y: a.location?.y ?? rng() * universeSize - universeSize / 2,
-        type: a.type,
-        severity: a.severity ?? 5,
-        resolved: false,
-        glow: null,
-        interactionText: null,
-      }));
+      anomalies = universe.anomalies
+        ?.filter((a) => !a.resolved)
+        .map((a) => ({
+          x: a.location?.x ?? rng() * universeSize - universeSize / 2,
+          y: a.location?.y ?? rng() * universeSize - universeSize / 2,
+          type: a.type,
+          severity: a.severity ?? 5,
+          _id: a._id,
+          resolved: false,
+          glow: null,
+          interactionText: null,
+        }));
 
       anomalies.forEach((a) => {
         const anomaly = this.add.graphics({ x: a.x, y: a.y });
@@ -244,7 +246,6 @@ const PhaserGame = ({ universe }) => {
       minimap.fillStyle(0x000000, 0.7);
       minimap.fillRect(mapX, mapY, minimapSize, minimapSize);
 
-
       galaxies.forEach((g) => {
         const mx = mapX + (g.x + universeSize / 2) * scale;
         const my = mapY + (g.y + universeSize / 2) * scale;
@@ -285,8 +286,10 @@ const PhaserGame = ({ universe }) => {
   return (
     <div className="w-screen h-screen bg-black">
       <div className="absolute top-2 left-2 z-10 text-white text-sm px-4 py-2 bg-black bg-opacity-60 rounded">
-        🌌 {universe.name} — {universe.difficulty} — 🛠 Fixed: {resolvedCount}/
-        {universe.anomalies.length}
+        🌌 {universe.name} — {universe.difficulty}
+        <br />
+        🛠 Fixed: {universe.anomalies?.filter((a) => a.resolved)?.length || 0}/
+        {universe.anomalies?.length || 0}
       </div>
       <div id="phaser-container" style={{ width: "100%", height: "100%" }} />
     </div>
