@@ -40,7 +40,7 @@ const PhaserGame = ({ universe }) => {
     let minimapBorder;
     let activeAnomalies = [];
     let fixKey;
-    let interactionTexts = []; // Array to store all anomaly interaction texts
+    let interactionTexts = [];
 
     const minimapSize = 140;
     const universeSize = 10000;
@@ -98,31 +98,28 @@ const PhaserGame = ({ universe }) => {
 
       // Create anomalies
       anomalies = universe.anomalies.map((a) => ({
-         _id: a._id,
+        _id: a._id,
         x: a.location?.x ?? rng() * universeSize - universeSize / 2,
         y: a.location?.y ?? rng() * universeSize - universeSize / 2,
         type: a.type,
         severity: a.severity ?? 5,
         resolved: false,
         glow: null,
-        interactionText: null, // Store reference to the text object
+        interactionText: null,
       }));
 
       anomalies.forEach((a) => {
-        // Create anomaly graphics with glow effect
         const anomaly = this.add.graphics({ x: a.x, y: a.y });
         anomaly.fillStyle(0xff0000, 0.6);
         anomaly.fillCircle(0, 0, 10 + a.severity);
         anomaly.lineStyle(2, 0xff5555, 1);
         anomaly.strokeCircle(0, 0, 10 + a.severity);
 
-        // Add glow effect
         const glow = this.add.graphics({ x: a.x, y: a.y });
         glow.fillStyle(0xff0000, 0.3);
         glow.fillCircle(0, 0, 20 + a.severity * 2);
         glow.setBlendMode(Phaser.BlendModes.ADD);
 
-        // Add pulsing animation
         this.tweens.add({
           targets: glow,
           scaleX: 1.2,
@@ -133,15 +130,14 @@ const PhaserGame = ({ universe }) => {
           repeat: -1,
         });
 
-        // Create interaction text (initially hidden)
         const text = this.add
           .text(a.x, a.y - 40, `[${a.type}] PRESS F`, {
             font: 'bold 16px "Press Start 2P", Courier, monospace',
-            fill: "#00ff00", // Classic green pixel color
+            fill: "#00ff00",
             backgroundColor: "#000000",
             padding: { x: 8, y: 4 },
             align: "center",
-            stroke: "#003300", // Dark green outline
+            stroke: "#003300",
             strokeThickness: 2,
             shadow: {
               offsetX: 2,
@@ -161,31 +157,15 @@ const PhaserGame = ({ universe }) => {
         a.inRange = false;
         activeAnomalies.push(a);
 
-        // Add light to anomaly
         this.lights
           .addLight(a.x, a.y, 100 + a.severity * 10)
           .setIntensity(0.6 + a.severity * 0.05)
           .setColor(0xff3333);
       });
 
-      // Create minimap
+      // Initialize minimap and border (positions will be updated in update())
       minimap = this.add.graphics().setScrollFactor(0).setDepth(1000);
       minimapBorder = this.add.graphics().setScrollFactor(0).setDepth(999);
-      this.minimapCamera = this.cameras
-        .add(window.innerWidth - minimapSize - 20, 20, minimapSize, minimapSize)
-        .setZoom(0.01)
-        .setName("minimap");
-      this.minimapCamera
-        .setScroll(0, 0)
-        .setBackgroundColor("rgba(0, 0, 0, 0.5)")
-        .setVisible(true);
-      minimapBorder.lineStyle(2, 0xffffff, 0.8);
-      minimapBorder.strokeRect(
-        window.innerWidth - minimapSize - 20,
-        20,
-        minimapSize,
-        minimapSize
-      );
     }
 
     function update() {
@@ -205,10 +185,8 @@ const PhaserGame = ({ universe }) => {
           : 0
       );
 
-      // Update player light
       this.lights.lights[0]?.setPosition(this.player.x, this.player.y);
 
-      // Check for nearby anomalies
       let nearbyAnomaly = null;
       activeAnomalies.forEach((a) => {
         if (a.resolved) return;
@@ -221,7 +199,6 @@ const PhaserGame = ({ universe }) => {
         );
         a.inRange = dist < 60 + a.severity * 2;
 
-        // Update interaction text visibility and position
         if (a.interactionText) {
           a.interactionText.setVisible(a.inRange);
           a.interactionText.setPosition(a.x, a.y - 40 - a.severity * 2);
@@ -232,9 +209,7 @@ const PhaserGame = ({ universe }) => {
         }
       });
 
-      // Handle anomaly fixing
       if (nearbyAnomaly && Phaser.Input.Keyboard.JustDown(fixKey)) {
-        // Remove anomaly visuals
         nearbyAnomaly.entity.destroy();
         nearbyAnomaly.glow.destroy();
         nearbyAnomaly.interactionText?.destroy();
@@ -242,7 +217,6 @@ const PhaserGame = ({ universe }) => {
         nearbyAnomaly.resolved = true;
         setResolvedCount((prev) => prev + 1);
 
-        // 🔥 Update the database
         const token = localStorage.getItem("token");
         axios
           .put(
@@ -254,16 +228,27 @@ const PhaserGame = ({ universe }) => {
             console.error("Failed to update resolved anomaly:", err)
           );
       }
-      // Update minimap
-      const mapX = window.innerWidth - minimapSize - 20;
-      const mapY = 20;
+
+      // Update minimap elements
+      const mapX = window.innerWidth - minimapSize - 250;
+      const mapY = 150;
       const scale = minimapSize / universeSize;
 
+      // Clear and redraw minimap border
+      minimapBorder.clear();
+      minimapBorder.lineStyle(2, 0xffffff, 0.8);
+      minimapBorder.strokeRect(mapX, mapY, minimapSize, minimapSize);
+
+      // Redraw minimap content
       minimap.clear();
       minimap.fillStyle(0x000000, 0.7);
       minimap.fillRect(mapX, mapY, minimapSize, minimapSize);
+      // Clear and redraw minimap border
+      minimapBorder.clear();    
+      minimapBorder.lineStyle(2, 0xffffff, 0.8);
+      minimapBorder.strokeRect(mapX, mapY, minimapSize, minimapSize);
 
-      // Draw galaxies on minimap
+
       galaxies.forEach((g) => {
         const mx = mapX + (g.x + universeSize / 2) * scale;
         const my = mapY + (g.y + universeSize / 2) * scale;
@@ -271,7 +256,6 @@ const PhaserGame = ({ universe }) => {
         minimap.fillCircle(mx, my, 1);
       });
 
-      // Draw anomalies on minimap
       anomalies.forEach((a) => {
         if (a.resolved) return;
         const ax = mapX + (a.x + universeSize / 2) * scale;
@@ -280,7 +264,6 @@ const PhaserGame = ({ universe }) => {
         minimap.fillCircle(ax, ay, 2 + a.severity * 0.2);
       });
 
-      // Draw player on minimap
       const px = mapX + (this.player.x + universeSize / 2) * scale;
       const py = mapY + (this.player.y + universeSize / 2) * scale;
       minimap.fillStyle(0x00ffff, 1);
