@@ -243,10 +243,6 @@ const PhaserGame = ({ universe }) => {
       minimap.clear();
       minimap.fillStyle(0x000000, 0.7);
       minimap.fillRect(mapX, mapY, minimapSize, minimapSize);
-      // Clear and redraw minimap border
-      minimapBorder.clear();    
-      minimapBorder.lineStyle(2, 0xffffff, 0.8);
-      minimapBorder.strokeRect(mapX, mapY, minimapSize, minimapSize);
 
 
       galaxies.forEach((g) => {
