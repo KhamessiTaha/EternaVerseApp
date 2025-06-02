@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 const NavHeader = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
-
+ 
   return (
     <div className="fixed top-0 right-0 p-4 flex items-center gap-4">
       {user ? (
