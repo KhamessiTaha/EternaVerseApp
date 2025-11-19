@@ -71,9 +71,9 @@ const PhaserGame = ({ universe }) => {
 
       // Input
       this.cursors = this.input.keyboard.addKeys({
-        up: Phaser.Input.Keyboard.KeyCodes.W,
+        up: Phaser.Input.Keyboard.KeyCodes.Z,
         down: Phaser.Input.Keyboard.KeyCodes.S,
-        left: Phaser.Input.Keyboard.KeyCodes.A,
+        left: Phaser.Input.Keyboard.KeyCodes.Q,
         right: Phaser.Input.Keyboard.KeyCodes.D,
       });
       this.fixKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
