@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 class PhysicsEngine {
   constructor(universe) {
     this.universe = universe;
-    this.timeStep = 1e9; // 1 million years per step
+    this.timeStep = 1e9; // 1 million years per step (Progessive simulation speed)!!!!!!!!!!!!!!!!!!!
     this.rng = seedrandom(universe.seed);
     this.constants = {
       H0: 67.4 / (3.09e19), // Hubble Constant in per second
@@ -12,19 +12,17 @@ class PhysicsEngine {
       darkMatterDensity: 0.26,
       darkEnergyDensity: 0.74,
       criticalDensity: 8.62e-27, // kg/m³
-      planckTemperature: 1.417e32, // Kelvin
+      planckTemperature: 1.417e32, // in Kelvin
       observableGalaxies: 2e12, // Approximate number of galaxies in observable universe
-      averageStarsPerGalaxy: 1e11, // Average stars per galaxy
+      averageStarsPerGalaxy: 1e11, // Average stars per galaxy =(!!!!!!!!should be dynamic!!!!!!!)
     };
   }
 
   updateExpansion() {
     const { H0, c } = this.constants;
     
-    // Update age in years
-    this.universe.currentState.age += this.timeStep;
     
-    // Calculate scale factor (normalized to current time)
+    this.universe.currentState.age += this.timeStep;
     const scaleFactor = Math.exp(H0 * this.universe.currentState.age * 365.25 * 24 * 3600);
     
     // Update expansion rate (H(t) = H0 * sqrt(Ωm/a³ + ΩΛ))
@@ -32,17 +30,17 @@ class PhysicsEngine {
     const darkEnergyTerm = this.constants.darkEnergyDensity;
     this.universe.currentState.expansionRate = H0 * Math.sqrt(matterTerm + darkEnergyTerm);
     
-    // Temperature evolution (T ∝ 1/a)
+    // temperature evolution (T ∝/= 1/a)
     this.universe.currentState.temperature = 2.725 / scaleFactor; // Starting from current CMB temperature
     
-    // Entropy increases logarithmically with universe expansion
+    // Entropy increases over time
     this.universe.currentState.entropy += Math.log(1 + (this.timeStep / this.universe.currentState.age));
   }
 
   updateStructures() {
     const age = this.universe.currentState.age;
     
-    // No structure formation before 100 million years
+    // no structure formation before 100 million years (MAYBE ??????)
     if (age < 1e8) return;
     
     // Galaxy formation rate (peaks at 2-3 billion years, then declines)

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
 
@@ -36,8 +36,10 @@ const PhaserGame = ({ universe }) => {
         },
       },
       scale: {
-        mode: Phaser.Scale.RESIZE,
+        mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: "100%",
+        height: "100%",
       },
       scene: {
         preload,
@@ -51,6 +53,10 @@ const PhaserGame = ({ universe }) => {
     }
 
     function create() {
+      // basic scene state
+      this.minimapX = 0;
+      this.minimapY = 0;
+
       // Player setup
       this.player = this.physics.add
         .sprite(0, 0, "Player")
@@ -82,17 +88,12 @@ const PhaserGame = ({ universe }) => {
       this.fixKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
       this.mapKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
 
-      // Movement arrows
+      // Movement arrows state and factory
       this.arrowStates = { up: false, down: false, left: false, right: false };
-      
-      const arrowSize = 40;
       const arrowSpacing = 50;
-      const arrowY = window.innerHeight - 100;
-      const arrowX = 100;
 
-      // Create arrow graphics
       const createArrow = (x, y, rotation, direction) => {
-        const arrow = this.add.graphics()
+        const g = this.add.graphics()
           .fillStyle(0x00ff00, 0.6)
           .fillTriangle(-15, 10, 15, 10, 0, -10)
           .setPosition(x, y)
@@ -100,27 +101,28 @@ const PhaserGame = ({ universe }) => {
           .setScrollFactor(0)
           .setDepth(1001)
           .setInteractive(new Phaser.Geom.Triangle(-15, 10, 15, 10, 0, -10), Phaser.Geom.Triangle.Contains);
-        
-        arrow.on('pointerdown', () => {
+
+        g.on('pointerdown', () => {
           this.arrowStates[direction] = true;
-          arrow.clear().fillStyle(0x00ff00, 1).fillTriangle(-15, 10, 15, 10, 0, -10);
+          g.clear().fillStyle(0x00ff00, 1).fillTriangle(-15, 10, 15, 10, 0, -10);
         });
-        arrow.on('pointerup', () => {
+        g.on('pointerup', () => {
           this.arrowStates[direction] = false;
-          arrow.clear().fillStyle(0x00ff00, 0.6).fillTriangle(-15, 10, 15, 10, 0, -10);
+          g.clear().fillStyle(0x00ff00, 0.6).fillTriangle(-15, 10, 15, 10, 0, -10);
         });
-        arrow.on('pointerout', () => {
+        g.on('pointerout', () => {
           this.arrowStates[direction] = false;
-          arrow.clear().fillStyle(0x00ff00, 0.6).fillTriangle(-15, 10, 15, 10, 0, -10);
+          g.clear().fillStyle(0x00ff00, 0.6).fillTriangle(-15, 10, 15, 10, 0, -10);
         });
-        
-        return arrow;
+
+        return g;
       };
 
-      this.arrowUp = createArrow(arrowX, arrowY - arrowSpacing, 0, 'up');
-      this.arrowDown = createArrow(arrowX, arrowY + arrowSpacing, Math.PI, 'down');
-      this.arrowLeft = createArrow(arrowX - arrowSpacing, arrowY, -Math.PI / 2, 'left');
-      this.arrowRight = createArrow(arrowX + arrowSpacing, arrowY, Math.PI / 2, 'right');
+      // create arrows with placeholder positions; updateUIPositions will reposition them properly
+      this.arrowUp = createArrow(100, this.scale.height - 150, 0, 'up');
+      this.arrowDown = createArrow(100, this.scale.height - 50, Math.PI, 'down');
+      this.arrowLeft = createArrow(50, this.scale.height - 100, -Math.PI / 2, 'left');
+      this.arrowRight = createArrow(150, this.scale.height - 100, Math.PI / 2, 'right');
 
       // Initialize chunk system
       this.loadedChunks = new Map();
@@ -185,7 +187,7 @@ const PhaserGame = ({ universe }) => {
       // Initial chunk load
       this.loadNearbyChunks(this.currentChunk.chunkX, this.currentChunk.chunkY);
       this.activeAnomalies = [];
-      
+
       // Anomaly setup
       const anomalies = universe.anomalies
         ?.filter((a) => !a.resolved)
@@ -245,23 +247,38 @@ const PhaserGame = ({ universe }) => {
         this.activeAnomalies.push(a);
       });
 
-      // Minimap setup (fixed position)
+      // Minimap setup (fixed position handled by updateUIPositions)
       this.minimap = this.add.graphics().setScrollFactor(0).setDepth(1000);
       this.minimapBorder = this.add.graphics().setScrollFactor(0).setDepth(999);
-      
-      // Full map overlay
+
+      // Full map overlay container
       this.fullMapContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(2000).setVisible(false);
       this.fullMapBg = this.add.graphics().setScrollFactor(0);
       this.fullMapGraphics = this.add.graphics().setScrollFactor(0);
       this.fullMapContainer.add([this.fullMapBg, this.fullMapGraphics]);
 
+      // Title & instruction texts are created once and reused
+      this.fullMapTitle = this.add.text(0, 0, '', {
+        font: 'bold 18px "Press Start 2P", Courier, monospace',
+        fill: '#00ffff',
+        stroke: '#003333',
+        strokeThickness: 3,
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(2001).setVisible(false);
+
+      this.fullMapInstruction = this.add.text(0, 0, '', {
+        font: 'bold 14px Courier',
+        fill: '#00ff00',
+        backgroundColor: '#000000',
+        padding: { x: 10, y: 5 },
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(2001).setVisible(false);
+
       // Map toggle text
-      this.mapToggleText = this.add.text(10, window.innerHeight - 30, 'Press M for full map', {
+      this.mapToggleText = this.add.text(10, this.scale.height - 30, 'Press M for full map', {
         font: 'bold 12px Courier',
         fill: '#00ff00',
         backgroundColor: '#000000',
         padding: { x: 6, y: 3 },
-      }).setScrollFactor(0).setDepth(1001).setAlpha(0.7);
+      }).setScrollFactor(0).setDepth(1001).setAlpha(0.9);
 
       this.showFullMap = false;
 
@@ -280,6 +297,133 @@ const PhaserGame = ({ universe }) => {
         backgroundColor: '#000000',
         padding: { x: 6, y: 3 },
       }).setScrollFactor(0).setDepth(1001);
+
+      // Update UI positions helper
+      this.updateUIPositions = () => {
+        const w = this.scale.width;
+        const h = this.scale.height;
+
+        // Minimap top-right
+        this.minimapX = w - MINIMAP_SIZE - 240;
+        this.minimapY = 180;
+
+        // Arrows bottom-left area
+        const arrowBaseY = h - 100;
+        this.arrowUp?.setPosition(100, arrowBaseY - arrowSpacing);
+        this.arrowDown?.setPosition(100, arrowBaseY + arrowSpacing);
+        this.arrowLeft?.setPosition(100 - arrowSpacing, arrowBaseY);
+        this.arrowRight?.setPosition(100 + arrowSpacing, arrowBaseY);
+
+        // Map toggle and HUD
+        this.mapToggleText?.setPosition(10, h - 30);
+
+        this.velocityText?.setPosition(10, 80);
+        this.coordText?.setPosition(10, 100);
+
+        // Full map title/instruction positions
+        this.fullMapTitle?.setPosition(w / 2, 50);
+        this.fullMapInstruction?.setPosition(w / 2, h - 40);
+      };
+
+      // Wire up resize handling so UI stays responsive
+      this.scale.on('resize', () => {
+        this.updateUIPositions();
+        if (this.showFullMap) this.renderFullMap();
+      });
+
+      // Initial UI positioning
+      this.updateUIPositions();
+
+      // Initial render of full map elements (hidden by default)
+      this.renderFullMap = () => {
+        const width = this.scale.width;
+        const height = this.scale.height;
+        const padding = 50;
+        const mapWidth = width - padding * 2;
+        const mapHeight = height - padding * 2;
+
+        this.fullMapBg.clear();
+        this.fullMapGraphics.clear();
+
+        // Background
+        this.fullMapBg
+          .fillStyle(0x000000, 0.95)
+          .fillRect(0, 0, width, height);
+
+        // Map border - CMB style
+        this.fullMapGraphics
+          .lineStyle(3, 0x00ffff, 1)
+          .strokeRect(padding - 3, padding - 3, mapWidth + 6, mapHeight + 6)
+          .lineStyle(1, 0x4444ff, 0.5)
+          .strokeRect(padding - 6, padding - 6, mapWidth + 12, mapHeight + 12);
+
+        // Grid
+        const gridSpacing = 50;
+        this.fullMapGraphics.lineStyle(1, 0x222244, 0.3);
+        for (let x = padding; x <= padding + mapWidth; x += gridSpacing) {
+          this.fullMapGraphics.lineBetween(x, padding, x, padding + mapHeight);
+        }
+        for (let y = padding; y <= padding + mapHeight; y += gridSpacing) {
+          this.fullMapGraphics.lineBetween(padding, y, padding + mapWidth, y);
+        }
+
+        const scale = Math.min(mapWidth / UNIVERSE_SIZE, mapHeight / UNIVERSE_SIZE);
+        const offsetX = padding + (mapWidth - UNIVERSE_SIZE * scale) / 2;
+        const offsetY = padding + (mapHeight - UNIVERSE_SIZE * scale) / 2;
+
+        // Draw galaxies
+        this.loadedChunks.forEach(chunk => {
+          chunk.objects.forEach(galaxy => {
+            const mx = offsetX + (galaxy.x + UNIVERSE_SIZE / 2) * scale;
+            const my = offsetY + (galaxy.y + UNIVERSE_SIZE / 2) * scale;
+
+            const temp = (galaxy.x + galaxy.y) % 360;
+            const color = Phaser.Display.Color.HSVToRGB(temp / 360, 0.6, 0.8);
+
+            this.fullMapGraphics
+              .fillStyle(Phaser.Display.Color.GetColor(color.r, color.g, color.b), 0.6)
+              .fillCircle(mx, my, 2);
+          });
+        });
+
+        // Draw anomalies
+        this.activeAnomalies.forEach(a => {
+          if (!a.resolved) {
+            const mx = offsetX + (a.x + UNIVERSE_SIZE / 2) * scale;
+            const my = offsetY + (a.y + UNIVERSE_SIZE / 2) * scale;
+
+            this.fullMapGraphics
+              .fillStyle(0xff0000, 0.8)
+              .fillCircle(mx, my, 5)
+              .lineStyle(2, 0xff5555, 1)
+              .strokeCircle(mx, my, 5);
+          }
+        });
+
+        // Draw player
+        const px = offsetX + (this.player.x + UNIVERSE_SIZE / 2) * scale;
+        const py = offsetY + (this.player.y + UNIVERSE_SIZE / 2) * scale;
+
+        this.fullMapGraphics
+          .fillStyle(0x00ffff, 1)
+          .fillCircle(px, py, 6)
+          .lineStyle(2, 0xffffff, 1)
+          .strokeCircle(px, py, 6)
+          .lineStyle(1, 0x00ffff, 0.5)
+          .strokeCircle(px, py, 12);
+
+        // Set text
+        this.fullMapTitle.setText('COSMIC MICROWAVE BACKGROUND MAP');
+        this.fullMapInstruction.setText('Press M to close');
+
+        // Visibility
+        this.fullMapTitle.setVisible(this.showFullMap);
+        this.fullMapInstruction.setVisible(this.showFullMap);
+      };
+
+      // Initial render call to set visuals (hidden by default)
+      this.renderFullMap();
+
     }
 
     function update() {
@@ -309,7 +453,7 @@ const PhaserGame = ({ universe }) => {
 
       // Chunk updates
       const newChunk = getChunkCoords(this.player.x, this.player.y);
-      if (newChunk.chunkX !== this.currentChunk.chunkX || 
+      if (newChunk.chunkX !== this.currentChunk.chunkX ||
           newChunk.chunkY !== this.currentChunk.chunkY) {
         this.currentChunk = newChunk;
         this.loadNearbyChunks(newChunk.chunkX, newChunk.chunkY);
@@ -339,7 +483,7 @@ const PhaserGame = ({ universe }) => {
         if (anomalyIndex !== -1) {
           universe.anomalies[anomalyIndex].resolved = true;
         }
-        
+
         // Trigger React state update
         setResolvedCount(prev => prev + 1);
 
@@ -357,11 +501,9 @@ const PhaserGame = ({ universe }) => {
           ).then(response => {
             if (!response.ok) {
               console.error("Failed to resolve anomaly on server");
-              // Optionally revert the optimistic update if API fails
             }
           }).catch(err => {
             console.error("Failed to resolve anomaly:", err);
-            // Optionally revert the optimistic update if API fails
           });
         }
       }
@@ -370,15 +512,14 @@ const PhaserGame = ({ universe }) => {
       if (Phaser.Input.Keyboard.JustDown(this.mapKey)) {
         this.showFullMap = !this.showFullMap;
         this.fullMapContainer.setVisible(this.showFullMap);
-        
-        if (this.showFullMap) {
-          this.renderFullMap();
-        }
+
+        // update title/instruction visibility handled inside renderFullMap
+        this.renderFullMap();
       }
 
-      // Update minimap (fixed position regardless of screen size)
-      const mapX = window.innerWidth - MINIMAP_SIZE - 20;
-      const mapY = 20;
+      // Update minimap using responsive positions
+      const mapX = this.minimapX;
+      const mapY = this.minimapY;
       const scale = MINIMAP_SIZE / UNIVERSE_SIZE;
 
       this.minimap.clear();
@@ -427,113 +568,16 @@ const PhaserGame = ({ universe }) => {
         .lineStyle(1, 0xffffff, 1)
         .strokeCircle(px, py, 3);
 
-      // Update arrow positions on resize
-      const arrowY = window.innerHeight - 100;
+      // Update arrow positions on every frame to account for scale changes
+      const arrowY = this.scale.height - 100;
       this.arrowUp?.setPosition(100, arrowY - 50);
       this.arrowDown?.setPosition(100, arrowY + 50);
       this.arrowLeft?.setPosition(50, arrowY);
       this.arrowRight?.setPosition(150, arrowY);
-      
-      // Update map toggle text position
-      this.mapToggleText?.setPosition(10, window.innerHeight - 30);
-    }
 
-    // Render full CMB-style map
-    Phaser.Scene.prototype.renderFullMap = function() {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      const padding = 50;
-      const mapWidth = width - padding * 2;
-      const mapHeight = height - padding * 2;
-      
-      this.fullMapBg.clear();
-      this.fullMapGraphics.clear();
-      
-      // Background with gradient effect
-      this.fullMapBg
-        .fillStyle(0x000000, 0.95)
-        .fillRect(0, 0, width, height);
-      
-      // Map border - CMB style
-      this.fullMapGraphics
-        .lineStyle(3, 0x00ffff, 1)
-        .strokeRect(padding - 3, padding - 3, mapWidth + 6, mapHeight + 6)
-        .lineStyle(1, 0x4444ff, 0.5)
-        .strokeRect(padding - 6, padding - 6, mapWidth + 12, mapHeight + 12);
-      
-      // Draw grid lines - CMB style
-      const gridSpacing = 50;
-      this.fullMapGraphics.lineStyle(1, 0x222244, 0.3);
-      for (let x = padding; x <= padding + mapWidth; x += gridSpacing) {
-        this.fullMapGraphics.lineBetween(x, padding, x, padding + mapHeight);
-      }
-      for (let y = padding; y <= padding + mapHeight; y += gridSpacing) {
-        this.fullMapGraphics.lineBetween(padding, y, padding + mapWidth, y);
-      }
-      
-      const scale = Math.min(mapWidth / UNIVERSE_SIZE, mapHeight / UNIVERSE_SIZE);
-      const offsetX = padding + (mapWidth - UNIVERSE_SIZE * scale) / 2;
-      const offsetY = padding + (mapHeight - UNIVERSE_SIZE * scale) / 2;
-      
-      // Draw all galaxies with CMB-style coloring
-      this.loadedChunks.forEach(chunk => {
-        chunk.objects.forEach(galaxy => {
-          const mx = offsetX + (galaxy.x + UNIVERSE_SIZE/2) * scale;
-          const my = offsetY + (galaxy.y + UNIVERSE_SIZE/2) * scale;
-          
-          // CMB temperature variation style
-          const temp = (galaxy.x + galaxy.y) % 360;
-          const color = Phaser.Display.Color.HSVToRGB(temp / 360, 0.6, 0.8);
-          
-          this.fullMapGraphics
-            .fillStyle(Phaser.Display.Color.GetColor(color.r, color.g, color.b), 0.6)
-            .fillCircle(mx, my, 2);
-        });
-      });
-      
-      // Draw anomalies prominently
-      this.activeAnomalies.forEach(a => {
-        if (!a.resolved) {
-          const mx = offsetX + (a.x + UNIVERSE_SIZE/2) * scale;
-          const my = offsetY + (a.y + UNIVERSE_SIZE/2) * scale;
-          
-          this.fullMapGraphics
-            .fillStyle(0xff0000, 0.8)
-            .fillCircle(mx, my, 5)
-            .lineStyle(2, 0xff5555, 1)
-            .strokeCircle(mx, my, 5);
-        }
-      });
-      
-      // Draw player position
-      const px = offsetX + (this.player.x + UNIVERSE_SIZE/2) * scale;
-      const py = offsetY + (this.player.y + UNIVERSE_SIZE/2) * scale;
-      
-      this.fullMapGraphics
-        .fillStyle(0x00ffff, 1)
-        .fillCircle(px, py, 6)
-        .lineStyle(2, 0xffffff, 1)
-        .strokeCircle(px, py, 6)
-        .lineStyle(1, 0x00ffff, 0.5)
-        .strokeCircle(px, py, 12);
-      
-      // Title text
-      const titleText = this.add.text(width / 2, padding - 25, 'COSMIC MICROWAVE BACKGROUND MAP', {
-        font: 'bold 18px "Press Start 2P", Courier, monospace',
-        fill: '#00ffff',
-        stroke: '#003333',
-        strokeThickness: 3,
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(2001);
-      
-      const instructionText = this.add.text(width / 2, height - padding + 25, 'Press M to close', {
-        font: 'bold 14px Courier',
-        fill: '#00ff00',
-        backgroundColor: '#000000',
-        padding: { x: 10, y: 5 },
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(2001);
-      
-      this.fullMapContainer.add([titleText, instructionText]);
-    };
+      // Update map toggle text position
+      this.mapToggleText?.setPosition(10, this.scale.height - 30);
+    }
 
     if (!gameRef.current) {
       gameRef.current = new Phaser.Game(config);
@@ -546,7 +590,9 @@ const PhaserGame = ({ universe }) => {
 
     return () => {
       window.removeEventListener("resize", resizeHandler);
-      gameRef.current?.destroy(true);
+      if (gameRef.current) {
+        try { gameRef.current.destroy(true); } catch (e) { /* ignore */ }
+      }
       gameRef.current = null;
     };
   }, [universe]);
@@ -561,14 +607,14 @@ const PhaserGame = ({ universe }) => {
           {universe.anomalies?.length || 0}
         </div>
       </div>
-      
+
       <div className="absolute top-4 right-4 z-10 text-white text-xs px-3 py-2 bg-black bg-opacity-80 rounded border border-cyan-500">
         <div className="font-bold text-cyan-400 mb-1">Controls</div>
         <div>WASD/ZQSD: Move</div>
         <div>F: Fix Anomaly</div>
         <div>M: Toggle Map</div>
       </div>
-      
+
       <div id="phaser-container" className="w-full h-full" />
     </div>
   );
