@@ -225,19 +225,21 @@ const PhaserGame = ({ universe, onAnomalyResolved }) => {
         }
       }
 
-        
       // Cleanup old chunks
       this.loadedChunks.forEach((chunk, key) => {
         if (!newChunks.has(key)) {
           chunk.galaxies.forEach(obj => obj.destroy());
           chunk.anomalies.forEach(anom => {
-            anom.entity?.destroy();
-            anom.glow?.destroy();
-            if (anom.light) this.lights.removeLight(anom.light);
-            anom.interactionText?.destroy();
+            if (anom.entity) anom.entity.destroy();
+            if (anom.glow) anom.glow.destroy();
+            if (anom.light) {
+              this.lights.removeLight(anom.light);
+            }
+            if (anom.interactionText) anom.interactionText.destroy();
           });
         }
       });
+
       this.loadedChunks = newChunks;
     };
 
@@ -417,10 +419,10 @@ const PhaserGame = ({ universe, onAnomalyResolved }) => {
         this.time.delayedCall(1000, () => particles.destroy());
         
         // Cleanup
-        nearestAnomaly.entity.destroy();
-        nearestAnomaly.glow.destroy();
-        //nearestAnomaly.light.destroy(); !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        nearestAnomaly.interactionText?.destroy();
+        if (nearestAnomaly.entity) nearestAnomaly.entity.destroy();
+        if (nearestAnomaly.glow) nearestAnomaly.glow.destroy();
+        if (nearestAnomaly.light) this.lights.removeLight(nearestAnomaly.light);
+        if (nearestAnomaly.interactionText) nearestAnomaly.interactionText.destroy();
         
         // Update stats
         setStats(prev => ({ ...prev, resolved: prev.resolved + 1 }));

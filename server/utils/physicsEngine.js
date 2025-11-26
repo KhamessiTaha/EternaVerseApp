@@ -12,13 +12,14 @@ class PhysicsEngine {
     this.timeStep = 1e8; // 100 million years per step
     this.rng = seedrandom(universe.seed);
     
+    // Use universe constants if available, otherwise use defaults
     this.constants = {
       H0: 67.4 / 3.09e19, // Hubble constant in per second
-      c: 299792458, // Speed of light (m/s)
-      G: 6.674e-11, // Gravitational constant
-      darkMatterDensity: 0.26, // Ωm
-      darkEnergyDensity: 0.69, // ΩΛ (updated value)
-      baryonicDensity: 0.05, // Ωb
+      c: universe.constants?.speedOfLight || 299792458,
+      G: universe.constants?.gravitationalConstant || 6.67430e-11,
+      darkMatterDensity: universe.constants?.darkMatterDensity || 0.26,
+      darkEnergyDensity: universe.constants?.darkEnergyDensity || 0.7,
+      baryonicDensity: universe.constants?.matterDensity || 0.04,
       criticalDensity: 8.62e-27, // kg/m³
       planckTemperature: 1.417e32, // Kelvin
       observableGalaxies: 2e12,
@@ -30,18 +31,17 @@ class PhysicsEngine {
     if (!this.universe.currentState) {
       this.universe.currentState = {
         age: 0,
-        expansionRate: this.constants.H0,
-        temperature: this.constants.planckTemperature,
+        expansionRate: this.constants.H0 * 3.09e19, // Convert to km/s/Mpc
+        temperature: universe.initialConditions?.initialTemperature || this.constants.planckTemperature,
         entropy: 0,
+        stabilityIndex: 1.0,
+        timeDialation: 1.0,
         galaxyCount: 0,
         starCount: 0,
         blackHoleCount: 0,
         habitableSystemsCount: 0,
         lifeBearingPlanetsCount: 0,
-        civilizationCount: 0,
-        stabilityIndex: 1.0,
-        totalMass: 0,
-        totalEnergy: 0
+        civilizationCount: 0
       };
     }
   }
@@ -63,16 +63,17 @@ class PhysicsEngine {
     const darkEnergyTerm = darkEnergyDensity;
     const currentHubble = H0 * Math.sqrt(matterTerm + darkEnergyTerm);
     
-    this.universe.currentState.expansionRate = currentHubble;
+    // Store in km/s/Mpc (standard cosmological unit)
+    this.universe.currentState.expansionRate = currentHubble * 3.09e19;
     
     // CMB temperature evolution: T(t) = T0 / a(t)
-    // Current CMB is 2.725 K at 13.8 Gyr
     const currentAge = 13.8e9; // years
     const T0 = 2.725 * Math.exp(H0 * currentAge * 365.25 * 24 * 3600);
     this.universe.currentState.temperature = T0 / scaleFactor;
     
-    // Entropy increases with expansion
-    this.universe.currentState.entropy += Math.log(scaleFactor) * 1e10;
+    // Entropy increases with expansion (Boltzmann entropy)
+    const volumeRatio = Math.pow(scaleFactor, 3);
+    this.universe.currentState.entropy += Math.log(volumeRatio) * 1e12;
   }
 
   /**
@@ -112,17 +113,11 @@ class PhysicsEngine {
     this.universe.currentState.starCount += Math.max(0, starGrowthRate);
     
     // Black hole formation: ~0.01% of massive stars (>20 solar masses)
-    // Assume 1% of stars are massive enough
     const massiveStarFraction = 0.01;
     const blackHoleProbability = 0.1; // 10% of massive stars become black holes
     
     this.universe.currentState.blackHoleCount = 
       this.universe.currentState.starCount * massiveStarFraction * blackHoleProbability;
-    
-    // Update total mass estimate
-    const avgStarMass = 0.5 * this.constants.solarMass; // Average star is ~0.5 solar masses
-    this.universe.currentState.totalMass = 
-      this.universe.currentState.starCount * avgStarMass;
   }
 
   /**
@@ -142,28 +137,79 @@ class PhysicsEngine {
     const metallicity = Math.min((age - 1e9) / 1e10, 1);
     
     // Habitable zone fraction increases with metallicity
-    // Rocky planets need metals
     const habitableZoneFraction = 0.02 * metallicity; // 2% at full metallicity
     
     this.universe.currentState.habitableSystemsCount = 
       this.universe.currentState.starCount * habitableZoneFraction;
     
     // Life emergence probability (Drake equation inspired)
-    // Very conservative estimates
     const temperatureSuitability = this.getTemperatureSuitability();
-    const timeFactor = Math.min((age - 3e9) / 1e10, 1); // Life needs time
+    const timeFactor = Math.min((age - 3e9) / 1e10, 1);
     const lifeProbability = 1e-8 * temperatureSuitability * metallicity * timeFactor;
     
     this.universe.currentState.lifeBearingPlanetsCount = 
       this.universe.currentState.habitableSystemsCount * lifeProbability;
     
     // Civilization emergence (even rarer)
-    // Requires: complex life + intelligence + technology
     if (age > 5e9) {
-      const civProbability = 1e-6; // 1 in a million life-bearing planets
-      this.universe.currentState.civilizationCount = 
-        Math.floor(this.universe.currentState.lifeBearingPlanetsCount * civProbability);
+      const civProbability = 1e-6;
+      const potentialCivs = Math.floor(
+        this.universe.currentState.lifeBearingPlanetsCount * civProbability
+      );
+      
+      this.universe.currentState.civilizationCount = potentialCivs;
+      
+      // Update civilizations array if needed
+      this.updateCivilizations(potentialCivs);
     }
+  }
+
+  /**
+   * Update civilizations array with proper typing
+   */
+  updateCivilizations(targetCount) {
+    if (!this.universe.civilizations) {
+      this.universe.civilizations = [];
+    }
+    
+    const currentCount = this.universe.civilizations.length;
+    
+    if (currentCount < targetCount) {
+      const newCivsNeeded = targetCount - currentCount;
+      
+      for (let i = 0; i < newCivsNeeded; i++) {
+        const civType = this.determineCivilizationType();
+        
+        this.universe.civilizations.push({
+          type: civType,
+          location: {
+            galaxyId: `galaxy_${Math.floor(this.rng() * this.universe.currentState.galaxyCount)}`,
+            coordinates: {
+              x: (this.rng() - 0.5) * 100000,
+              y: (this.rng() - 0.5) * 100000,
+              z: (this.rng() - 0.5) * 10000
+            }
+          },
+          developmentLevel: this.rng(),
+          technologicalProgress: this.rng(),
+          survivability: 0.5 + this.rng() * 0.5
+        });
+      }
+    }
+  }
+
+  /**
+   * Determine civilization type based on age and random factors
+   */
+  determineCivilizationType() {
+    const age = this.universe.currentState.age;
+    const rand = this.rng();
+    
+    if (age < 8e9) return 'Type0'; // Young universe, only Type 0
+    if (rand < 0.7) return 'Type0';
+    if (rand < 0.95) return 'Type1';
+    if (rand < 0.99) return 'Type2';
+    return 'Type3'; // Very rare
   }
 
   /**
@@ -174,7 +220,6 @@ class PhysicsEngine {
     const optimalTemp = 300; // K (Earth-like)
     const tolerance = 100; // K
     
-    // Gaussian falloff around optimal temperature
     return Math.exp(-Math.pow((temp - optimalTemp) / tolerance, 2));
   }
 
@@ -183,8 +228,6 @@ class PhysicsEngine {
    */
   updateStability() {
     const age = this.universe.currentState.age;
-    
-    // Factors affecting stability:
     
     // 1. Entropy (increases = less stable)
     const entropyFactor = Math.exp(-this.universe.currentState.entropy / 1e14);
@@ -197,33 +240,69 @@ class PhysicsEngine {
       1
     );
     
-    // 3. Dark energy dominance (causes accelerated expansion = less stable long-term)
+    // 3. Dark energy dominance
     const scaleFactor = Math.exp(this.constants.H0 * age * 365.25 * 24 * 3600);
     const matterDensity = this.constants.darkMatterDensity / Math.pow(scaleFactor, 3);
     const darkEnergyDensity = this.constants.darkEnergyDensity;
     const densityRatio = matterDensity / (matterDensity + darkEnergyDensity);
-    const darkEnergyFactor = densityRatio; // Higher matter ratio = more stable
+    const darkEnergyFactor = densityRatio;
     
-    // 4. Temperature stability (extreme temps = unstable)
+    // 4. Temperature stability
     const temperatureFactor = this.getTemperatureSuitability();
     
-    // Combine factors (weighted average)
+    // 5. Anomaly impact
+    const unresolvedAnomalies = this.universe.anomalies?.filter(a => !a.resolved).length || 0;
+    const anomalyFactor = Math.max(0, 1 - (unresolvedAnomalies * 0.05));
+    
+    // Combine factors
     this.universe.currentState.stabilityIndex = (
-      entropyFactor * 0.2 +
-      structureFactor * 0.3 +
-      darkEnergyFactor * 0.3 +
-      temperatureFactor * 0.2
+      entropyFactor * 0.15 +
+      structureFactor * 0.25 +
+      darkEnergyFactor * 0.25 +
+      temperatureFactor * 0.15 +
+      anomalyFactor * 0.2
     );
     
-    // Clamp to [0, 1]
     this.universe.currentState.stabilityIndex = Math.max(0, 
       Math.min(1, this.universe.currentState.stabilityIndex)
     );
+    
+    // Update metrics
+    if (!this.universe.metrics) {
+      this.universe.metrics = {};
+    }
+    this.universe.metrics.stabilityScore = this.universe.currentState.stabilityIndex;
+    this.universe.metrics.complexityIndex = this.calculateComplexityIndex();
+    this.universe.metrics.lifePotentialIndex = this.calculateLifePotentialIndex();
+  }
+
+  /**
+   * Calculate complexity index based on structure
+   */
+  calculateComplexityIndex() {
+    const galaxyFactor = Math.log10(this.universe.currentState.galaxyCount + 1) / 12;
+    const starFactor = Math.log10(this.universe.currentState.starCount + 1) / 23;
+    const civFactor = Math.log10(this.universe.currentState.civilizationCount + 1) / 3;
+    
+    return Math.min(1, (galaxyFactor + starFactor + civFactor) / 3);
+  }
+
+  /**
+   * Calculate life potential index
+   */
+  calculateLifePotentialIndex() {
+    if (this.universe.currentState.habitableSystemsCount === 0) return 0;
+    
+    const habitableFraction = this.universe.currentState.habitableSystemsCount / 
+      Math.max(this.universe.currentState.starCount, 1);
+    const temperatureFactor = this.getTemperatureSuitability();
+    const stabilityFactor = this.universe.currentState.stabilityIndex;
+    
+    return Math.min(1, (habitableFraction * 1000 + temperatureFactor + stabilityFactor) / 3);
   }
 
   /**
    * Generate GLOBAL simulation anomalies (not rendered in-game)
-   * These affect universe-wide metrics and are stored in DB
    */
   generateGlobalAnomalies() {
     const age = this.universe.currentState.age;
@@ -233,7 +312,7 @@ class PhysicsEngine {
       this.constants.observableGalaxies;
     
     // Only generate anomalies probabilistically
-    if (this.rng() > 0.01 * activityLevel) return; // 1% chance per step when active
+    if (this.rng() > 0.01 * activityLevel) return;
     
     const anomalyDefinitions = {
       blackHoleMerger: {
@@ -241,7 +320,7 @@ class PhysicsEngine {
         condition: () => this.universe.currentState.blackHoleCount > 1e6,
         effects: (severity) => ({
           gravitationalWaves: true,
-          energyRelease: severity * 1e47, // Joules
+          energyRelease: severity * 1e47,
           stabilityImpact: -0.01 * severity
         }),
         description: 'Supermassive black hole merger detected'
@@ -265,50 +344,68 @@ class PhysicsEngine {
         }),
         description: 'Cascading supernova events'
       },
-      quantumVacuumFluctuation: {
+      quantumTunneling: {
         probability: 0.1,
-        condition: () => true, // Can happen anytime
+        condition: () => true,
         effects: (severity) => ({
           localEntropyDecrease: -severity * 1e8,
           stabilityImpact: -0.03 * severity
         }),
         description: 'Quantum vacuum instability'
       },
-      gammaRayBurst: {
-        probability: 0.25,
-        condition: () => this.universe.currentState.starCount > 1e19,
+      falseVacuumDecay: {
+        probability: 0.02,
+        condition: () => age > 10e9, // Only in mature universes
         effects: (severity) => ({
-          energyRelease: severity * 1e44,
-          radiationSpike: true,
-          stabilityImpact: -0.008 * severity
+          catastrophicEvent: true,
+          stabilityImpact: -0.5 * severity
         }),
-        description: 'Gamma-ray burst detected'
+        description: 'False vacuum decay event'
+      },
+      cosmicStringCollision: {
+        probability: 0.08,
+        condition: () => age < 1e9, // Early universe
+        effects: (severity) => ({
+          gravitationalWaves: true,
+          stabilityImpact: -0.015 * severity
+        }),
+        description: 'Cosmic string collision'
       }
     };
 
     const newAnomalies = [];
     
     Object.entries(anomalyDefinitions).forEach(([type, config]) => {
-      // Check probability and conditions
       if (this.rng() < config.probability && config.condition()) {
         const severity = Math.ceil(this.rng() * 10);
-        const effects = config.effects(severity);
+        const effectsData = config.effects(severity);
         
         const anomaly = {
           _id: new mongoose.Types.ObjectId(),
           type,
           severity,
-          effects,
-          description: config.description,
-          timestamp: new Date(this.universe.currentState.age * 31557600000), // Convert years to ms
+          location: {
+            x: (this.rng() - 0.5) * 100000,
+            y: (this.rng() - 0.5) * 100000,
+            z: (this.rng() - 0.5) * 10000
+          },
+          radius: 1000 * severity,
+          timestamp: new Date(this.universe.currentState.age * 31557600000),
           resolved: false,
-          isGlobal: true // Mark as global simulation anomaly
+          effects: Object.entries(effectsData).map(([parameter, magnitude]) => ({
+            parameter,
+            magnitude,
+            duration: severity * 1e8 // years
+          }))
         };
         
         newAnomalies.push(anomaly);
         
-        // Apply effects to universe state
-        this.applyAnomalyEffects(anomaly);
+        // Apply effects immediately
+        this.applyAnomalyEffects(effectsData);
+        
+        // Record significant event
+        this.recordSignificantEvent(type, config.description, effectsData);
       }
     });
     
@@ -323,9 +420,7 @@ class PhysicsEngine {
   /**
    * Apply anomaly effects to universe state
    */
-  applyAnomalyEffects(anomaly) {
-    const effects = anomaly.effects;
-    
+  applyAnomalyEffects(effects) {
     if (effects.stabilityImpact) {
       this.universe.currentState.stabilityIndex += effects.stabilityImpact;
       this.universe.currentState.stabilityIndex = Math.max(0, 
@@ -337,10 +432,6 @@ class PhysicsEngine {
       this.universe.currentState.expansionRate *= (1 + effects.expansionBoost);
     }
     
-    if (effects.metallicityIncrease) {
-      // Could track metallicity separately if needed
-    }
-    
     if (effects.localEntropyDecrease) {
       this.universe.currentState.entropy += effects.localEntropyDecrease;
     }
@@ -349,6 +440,27 @@ class PhysicsEngine {
       this.universe.currentState.starCount -= effects.starDeathCount;
       this.universe.currentState.starCount = Math.max(0, this.universe.currentState.starCount);
     }
+    
+    if (effects.catastrophicEvent) {
+      // Major universe-altering event
+      this.universe.currentState.stabilityIndex *= 0.5;
+    }
+  }
+
+  /**
+   * Record significant events in timeline
+   */
+  recordSignificantEvent(type, description, effects) {
+    if (!this.universe.significantEvents) {
+      this.universe.significantEvents = [];
+    }
+    
+    this.universe.significantEvents.push({
+      timestamp: new Date(this.universe.currentState.age * 31557600000),
+      type,
+      description,
+      effects
+    });
   }
 
   /**
@@ -360,6 +472,9 @@ class PhysicsEngine {
     this.updateLifeEvolution();
     this.updateStability();
     this.generateGlobalAnomalies();
+    
+    // Update last modified timestamp
+    this.universe.lastModified = new Date();
     
     return this.universe;
   }
@@ -380,15 +495,42 @@ class PhysicsEngine {
   getStatistics() {
     return {
       age: `${(this.universe.currentState.age / 1e9).toFixed(2)} Gyr`,
-      expansionRate: `${(this.universe.currentState.expansionRate * 3.09e19).toFixed(2)} km/s/Mpc`,
+      expansionRate: `${this.universe.currentState.expansionRate.toFixed(2)} km/s/Mpc`,
       temperature: `${this.universe.currentState.temperature.toFixed(2)} K`,
       galaxies: this.universe.currentState.galaxyCount.toExponential(2),
       stars: this.universe.currentState.starCount.toExponential(2),
       blackHoles: this.universe.currentState.blackHoleCount.toExponential(2),
+      habitableSystems: this.universe.currentState.habitableSystemsCount.toExponential(2),
+      lifeBearingPlanets: this.universe.currentState.lifeBearingPlanetsCount.toExponential(2),
       civilizations: this.universe.currentState.civilizationCount,
       stability: `${(this.universe.currentState.stabilityIndex * 100).toFixed(1)}%`,
-      globalAnomalies: this.universe.anomalies?.filter(a => a.isGlobal && !a.resolved).length || 0
+      complexity: `${(this.universe.metrics?.complexityIndex * 100).toFixed(1)}%`,
+      lifePotential: `${(this.universe.metrics?.lifePotentialIndex * 100).toFixed(1)}%`,
+      globalAnomalies: this.universe.anomalies?.filter(a => !a.resolved).length || 0,
+      significantEvents: this.universe.significantEvents?.length || 0
     };
+  }
+
+  /**
+   * Check for universe end conditions
+   */
+  checkEndConditions() {
+    const age = this.universe.currentState.age;
+    const stability = this.universe.currentState.stabilityIndex;
+    
+    if (stability < 0.1) {
+      this.universe.status = 'ended';
+      this.universe.endCondition = 'vacuum-decay';
+      return true;
+    }
+    
+    if (age > 1e14) { // 100 trillion years
+      this.universe.status = 'ended';
+      this.universe.endCondition = 'heat-death';
+      return true;
+    }
+    
+    return false;
   }
 }
 
