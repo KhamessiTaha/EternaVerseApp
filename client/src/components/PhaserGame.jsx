@@ -528,8 +528,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
       const h = this.scale.height;
 
       // Minimap
-      this.minimapX = w - MINIMAP_SIZE - 20;
-      this.minimapY = 20;
+      this.minimapX = w - MINIMAP_SIZE - 280;
+      this.minimapY = 150;
 
       // Touch controls
       const arrowY = h - 100;
