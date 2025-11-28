@@ -1,107 +1,55 @@
+// PhaserGame.jsx
 import React, { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
 
-// Configuration constants
 const CHUNK_SIZE = 1000;
 const UNIVERSE_SIZE = 100000;
 const MINIMAP_SIZE = 150;
-const ANOMALIES_PER_CHUNK = 2; // Average anomalies per chunk
-const ANOMALY_SPAWN_CHANCE = 0.3; // 30% chance per chunk
+const ANOMALIES_PER_CHUNK = 2;
+const ANOMALY_SPAWN_CHANCE = 0.3;
 
-// Helper functions
 const getChunkCoords = (x, y) => ({
   chunkX: Math.floor(x / CHUNK_SIZE),
   chunkY: Math.floor(y / CHUNK_SIZE),
 });
-
 const getChunkKey = (x, y) => `${x}:${y}`;
 
-// Anomaly types with gameplay characteristics
 const ANOMALY_TYPES = [
-  { 
-    type: 'blackHoleMerger', 
-    color: 0x9900ff, 
-    label: 'BLACK HOLE',
-    baseRadius: 15,
-    description: 'Gravitational anomaly detected'
-  },
-  { 
-    type: 'darkEnergySurge', 
-    color: 0x0066ff, 
-    label: 'DARK ENERGY',
-    baseRadius: 12,
-    description: 'Spacetime distortion'
-  },
-  { 
-    type: 'supernovaChain', 
-    color: 0xff6600, 
-    label: 'SUPERNOVA',
-    baseRadius: 18,
-    description: 'Stellar collapse cascade'
-  },
-  { 
-    type: 'quantumTunneling', 
-    color: 0x00ff99, 
-    label: 'QUANTUM',
-    baseRadius: 10,
-    description: 'Quantum instability'
-  },
-  { 
-    type: 'cosmicString', 
-    color: 0xff0066, 
-    label: 'COSMIC STRING',
-    baseRadius: 14,
-    description: 'Topological defect'
-  }
+  { type: "blackHoleMerger", color: 0x9900ff, label: "BLACK HOLE", baseRadius: 15 },
+  { type: "darkEnergySurge", color: 0x0066ff, label: "DARK ENERGY", baseRadius: 12 },
+  { type: "supernovaChain", color: 0xff6600, label: "SUPERNOVA", baseRadius: 18 },
+  { type: "quantumTunneling", color: 0x00ff99, label: "QUANTUM", baseRadius: 10 },
+  { type: "cosmicString", color: 0xff0066, label: "COSMIC STRING", baseRadius: 14 },
 ];
 
-const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
-  const gameRef = useRef(null);
-  const [stats, setStats] = useState({
-    resolved: 0,
-    discovered: 0
-  });
+const UniverseSceneFactory = (props) => {
+  // returns a Scene class that closes over props (universe, callbacks)
+  return class UniverseScene extends Phaser.Scene {
+    constructor() {
+      super({ key: "UniverseScene" });
+      this.loadedChunks = new Map();
+      this.activeChunkRadius = 2;
+      this.discoveredAnomalies = new Set();
+      this.resolvedAnomalies = new Set();
+      this.arrowStates = { up: false, down: false, left: false, right: false };
+    }
 
-  useEffect(() => {
-    const rng = seedrandom(universe.seed);
+    init(data) {
+      this.universe = data.universe;
+      this.onAnomalyResolved = data.onAnomalyResolved;
+      this.setStats = data.setStats;
+      // rng seed for visual determinism
+      this.rng = seedrandom(this.universe.seed ?? "default");
+    }
 
-    const config = {
-      type: Phaser.AUTO,
-      width: window.innerWidth,
-      height: window.innerHeight,
-      backgroundColor: "#000000",
-      parent: "phaser-container",
-      physics: {
-        default: "arcade",
-        arcade: {
-          gravity: { y: 0 },
-          debug: false,
-        },
-      },
-      scale: {
-        mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-      },
-      scene: {
-        preload,
-        create,
-        update,
-      },
-    };
-
-    function preload() {
+    preload() {
+      // ensure asset exists in /public/assets/Player.png or adapt path
       this.load.image("Player", "/assets/Player.png");
     }
 
-    function create() {
-      // Scene state
-      this.minimapX = 0;
-      this.minimapY = 0;
-      this.discoveredAnomalies = new Set();
-      this.resolvedAnomalies = new Set();
-
-      // Player setup
+    create() {
+      // Player
       this.player = this.physics.add
         .sprite(0, 0, "Player")
         .setScale(0.05)
@@ -113,12 +61,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
       this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
       this.cameras.main.setZoom(1.5);
 
-      // Lighting system
+      // Lights (enable global lights)
       this.lights.enable().setAmbientColor(0x0a0a0a);
-      this.player.setPipeline("Light2D");
+      // Note: Pipelines on Graphics may not work — avoid setting pipeline on graphics objects
       this.playerLight = this.lights.addLight(0, 0, 250).setIntensity(2.5);
 
-      // Input
+      // Controls
       this.cursors = this.input.keyboard.addKeys({
         up: Phaser.Input.Keyboard.KeyCodes.W,
         down: Phaser.Input.Keyboard.KeyCodes.S,
@@ -132,81 +80,77 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
       this.fixKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
       this.mapKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
 
-      // Touch controls
-      this.arrowStates = { up: false, down: false, left: false, right: false };
+      // touch controls
       this.createTouchControls();
 
-      // Chunk system
-      this.loadedChunks = new Map();
-      this.activeChunkRadius = 2;
+      // chunk system
       this.currentChunk = getChunkCoords(this.player.x, this.player.y);
-
-      // Initialize chunk loading
       this.loadNearbyChunks(this.currentChunk.chunkX, this.currentChunk.chunkY);
 
-      // UI Setup
+      // UI & minimap
       this.showFullMap = false;
       this.createUI();
       this.updateUIPositions();
 
-      // Resize handling
-      this.scale.on('resize', () => {
+      this.scale.on("resize", () => {
         this.updateUIPositions();
         if (this.showFullMap) this.renderFullMap();
       });
 
+      // initial render
       this.renderFullMap();
     }
 
-    function update() {
-      // Player movement
+    update(time, delta) {
       const speed = 250;
-      const isMovingLeft = this.cursors.left.isDown || this.cursors.q.isDown || this.arrowStates.left;
-      const isMovingRight = this.cursors.right.isDown || this.cursors.d2.isDown || this.arrowStates.right;
-      const isMovingUp = this.cursors.up.isDown || this.cursors.z.isDown || this.arrowStates.up;
-      const isMovingDown = this.cursors.down.isDown || this.cursors.s2.isDown || this.arrowStates.down;
+      const isMovingLeft =
+        this.cursors.left.isDown || this.cursors.q?.isDown || this.arrowStates.left;
+      const isMovingRight =
+        this.cursors.right.isDown || this.cursors.d2?.isDown || this.arrowStates.right;
+      const isMovingUp =
+        this.cursors.up.isDown || this.cursors.z?.isDown || this.arrowStates.up;
+      const isMovingDown =
+        this.cursors.down.isDown || this.cursors.s2?.isDown || this.arrowStates.down;
 
       this.player.setAcceleration(
         isMovingLeft ? -speed : isMovingRight ? speed : 0,
         isMovingUp ? -speed : isMovingDown ? speed : 0
       );
 
-      // Update player light
+      // follow light
       this.playerLight.setPosition(this.player.x, this.player.y);
 
-      // Update HUD
-      const velocity = Math.sqrt(
-        this.player.body.velocity.x ** 2 + this.player.body.velocity.y ** 2
-      );
-      this.velocityText.setText(`VELOCITY: ${velocity.toFixed(1)} u/s`);
-      this.coordText.setText(
+      // HUD
+      const vel =
+        Math.sqrt(this.player.body.velocity.x ** 2 + this.player.body.velocity.y ** 2) || 0;
+      this.velocityText?.setText(`VELOCITY: ${vel.toFixed(1)} u/s`);
+      this.coordText?.setText(
         `COORDINATES: X:${this.player.x.toFixed(0)} Y:${this.player.y.toFixed(0)}`
       );
 
-      // Chunk management
+      // chunk checks
       const newChunk = getChunkCoords(this.player.x, this.player.y);
-      if (newChunk.chunkX !== this.currentChunk.chunkX ||
-          newChunk.chunkY !== this.currentChunk.chunkY) {
+      if (newChunk.chunkX !== this.currentChunk.chunkX || newChunk.chunkY !== this.currentChunk.chunkY) {
         this.currentChunk = newChunk;
         this.loadNearbyChunks(newChunk.chunkX, newChunk.chunkY);
       }
 
-      // Anomaly interaction
+      // anomalies
       this.handleAnomalyInteraction();
 
-      // Map toggle
+      // map toggle
       if (Phaser.Input.Keyboard.JustDown(this.mapKey)) {
         this.showFullMap = !this.showFullMap;
-        this.fullMapContainer.setVisible(this.showFullMap);
+        this.fullMapContainer?.setVisible(this.showFullMap);
         this.renderFullMap();
       }
 
-      // Update minimap
+      // minimap
       this.updateMinimap();
     }
 
-    // Chunk loading system
-    const loadNearbyChunks = function(centerX, centerY) {
+    // ----- chunking & generation -----
+    loadNearbyChunks(centerX, centerY) {
       const newChunks = new Map();
       const radius = this.activeChunkRadius;
 
@@ -225,145 +169,136 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
         }
       }
 
-      // Cleanup old chunks
+      // cleanup old chunks not in newChunks
       this.loadedChunks.forEach((chunk, key) => {
         if (!newChunks.has(key)) {
-          chunk.galaxies.forEach(obj => obj.destroy());
-          chunk.anomalies.forEach(anom => {
-            if (anom.entity) anom.entity.destroy();
-            if (anom.glow) anom.glow.destroy();
-            if (anom.light) {
-              this.lights.removeLight(anom.light);
-            }
-            if (anom.interactionText) anom.interactionText.destroy();
+          chunk.galaxies.forEach(g => g.destroy());
+          chunk.anomalies.forEach(a => {
+            a.entity?.destroy();
+            a.glow?.destroy();
+            if (a.light) this.lights.removeLight(a.light);
+            a.interactionText?.destroy();
           });
         }
       });
 
       this.loadedChunks = newChunks;
-    };
+    }
 
-    const generateChunk = function(chunkX, chunkY) {
+    generateChunk(chunkX, chunkY) {
       const chunk = { galaxies: [], anomalies: [] };
-      const chunkSeed = universe.seed + getChunkKey(chunkX, chunkY);
-      const chunkRNG = seedrandom(chunkSeed);
+      const chunkSeed = (this.universe.seed ?? "seed") + getChunkKey(chunkX, chunkY);
+      const rng = seedrandom(chunkSeed);
 
-      // Generate galaxies (visual environment)
-      const galaxyCount = 15 + Math.floor(chunkRNG() * 10);
+      const galaxyCount = 8 + Math.floor(rng() * 12);
       for (let i = 0; i < galaxyCount; i++) {
-        const x = chunkX * CHUNK_SIZE + chunkRNG() * CHUNK_SIZE;
-        const y = chunkY * CHUNK_SIZE + chunkRNG() * CHUNK_SIZE;
-        const size = chunkRNG() * 25 + 8;
-        const hue = chunkRNG() * 360;
-        const color = Phaser.Display.Color.HSVColorWheel()[Math.floor(hue)];
+        const x = chunkX * CHUNK_SIZE + rng() * CHUNK_SIZE;
+        const y = chunkY * CHUNK_SIZE + rng() * CHUNK_SIZE;
+        const size = rng() * 25 + 4;
+        const hue = Math.floor(rng() * 360);
+        const wheel = Phaser.Display.Color.HSVColorWheel();
+        const color = wheel[hue % wheel.length];
 
-        const galaxy = this.add.graphics({ x, y })
-          .fillStyle(Phaser.Display.Color.GetColor(color.r, color.g, color.b), 0.8)
-          .fillCircle(0, 0, size)
-          .setDepth(-1)
-          .setPipeline("Light2D");
+        const g = this.add.graphics({ x, y }).fillStyle(
+          Phaser.Display.Color.GetColor(color.r, color.g, color.b),
+          0.8
+        ).fillCircle(0, 0, size).setDepth(-1);
 
-        // Add subtle glow to larger galaxies
+        // subtle light for large galaxies
         if (size > 20) {
-          this.lights.addLight(x, y, size * 8, 
-            Phaser.Display.Color.GetColor(color.r, color.g, color.b), 0.3);
+          this.lights.addLight(x, y, size * 6, Phaser.Display.Color.GetColor(color.r, color.g, color.b), 0.2);
         }
 
-        chunk.galaxies.push(galaxy);
+        chunk.galaxies.push(g);
       }
 
-      // Generate procedural anomalies
-      if (chunkRNG() < ANOMALY_SPAWN_CHANCE) {
-        const anomalyCount = Math.floor(chunkRNG() * ANOMALIES_PER_CHUNK) + 1;
-        
+      // anomalies (probabilistic)
+      if (rng() < ANOMALY_SPAWN_CHANCE) {
+        const anomalyCount = Math.floor(rng() * ANOMALIES_PER_CHUNK) + 1;
         for (let i = 0; i < anomalyCount; i++) {
-          const anomalyType = ANOMALY_TYPES[Math.floor(chunkRNG() * ANOMALY_TYPES.length)];
-          const severity = Math.floor(chunkRNG() * 5) + 1;
-          
-          const x = chunkX * CHUNK_SIZE + chunkRNG() * CHUNK_SIZE;
-          const y = chunkY * CHUNK_SIZE + chunkRNG() * CHUNK_SIZE;
-          
-          // Create unique ID for this anomaly
+          const type = ANOMALY_TYPES[Math.floor(rng() * ANOMALY_TYPES.length)];
+          const severity = Math.floor(rng() * 5) + 1;
+          const x = chunkX * CHUNK_SIZE + rng() * CHUNK_SIZE;
+          const y = chunkY * CHUNK_SIZE + rng() * CHUNK_SIZE;
           const anomalyId = `${chunkX}:${chunkY}:${i}`;
-          
-          // Skip if already resolved
+
           if (this.resolvedAnomalies.has(anomalyId)) continue;
 
-          const anomaly = this.createAnomaly(x, y, anomalyType, severity, anomalyId);
+          const anomaly = this.createAnomaly(x, y, type, severity, anomalyId);
           chunk.anomalies.push(anomaly);
-          
-          // Track discovery
+
           if (!this.discoveredAnomalies.has(anomalyId)) {
             this.discoveredAnomalies.add(anomalyId);
-            setStats(prev => ({ ...prev, discovered: prev.discovered + 1 }));
+            // keep stats in React via closure
+            this.setStats?.((prev) => ({ ...prev, discovered: (prev.discovered || 0) + 1 }));
           }
         }
       }
 
       return chunk;
-    };
+    }
 
-    const createAnomaly = function(x, y, type, severity, id) {
-      const radius = type.baseRadius + severity * 2;
-      
-      // Main anomaly body
+    createAnomaly(x, y, typeObj, severity, id) {
+      const radius = typeObj.baseRadius + severity * 2;
+
       const entity = this.add.graphics({ x, y })
-        .fillStyle(type.color, 0.7)
+        .fillStyle(typeObj.color, 0.7)
         .fillCircle(0, 0, radius)
-        .lineStyle(2, type.color, 1)
+        .lineStyle(2, typeObj.color, 1)
         .strokeCircle(0, 0, radius)
-        .setPipeline("Light2D")
         .setDepth(10);
 
-      // Animated glow
       const glow = this.add.graphics({ x, y })
-        .fillStyle(type.color, 0.3)
+        .fillStyle(typeObj.color, 0.25)
         .fillCircle(0, 0, radius * 1.8)
         .setBlendMode(Phaser.BlendModes.ADD)
-        .setPipeline("Light2D")
         .setDepth(9);
 
+      // tween glow alpha / scale (graphics can't easily tween scale in the same way, but we can tween scale)
       this.tweens.add({
         targets: glow,
-        scaleX: 1.3,
-        scaleY: 1.3,
-        alpha: 0.6,
+        scaleX: { from: 1, to: 1.3 },
+        scaleY: { from: 1, to: 1.3 },
+        alpha: { from: 0.5, to: 0.8 },
         duration: 1500 + severity * 200,
         yoyo: true,
         repeat: -1,
-        ease: 'Sine.easeInOut'
+        ease: "Sine.easeInOut",
       });
 
-      // Dynamic light
-      const light = this.lights.addLight(x, y, radius * 12, type.color, 1.2);
-      
-      // Add pulsing to light
+      const light = this.lights.addLight(x, y, radius * 12, typeObj.color, 1.2);
+
+      // pulse light intensity using a tween on a numeric property of a fake object
+      const lightProxy = { i: 1.2 };
       this.tweens.add({
-        targets: light,
-        intensity: { from: 1.2, to: 2.0 },
+        targets: lightProxy,
+        i: { from: 1.2, to: 2.0 },
         duration: 2000 + severity * 300,
         yoyo: true,
         repeat: -1,
-        ease: 'Sine.easeInOut'
+        ease: "Sine.easeInOut",
+        onUpdate: () => {
+          if (light && light.setIntensity) light.setIntensity(lightProxy.i);
+        },
       });
 
-      // Interaction prompt
-      const interactionText = this.add.text(x, y - radius - 25, 
-        `[${type.label}]\nPRESS F TO RESOLVE`, {
-        font: 'bold 11px Courier',
-        fill: "#00ff00",
-        backgroundColor: "#000000",
-        padding: { x: 6, y: 3 },
-        align: "center",
-        stroke: "#003300",
-        strokeThickness: 2,
-      }).setOrigin(0.5).setVisible(false).setDepth(1000);
+      const interactionText = this.add
+        .text(x, y - radius - 25, `[${typeObj.label}]\nPRESS F TO RESOLVE`, {
+          font: "bold 11px Courier",
+          fill: "#00ff00",
+          backgroundColor: "#000000",
+          padding: { x: 6, y: 3 },
+          align: "center",
+        })
+        .setOrigin(0.5)
+        .setDepth(1000)
+        .setVisible(false);
 
       return {
         id,
         x,
         y,
-        type: type.type,
+        type: typeObj.type,
         severity,
         radius,
         entity,
@@ -371,75 +306,83 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
         light,
         interactionText,
         inRange: false,
-        resolved: false
+        resolved: false,
       };
-    };
+    }
 
-    const handleAnomalyInteraction = function() {
-      let nearestAnomaly = null;
-      let minDist = Infinity;
+    handleAnomalyInteraction() {
+  let nearest = null;
+  let minDist = Infinity;
 
-      // Check all anomalies in loaded chunks
-      this.loadedChunks.forEach(chunk => {
-        chunk.anomalies.forEach(anom => {
-          if (anom.resolved) return;
-          
-          const dist = Phaser.Math.Distance.Between(
-            anom.x, anom.y, this.player.x, this.player.y
-          );
-          
-          const interactionRange = anom.radius * 5;
-          anom.inRange = dist < interactionRange;
-          anom.interactionText?.setVisible(anom.inRange);
-          
-          if (anom.inRange && dist < minDist) {
-            minDist = dist;
-            nearestAnomaly = anom;
-          }
-        });
-      });
+  // Find nearest anomaly in range
+  this.loadedChunks.forEach((chunk) => {
+    chunk.anomalies.forEach((anom) => {
+      if (anom.resolved) return;
 
-      // Resolve anomaly
-      if (nearestAnomaly && Phaser.Input.Keyboard.JustDown(this.fixKey)) {
-        nearestAnomaly.resolved = true;
-        this.resolvedAnomalies.add(nearestAnomaly.id);
-        
-        // Visual feedback
-        this.cameras.main.shake(200, 0.005);
-        
-        // Particle effect
-        const particles = this.add.particles(nearestAnomaly.x, nearestAnomaly.y, 'Player', {
-          speed: { min: 50, max: 150 },
-          scale: { start: 0.02, end: 0 },
-          lifespan: 1000,
-          quantity: 20,
-          blendMode: 'ADD'
-        });
-        
-        this.time.delayedCall(1000, () => particles.destroy());
-        
-        // Cleanup
-        if (nearestAnomaly.entity) nearestAnomaly.entity.destroy();
-        if (nearestAnomaly.glow) nearestAnomaly.glow.destroy();
-        if (nearestAnomaly.light) this.lights.removeLight(nearestAnomaly.light);
-        if (nearestAnomaly.interactionText) nearestAnomaly.interactionText.destroy();
-        
-        // Update stats
-        setStats(prev => ({ ...prev, resolved: prev.resolved + 1 }));
-        
-        // Callback to parent component
-        if (onAnomalyResolved) {
-          onAnomalyResolved({
-            type: nearestAnomaly.type,
-            severity: nearestAnomaly.severity,
-            location: { x: nearestAnomaly.x, y: nearestAnomaly.y }
-          });
-        }
+      const dist = Phaser.Math.Distance.Between(anom.x, anom.y, this.player.x, this.player.y);
+      const interactionRange = anom.radius * 5;
+
+      anom.inRange = dist < interactionRange;
+      anom.interactionText?.setVisible(anom.inRange);
+
+      if (anom.inRange && dist < minDist) {
+        minDist = dist;
+        nearest = anom;
       }
-    };
+    });
+  });
 
-    const createTouchControls = function() {
+  if (nearest && Phaser.Input.Keyboard.JustDown(this.fixKey)) {
+    nearest.resolved = true;
+    this.resolvedAnomalies.add(nearest.id);
+
+    this.cameras.main.shake(200, 0.005);
+
+    // ---- FIXED PARTICLES FOR PHASER 3.60 ----
+    const particleBurst = this.add.particles(
+      nearest.x,
+      nearest.y,
+      "Player", // same texture as before
+      {
+        speed: { min: 50, max: 150 },
+        scale: { start: 0.02, end: 0 },
+        lifespan: 800,
+        quantity: 20,
+        blendMode: "ADD"
+      }
+    );
+
+    // auto-remove burst
+    this.time.delayedCall(800, () => particleBurst.destroy());
+    // ------------------------------------------
+
+    // cleanup anomaly objects
+    nearest.entity?.destroy();
+    nearest.glow?.destroy();
+    if (nearest.light) this.lights.removeLight(nearest.light);
+    nearest.interactionText?.destroy();
+
+    // update stats
+    this.setStats?.((prev) => ({
+      ...prev,
+      resolved: (prev.resolved || 0) + 1,
+    }));
+
+    // callback
+    if (this.onAnomalyResolved) {
+      this.onAnomalyResolved({
+        type: nearest.type,
+        severity: nearest.severity,
+        location: { x: nearest.x, y: nearest.y },
+      });
+    }
+  }
+}
+
+
+    createTouchControls() {
       const createArrow = (x, y, rotation, direction) => {
+        const tri = new Phaser.Geom.Triangle(-15, 10, 15, 10, 0, -10);
         const g = this.add.graphics()
           .fillStyle(0x00ff00, 0.5)
           .fillTriangle(-15, 10, 15, 10, 0, -10)
@@ -447,20 +390,17 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
           .setRotation(rotation)
           .setScrollFactor(0)
           .setDepth(1001)
-          .setInteractive(
-            new Phaser.Geom.Triangle(-15, 10, 15, 10, 0, -10), 
-            Phaser.Geom.Triangle.Contains
-          );
+          .setInteractive(tri, Phaser.Geom.Triangle.Contains);
 
-        g.on('pointerdown', () => {
+        g.on("pointerdown", () => {
           this.arrowStates[direction] = true;
           g.clear().fillStyle(0x00ff00, 1).fillTriangle(-15, 10, 15, 10, 0, -10);
         });
-        g.on('pointerup', () => {
+        g.on("pointerup", () => {
           this.arrowStates[direction] = false;
           g.clear().fillStyle(0x00ff00, 0.5).fillTriangle(-15, 10, 15, 10, 0, -10);
         });
-        g.on('pointerout', () => {
+        g.on("pointerout", () => {
           this.arrowStates[direction] = false;
           g.clear().fillStyle(0x00ff00, 0.5).fillTriangle(-15, 10, 15, 10, 0, -10);
         });
@@ -468,170 +408,149 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
         return g;
       };
 
-      this.arrowUp = createArrow(100, 100, 0, 'up');
-      this.arrowDown = createArrow(100, 100, Math.PI, 'down');
-      this.arrowLeft = createArrow(100, 100, -Math.PI / 2, 'left');
-      this.arrowRight = createArrow(100, 100, Math.PI / 2, 'right');
-    };
+      const h = this.scale.height;
+      this.arrowUp = createArrow(100, h - 120, 0, "up");
+      this.arrowDown = createArrow(100, h - 40, Math.PI, "down");
+      this.arrowLeft = createArrow(50, h - 80, -Math.PI / 2, "left");
+      this.arrowRight = createArrow(150, h - 80, Math.PI / 2, "right");
+    }
 
-    const createUI = function() {
-      // Minimap
+    createUI() {
+      // minimap
       this.minimap = this.add.graphics().setScrollFactor(0).setDepth(1000);
       this.minimapBorder = this.add.graphics().setScrollFactor(0).setDepth(999);
 
-      // Full map
-      this.fullMapContainer = this.add.container(0, 0)
-        .setScrollFactor(0).setDepth(2000).setVisible(false);
+      // full map container
+      this.fullMapContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(2000).setVisible(false);
       this.fullMapBg = this.add.graphics().setScrollFactor(0);
       this.fullMapGraphics = this.add.graphics().setScrollFactor(0);
       this.fullMapContainer.add([this.fullMapBg, this.fullMapGraphics]);
 
-      this.fullMapTitle = this.add.text(0, 0, '', {
-        font: 'bold 18px Courier',
-        fill: '#00ffff',
-        stroke: '#003333',
+      this.fullMapTitle = this.add.text(0, 0, "", {
+        font: "bold 18px Courier",
+        fill: "#00ffff",
+        stroke: "#003333",
         strokeThickness: 3,
       }).setOrigin(0.5).setScrollFactor(0).setDepth(2001).setVisible(false);
 
-      this.fullMapInstruction = this.add.text(0, 0, '', {
-        font: 'bold 14px Courier',
-        fill: '#00ff00',
-        backgroundColor: '#000000',
+      this.fullMapInstruction = this.add.text(0, 0, "", {
+        font: "bold 14px Courier",
+        fill: "#00ff00",
+        backgroundColor: "#000000",
         padding: { x: 10, y: 5 },
       }).setOrigin(0.5).setScrollFactor(0).setDepth(2001).setVisible(false);
 
-      // HUD elements
-      this.velocityText = this.add.text(10, 80, '', {
-        font: 'bold 12px Courier',
-        fill: '#00ff00',
-        backgroundColor: '#000000',
+      // HUD
+      this.velocityText = this.add.text(10, 80, "", {
+        font: "bold 12px Courier",
+        fill: "#00ff00",
+        backgroundColor: "#000000",
         padding: { x: 6, y: 3 },
       }).setScrollFactor(0).setDepth(1001);
 
-      this.coordText = this.add.text(10, 100, '', {
-        font: 'bold 12px Courier',
-        fill: '#00ffff',
-        backgroundColor: '#000000',
+      this.coordText = this.add.text(10, 100, "", {
+        font: "bold 12px Courier",
+        fill: "#00ffff",
+        backgroundColor: "#000000",
         padding: { x: 6, y: 3 },
       }).setScrollFactor(0).setDepth(1001);
 
-      this.mapToggleText = this.add.text(10, 120, 'PRESS M FOR FULL MAP', {
-        font: 'bold 11px Courier',
-        fill: '#ffff00',
-        backgroundColor: '#000000',
+      this.mapToggleText = this.add.text(10, 120, "PRESS M FOR FULL MAP", {
+        font: "bold 11px Courier",
+        fill: "#ffff00",
+        backgroundColor: "#000000",
         padding: { x: 6, y: 3 },
       }).setScrollFactor(0).setDepth(1001).setAlpha(0.8);
-    };
 
-    const updateUIPositions = function() {
+      // full map group add texts to container so toggle works
+      this.fullMapContainer.add([this.fullMapTitle, this.fullMapInstruction]);
+    }
+
+    updateUIPositions() {
       const w = this.scale.width;
       const h = this.scale.height;
 
-      // Minimap §§§§§§§§§§§§§§§§§§§§POSITION§§§§§§§§§§§§§§§§§§§§§
       this.minimapX = w - MINIMAP_SIZE - 270;
       this.minimapY = 150;
 
-      // Touch controls
-      const arrowY = h ;
-      this.arrowUp?.setPosition(100, arrowY - 50);
-      this.arrowDown?.setPosition(100, arrowY + 50);
-      this.arrowLeft?.setPosition(50, arrowY);
-      this.arrowRight?.setPosition(150, arrowY);
+      // reposition arrows if present
+      if (this.arrowUp) {
+        this.arrowUp.setPosition(100, h - 120);
+        this.arrowDown.setPosition(100, h - 40);
+        this.arrowLeft.setPosition(50, h - 80);
+        this.arrowRight.setPosition(150, h - 80);
+      }
 
-      // Full map
       this.fullMapTitle?.setPosition(w / 2, 40);
       this.fullMapInstruction?.setPosition(w / 2, h - 40);
-    };
+    }
 
-    const updateMinimap = function() {
-      const mapX = this.minimapX;
-      const mapY = this.minimapY;
-      
-      // Calculate bounds of loaded chunks
+    updateMinimap() {
+      const mapX = this.minimapX ?? 10;
+      const mapY = this.minimapY ?? 10;
       const radius = this.activeChunkRadius;
       const chunksWidth = (radius * 2 + 1) * CHUNK_SIZE;
       const chunksHeight = (radius * 2 + 1) * CHUNK_SIZE;
-      
-      // Center of loaded area in world coordinates
       const centerX = this.currentChunk.chunkX * CHUNK_SIZE + CHUNK_SIZE / 2;
       const centerY = this.currentChunk.chunkY * CHUNK_SIZE + CHUNK_SIZE / 2;
-      
-      // Scale to fit loaded chunks in minimap
       const scale = MINIMAP_SIZE / chunksWidth;
 
       this.minimap.clear();
       this.minimapBorder.clear();
 
-      // Border
-      this.minimapBorder
-        .lineStyle(2, 0x00ffff, 0.8)
-        .strokeRect(mapX - 2, mapY - 2, MINIMAP_SIZE + 4, MINIMAP_SIZE + 4);
+      this.minimapBorder.lineStyle(2, 0x00ffff, 0.8).strokeRect(mapX - 2, mapY - 2, MINIMAP_SIZE + 4, MINIMAP_SIZE + 4);
+      this.minimap.fillStyle(0x000022, 0.95).fillRect(mapX, mapY, MINIMAP_SIZE, MINIMAP_SIZE);
 
-      // Background
-      this.minimap
-        .fillStyle(0x000022, 0.95)
-        .fillRect(mapX, mapY, MINIMAP_SIZE, MINIMAP_SIZE);
-
-      // Draw chunk grid
+      // grid
       this.minimapBorder.lineStyle(1, 0x004444, 0.5);
-      for (let dx = -radius; dx <= radius + 1; dx++) {
+      for (let dx = -radius; dx <= radius; dx++) {
         const x = mapX + (dx * CHUNK_SIZE + chunksWidth / 2) * scale;
         this.minimapBorder.lineBetween(x, mapY, x, mapY + MINIMAP_SIZE);
       }
-      for (let dy = -radius; dy <= radius + 1; dy++) {
+      for (let dy = -radius; dy <= radius; dy++) {
         const y = mapY + (dy * CHUNK_SIZE + chunksHeight / 2) * scale;
         this.minimapBorder.lineBetween(mapX, y, mapX + MINIMAP_SIZE, y);
       }
 
-      // Galaxies
-      this.loadedChunks.forEach(chunk => {
-        chunk.galaxies.forEach(galaxy => {
+      // galaxies
+      this.loadedChunks.forEach((chunk) => {
+        chunk.galaxies.forEach((galaxy) => {
           const relX = galaxy.x - centerX;
           const relY = galaxy.y - centerY;
           const mx = mapX + (relX + chunksWidth / 2) * scale;
           const my = mapY + (relY + chunksHeight / 2) * scale;
-          
-          if (mx >= mapX && mx <= mapX + MINIMAP_SIZE && 
-              my >= mapY && my <= mapY + MINIMAP_SIZE) {
+          if (mx >= mapX && mx <= mapX + MINIMAP_SIZE && my >= mapY && my <= mapY + MINIMAP_SIZE) {
             this.minimap.fillStyle(0x666666, 0.6).fillCircle(mx, my, 1.5);
           }
         });
       });
 
-      // Anomalies
-      this.loadedChunks.forEach(chunk => {
-        chunk.anomalies.forEach(anom => {
+      // anomalies
+      this.loadedChunks.forEach((chunk) => {
+        chunk.anomalies.forEach((anom) => {
           if (!anom.resolved) {
             const relX = anom.x - centerX;
             const relY = anom.y - centerY;
             const mx = mapX + (relX + chunksWidth / 2) * scale;
             const my = mapY + (relY + chunksHeight / 2) * scale;
-            
-            if (mx >= mapX && mx <= mapX + MINIMAP_SIZE && 
-                my >= mapY && my <= mapY + MINIMAP_SIZE) {
-              const anomType = ANOMALY_TYPES.find(t => t.type === anom.type);
-              this.minimap.fillStyle(anomType?.color || 0xff0000, 1).fillCircle(mx, my, 3);
+            if (mx >= mapX && mx <= mapX + MINIMAP_SIZE && my >= mapY && my <= mapY + MINIMAP_SIZE) {
+              const t = ANOMALY_TYPES.find((tt) => tt.type === anom.type);
+              this.minimap.fillStyle(t?.color || 0xff0000, 1).fillCircle(mx, my, 3);
             }
           }
         });
       });
 
-      // Player
+      // player
       const relPX = this.player.x - centerX;
       const relPY = this.player.y - centerY;
       const px = mapX + (relPX + chunksWidth / 2) * scale;
       const py = mapY + (relPY + chunksHeight / 2) * scale;
-      
-      this.minimap
-        .fillStyle(0x00ffff, 1)
-        .fillCircle(px, py, 4)
-        .lineStyle(1, 0xffffff, 1)
-        .strokeCircle(px, py, 4);
-    };
+      this.minimap.fillStyle(0x00ffff, 1).fillCircle(px, py, 4).lineStyle(1, 0xffffff, 1).strokeCircle(px, py, 4);
+    }
 
-    const renderFullMap = function() {
+    renderFullMap() {
       if (!this.showFullMap) return;
-
       const width = this.scale.width;
       const height = this.scale.height;
       const padding = 50;
@@ -640,73 +559,74 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
 
       this.fullMapBg.clear();
       this.fullMapGraphics.clear();
-
-      // Background
       this.fullMapBg.fillStyle(0x000000, 0.95).fillRect(0, 0, width, height);
 
-      // Border
-      this.fullMapGraphics
-        .lineStyle(3, 0x00ffff, 1)
-        .strokeRect(padding - 3, padding - 3, mapWidth + 6, mapHeight + 6);
+      this.fullMapGraphics.lineStyle(3, 0x00ffff, 1).strokeRect(padding - 3, padding - 3, mapWidth + 6, mapHeight + 6);
 
       const scale = Math.min(mapWidth / UNIVERSE_SIZE, mapHeight / UNIVERSE_SIZE);
       const offsetX = padding + (mapWidth - UNIVERSE_SIZE * scale) / 2;
       const offsetY = padding + (mapHeight - UNIVERSE_SIZE * scale) / 2;
 
-      // Galaxies
-      this.loadedChunks.forEach(chunk => {
-        chunk.galaxies.forEach(galaxy => {
+      this.loadedChunks.forEach((chunk) => {
+        chunk.galaxies.forEach((galaxy) => {
           const mx = offsetX + (galaxy.x + UNIVERSE_SIZE / 2) * scale;
           const my = offsetY + (galaxy.y + UNIVERSE_SIZE / 2) * scale;
           this.fullMapGraphics.fillStyle(0x666666, 0.5).fillCircle(mx, my, 2);
         });
       });
 
-      // Anomalies
-      this.loadedChunks.forEach(chunk => {
-        chunk.anomalies.forEach(anom => {
+      this.loadedChunks.forEach((chunk) => {
+        chunk.anomalies.forEach((anom) => {
           if (!anom.resolved) {
             const mx = offsetX + (anom.x + UNIVERSE_SIZE / 2) * scale;
             const my = offsetY + (anom.y + UNIVERSE_SIZE / 2) * scale;
-            const anomType = ANOMALY_TYPES.find(t => t.type === anom.type);
-            
-            this.fullMapGraphics
-              .fillStyle(anomType?.color || 0xff0000, 0.8)
-              .fillCircle(mx, my, 4)
-              .lineStyle(1, anomType?.color || 0xff0000, 1)
-              .strokeCircle(mx, my, 4);
+            const t = ANOMALY_TYPES.find((tt) => tt.type === anom.type);
+            this.fullMapGraphics.fillStyle(t?.color || 0xff0000, 0.8).fillCircle(mx, my, 4)
+              .lineStyle(1, t?.color || 0xff0000, 1).strokeCircle(mx, my, 4);
           }
         });
       });
 
-      // Player
       const px = offsetX + (this.player.x + UNIVERSE_SIZE / 2) * scale;
       const py = offsetY + (this.player.y + UNIVERSE_SIZE / 2) * scale;
-      this.fullMapGraphics
-        .fillStyle(0x00ffff, 1)
-        .fillCircle(px, py, 6)
-        .lineStyle(2, 0xffffff, 1)
-        .strokeCircle(px, py, 8);
+      this.fullMapGraphics.fillStyle(0x00ffff, 1).fillCircle(px, py, 6).lineStyle(2, 0xffffff, 1).strokeCircle(px, py, 8);
 
-      this.fullMapTitle.setText('UNIVERSE MAP').setVisible(true);
-      this.fullMapInstruction.setText('Press M to close').setVisible(true);
+      this.fullMapTitle.setText("UNIVERSE MAP").setVisible(true);
+      this.fullMapInstruction.setText("Press M to close").setVisible(true);
+    }
+  };
+};
+
+const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
+  const gameRef = useRef(null);
+  const [stats, setStats] = useState({ resolved: 0, discovered: 0 });
+
+  useEffect(() => {
+    // Create Scene class with access to props via init data
+    const SceneClass = UniverseSceneFactory({ universe, onAnomalyResolved, setStats });
+
+    const config = {
+      type: Phaser.AUTO,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      backgroundColor: "#000000",
+      parent: "phaser-container",
+      physics: {
+        default: "arcade",
+        arcade: { gravity: { y: 0 }, debug: false },
+      },
+      scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+      },
+      scene: SceneClass,
     };
 
-    // Attach methods to scene
-    Object.assign(Phaser.Scene.prototype, {
-      loadNearbyChunks,
-      generateChunk,
-      createAnomaly,
-      handleAnomalyInteraction,
-      createTouchControls,
-      createUI,
-      updateUIPositions,
-      updateMinimap,
-      renderFullMap
-    });
-
+    // create game once
     if (!gameRef.current) {
       gameRef.current = new Phaser.Game(config);
+      // pass initial data to the scene when it starts
+      gameRef.current.scene.start("UniverseScene", { universe, onAnomalyResolved, setStats });
     }
 
     const resizeHandler = () => {
@@ -717,34 +637,37 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
     return () => {
       window.removeEventListener("resize", resizeHandler);
       if (gameRef.current) {
-        try { gameRef.current.destroy(true); } catch (e) { /* ignore */ }
+        try {
+          gameRef.current.destroy(true);
+        } catch (e) {
+          /* ignore */
+        }
       }
       gameRef.current = null;
     };
-  }, [universe, onAnomalyResolved]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [universe?.seed, universe?.name]); // keep deps minimal to avoid reinitializing often
 
   return (
     <div className="w-screen h-screen bg-black relative overflow-hidden">
-      {/* Universe Info Panel */}
       <div className="absolute top-4 left-4 z-10 text-white text-sm px-4 py-3 bg-black bg-opacity-90 rounded-lg border-2 border-cyan-500 shadow-lg shadow-cyan-500/50">
-        <div className="font-bold text-cyan-400 mb-2 text-base">🌌 {universe.name}</div>
+        <div className="font-bold text-cyan-400 mb-2 text-base">🌌 {universe?.name}</div>
         <div className="space-y-1 text-xs">
-          <div className="text-gray-300">Difficulty: <span className="text-yellow-400">{universe.difficulty}</span></div>
+          <div className="text-gray-300">Difficulty: <span className="text-yellow-400">{universe?.difficulty}</span></div>
           <div className="text-green-400">Discovered: {stats.discovered}</div>
           <div className="text-cyan-400">Resolved: {stats.resolved}</div>
           <div className="text-purple-400 mt-2 pt-2 border-t border-cyan-700">
-            Age: {(universe.currentState?.age / 1e9).toFixed(2)} Gyr
+            Age: {((universe?.currentState?.age || 0) / 1e9).toFixed(2)} Gyr
           </div>
           <div className="text-yellow-400">
-            Stability: {((universe.currentState?.stabilityIndex || 1) * 100).toFixed(1)}%
+            Stability: {(((universe?.currentState?.stabilityIndex || 1) * 100) ).toFixed(1)}%
           </div>
           <div className="text-pink-400">
-            Interventions: {universe.metrics?.playerInterventions || 0}
+            Interventions: {universe?.metrics?.playerInterventions || 0}
           </div>
         </div>
       </div>
 
-      {/* Controls Panel */}
       <div className="absolute bottom-5 right-4 z-10 text-white text-xs px-3 py-2 bg-black bg-opacity-90 rounded border border-cyan-500">
         <div className="font-bold text-cyan-400 mb-1">CONTROLS</div>
         <div className="space-y-0.5 text-gray-300">
