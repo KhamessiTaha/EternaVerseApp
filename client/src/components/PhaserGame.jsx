@@ -56,7 +56,7 @@ const ANOMALY_TYPES = [
   }
 ];
 
-const PhaserGame = ({ universe, onAnomalyResolved }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
   const gameRef = useRef(null);
   const [stats, setStats] = useState({
     resolved: 0,
@@ -703,6 +703,12 @@ const PhaserGame = ({ universe, onAnomalyResolved }) => {
           <div className="text-cyan-400">Resolved: {stats.resolved}</div>
           <div className="text-purple-400 mt-2 pt-2 border-t border-cyan-700">
             Age: {(universe.currentState?.age / 1e9).toFixed(2)} Gyr
+          </div>
+          <div className="text-yellow-400">
+            Stability: {((universe.currentState?.stabilityIndex || 1) * 100).toFixed(1)}%
+          </div>
+          <div className="text-pink-400">
+            Interventions: {universe.metrics?.playerInterventions || 0}
           </div>
         </div>
       </div>
