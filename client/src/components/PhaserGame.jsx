@@ -527,12 +527,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
       const w = this.scale.width;
       const h = this.scale.height;
 
-      // Minimap
-      this.minimapX = w - MINIMAP_SIZE - 280;
+      // Minimap §§§§§§§§§§§§§§§§§§§§POSITION§§§§§§§§§§§§§§§§§§§§§
+      this.minimapX = w - MINIMAP_SIZE - 270;
       this.minimapY = 150;
 
       // Touch controls
-      const arrowY = h - 100;
+      const arrowY = h ;
       this.arrowUp?.setPosition(100, arrowY - 50);
       this.arrowDown?.setPosition(100, arrowY + 50);
       this.arrowLeft?.setPosition(50, arrowY);
@@ -546,7 +546,18 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
     const updateMinimap = function() {
       const mapX = this.minimapX;
       const mapY = this.minimapY;
-      const scale = MINIMAP_SIZE / UNIVERSE_SIZE;
+      
+      // Calculate bounds of loaded chunks
+      const radius = this.activeChunkRadius;
+      const chunksWidth = (radius * 2 + 1) * CHUNK_SIZE;
+      const chunksHeight = (radius * 2 + 1) * CHUNK_SIZE;
+      
+      // Center of loaded area in world coordinates
+      const centerX = this.currentChunk.chunkX * CHUNK_SIZE + CHUNK_SIZE / 2;
+      const centerY = this.currentChunk.chunkY * CHUNK_SIZE + CHUNK_SIZE / 2;
+      
+      // Scale to fit loaded chunks in minimap
+      const scale = MINIMAP_SIZE / chunksWidth;
 
       this.minimap.clear();
       this.minimapBorder.clear();
@@ -561,14 +572,28 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
         .fillStyle(0x000022, 0.95)
         .fillRect(mapX, mapY, MINIMAP_SIZE, MINIMAP_SIZE);
 
+      // Draw chunk grid
+      this.minimapBorder.lineStyle(1, 0x004444, 0.5);
+      for (let dx = -radius; dx <= radius + 1; dx++) {
+        const x = mapX + (dx * CHUNK_SIZE + chunksWidth / 2) * scale;
+        this.minimapBorder.lineBetween(x, mapY, x, mapY + MINIMAP_SIZE);
+      }
+      for (let dy = -radius; dy <= radius + 1; dy++) {
+        const y = mapY + (dy * CHUNK_SIZE + chunksHeight / 2) * scale;
+        this.minimapBorder.lineBetween(mapX, y, mapX + MINIMAP_SIZE, y);
+      }
+
       // Galaxies
       this.loadedChunks.forEach(chunk => {
         chunk.galaxies.forEach(galaxy => {
-          const mx = mapX + (galaxy.x + UNIVERSE_SIZE/2) * scale;
-          const my = mapY + (galaxy.y + UNIVERSE_SIZE/2) * scale;
+          const relX = galaxy.x - centerX;
+          const relY = galaxy.y - centerY;
+          const mx = mapX + (relX + chunksWidth / 2) * scale;
+          const my = mapY + (relY + chunksHeight / 2) * scale;
+          
           if (mx >= mapX && mx <= mapX + MINIMAP_SIZE && 
               my >= mapY && my <= mapY + MINIMAP_SIZE) {
-            this.minimap.fillStyle(0x666666, 0.6).fillCircle(mx, my, 1);
+            this.minimap.fillStyle(0x666666, 0.6).fillCircle(mx, my, 1.5);
           }
         });
       });
@@ -577,25 +602,31 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
       this.loadedChunks.forEach(chunk => {
         chunk.anomalies.forEach(anom => {
           if (!anom.resolved) {
-            const mx = mapX + (anom.x + UNIVERSE_SIZE/2) * scale;
-            const my = mapY + (anom.y + UNIVERSE_SIZE/2) * scale;
+            const relX = anom.x - centerX;
+            const relY = anom.y - centerY;
+            const mx = mapX + (relX + chunksWidth / 2) * scale;
+            const my = mapY + (relY + chunksHeight / 2) * scale;
+            
             if (mx >= mapX && mx <= mapX + MINIMAP_SIZE && 
                 my >= mapY && my <= mapY + MINIMAP_SIZE) {
               const anomType = ANOMALY_TYPES.find(t => t.type === anom.type);
-              this.minimap.fillStyle(anomType?.color || 0xff0000, 1).fillCircle(mx, my, 2);
+              this.minimap.fillStyle(anomType?.color || 0xff0000, 1).fillCircle(mx, my, 3);
             }
           }
         });
       });
 
       // Player
-      const px = mapX + (this.player.x + UNIVERSE_SIZE/2) * scale;
-      const py = mapY + (this.player.y + UNIVERSE_SIZE/2) * scale;
+      const relPX = this.player.x - centerX;
+      const relPY = this.player.y - centerY;
+      const px = mapX + (relPX + chunksWidth / 2) * scale;
+      const py = mapY + (relPY + chunksHeight / 2) * scale;
+      
       this.minimap
         .fillStyle(0x00ffff, 1)
-        .fillCircle(px, py, 3)
+        .fillCircle(px, py, 4)
         .lineStyle(1, 0xffffff, 1)
-        .strokeCircle(px, py, 3);
+        .strokeCircle(px, py, 4);
     };
 
     const renderFullMap = function() {
@@ -714,7 +745,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
       </div>
 
       {/* Controls Panel */}
-      <div className="absolute top-4 right-4 z-10 text-white text-xs px-3 py-2 bg-black bg-opacity-90 rounded border border-cyan-500">
+      <div className="absolute bottom-5 right-4 z-10 text-white text-xs px-3 py-2 bg-black bg-opacity-90 rounded border border-cyan-500">
         <div className="font-bold text-cyan-400 mb-1">CONTROLS</div>
         <div className="space-y-0.5 text-gray-300">
           <div>WASD/ZQSD: Move</div>
