@@ -150,7 +150,7 @@ class PhysicsEngine {
     this.universe.currentState.lifeBearingPlanetsCount = 
       this.universe.currentState.habitableSystemsCount * lifeProbability;
     
-    // Civilization emergence (even rarer)
+    // Civilization emergence weird formula (RARE)
     if (age > 5e9) {
       const civProbability = 1e-6;
       const potentialCivs = Math.floor(
