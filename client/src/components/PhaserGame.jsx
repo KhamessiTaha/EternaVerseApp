@@ -468,19 +468,30 @@ const UniverseSceneFactory = (props) => {
       const w = this.scale.width;
       const h = this.scale.height;
 
-      this.minimapX = w - MINIMAP_SIZE - 270;
-      this.minimapY = 150;
+      // §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§Minimap Positioning§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
+      this.minimapX = w - MINIMAP_SIZE - 280;
+      this.minimapY = 160;
 
-      // reposition arrows if present
+      // HUD elements (top left, accounting for React stats panel)
+      const hudLeftMargin = 265;
+      const hudTopMargin = 300; 
+      
+      this.velocityText?.setPosition(hudLeftMargin, hudTopMargin);
+      this.coordText?.setPosition(hudLeftMargin, hudTopMargin + 20);
+      this.mapToggleText?.setPosition(hudLeftMargin, hudTopMargin + 40);
+
+      // Touch controls (bottom left)
       if (this.arrowUp) {
-        this.arrowUp.setPosition(100, h - 120);
-        this.arrowDown.setPosition(100, h - 40);
-        this.arrowLeft.setPosition(50, h - 80);
-        this.arrowRight.setPosition(150, h - 80);
+        const arrowCenterX = 340;
+        const arrowBottomY = h - 200;
+        
+        this.arrowUp.setPosition(arrowCenterX, arrowBottomY - 80);
+        this.arrowDown.setPosition(arrowCenterX, arrowBottomY);
+        this.arrowLeft.setPosition(arrowCenterX - 50, arrowBottomY - 40);
+        this.arrowRight.setPosition(arrowCenterX + 50, arrowBottomY - 40);
       }
 
-      this.velocityText?.setPosition(20, 20);
-
+      // Full map elements
       this.fullMapTitle?.setPosition(w / 2, 40);
       this.fullMapInstruction?.setPosition(w / 2, h - 40);
     }

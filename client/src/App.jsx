@@ -12,6 +12,7 @@ import NavHeader from "./components/NavHeader";
 import BigBangPage from "./pages/BigBangPage";
 import GameplayPage from "./pages/GameplayPage";
 import './index.css'; 
+import './App.css'; 
 
 function App() {
   const { user } = useContext(AuthContext);
