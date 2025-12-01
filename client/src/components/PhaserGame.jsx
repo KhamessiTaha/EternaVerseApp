@@ -1,5 +1,4 @@
-// PhaserGame.jsx
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
 
@@ -44,7 +43,6 @@ const UniverseSceneFactory = (props) => {
     }
 
     preload() {
-      // ensure asset exists in /public/assets/Player.png or adapt path
       this.load.image("Player", "/assets/Player.png");
     }
 
@@ -481,6 +479,8 @@ const UniverseSceneFactory = (props) => {
         this.arrowRight.setPosition(150, h - 80);
       }
 
+      this.velocityText?.setPosition(20, 20);
+
       this.fullMapTitle?.setPosition(w / 2, 40);
       this.fullMapInstruction?.setPosition(w / 2, h - 40);
     }
@@ -607,8 +607,6 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
 
     const config = {
       type: Phaser.AUTO,
-      width: window.innerWidth,
-      height: window.innerHeight,
       backgroundColor: "#000000",
       parent: "phaser-container",
       physics: {
@@ -617,6 +615,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
       },
       scale: {
         mode: Phaser.Scale.RESIZE,
+        width:"100%",
+        height:"100%",
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
       scene: SceneClass,
@@ -645,7 +645,6 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
       }
       gameRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [universe?.seed, universe?.name]); // keep deps minimal to avoid reinitializing often
 
   return (
