@@ -1,407 +1,94 @@
 const express = require("express");
-const Universe = require("../models/Universe");
-const verifyToken = require("../middleware/authMiddleware");
-const PhysicsEngine = require("../utils/physicsEngine");
-
 const router = express.Router();
+const PhysicsEngine = require("../utils/physicsEngine");
+const AnomalyGenerator = require("../utils/anomalyGenerator");
+const EndConditions = require("../utils/endConditions");
+const MLPredictor = require("../utils/mlPredictor");
+const Universe = require("../models/Universe");
 
-// CREATE a new universe
-router.post("/create", verifyToken, async (req, res) => {
+// Difficulty configuration
+function difficultyOptions(difficulty) {
+  const map = {
+    Beginner: {
+      timeStepYears: 5e7,
+      anomalyProbabilityScale: 0.002,
+      maxAnomalyPerStep: 1,
+      observableGalaxiesMultiplier: 0.7,
+      difficultyModifier: 0.5,
+      description: "Relaxed pace, fewer anomalies, forgiving physics"
+    },
+    Intermediate: {
+      timeStepYears: 2e7,
+      anomalyProbabilityScale: 0.008,
+      maxAnomalyPerStep: 3,
+      observableGalaxiesMultiplier: 1.0,
+      difficultyModifier: 1.0,
+      description: "Balanced progression, moderate anomalies"
+    },
+    Advanced: {
+      timeStepYears: 1e7,
+      anomalyProbabilityScale: 0.02,
+      maxAnomalyPerStep: 5,
+      observableGalaxiesMultiplier: 1.3,
+      difficultyModifier: 2.0,
+      description: "Fast-paced, frequent anomalies, challenging physics"
+    }
+  };
+  return map[difficulty] || map.Intermediate;
+}
+
+// Get all universes
+router.get("/", async (req, res) => {
+  try {
+    const universes = await Universe.find()
+      .select('-anomalies -significantEvents -civilizations')
+      .lean();
+    
+    return res.json({ ok: true, universes });
+  } catch (err) {
+    console.error("Get universes error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// Create a new universe
+router.post("/", async (req, res) => {
   try {
     const { name, seed, difficulty, constants, initialConditions } = req.body;
 
-    const newUniverse = new Universe({
-      userId: req.user.id,
-      name,
-      seed,
-      difficulty,
-      constants,
-      initialConditions,
-      currentState: {
-        age: 0,
-        temperature: initialConditions?.initialTemperature || 1e32,
-        expansionRate: 67.4,
-        entropy: 0,
-        stabilityIndex: 1.0,
-        timeDialation: 1.0,
-        galaxyCount: 0,
-        starCount: 0,
-        blackHoleCount: 0,
-        habitableSystemsCount: 0,
-        lifeBearingPlanetsCount: 0,
-        civilizationCount: 0
-      },
-      metrics: {
-        stabilityScore: 1,
-        complexityIndex: 0,
-        lifePotentialIndex: 0,
-        playerInterventions: 0,
-        anomalyResolutionRate: 0
-      },
-      status: 'active',
-      endCondition: 'ongoing'
-    });
+    const validDifficulties = ["Beginner", "Intermediate", "Advanced"];
+    const selectedDifficulty = validDifficulties.includes(difficulty) ? difficulty : "Beginner";
 
-    await newUniverse.save();
-    res.status(201).json({ 
-      message: "Universe created successfully", 
-      universe: newUniverse 
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    const universeConstants = {
+      H0_km_s_Mpc: 67.4,
+      speedOfLight: 2.99792458e8,
+      gravitationalConstant: 6.6743e-11,
+      darkMatterDensity: 0.26,
+      darkEnergyDensity: 0.69,
+      matterDensity: 0.05,
+      observableGalaxies: 2e11,
+      averageStarsPerGalaxy: 1e10,
+      planckTemperature: 1.417e32,
+      ...constants
+    };
 
-// GET all universes for the logged-in user
-router.get("/", verifyToken, async (req, res) => {
-  try {
-    const universes = await Universe.find({ userId: req.user.id });
-    res.json(universes);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET a single universe by ID
-router.get("/:id", verifyToken, async (req, res) => {
-  try {
-    const universe = await Universe.findOne({ 
-      _id: req.params.id, 
-      userId: req.user.id 
-    });
-    
-    if (!universe) {
-      return res.status(404).json({ message: "Universe not found" });
-    }
-    
-    res.json(universe);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// UPDATE a universe's current state
-router.put("/:id", verifyToken, async (req, res) => {
-  try {
-    const updatedUniverse = await Universe.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
-      { 
-        $set: {
-          ...req.body,
-          lastModified: new Date()
-        }
-      },
-      { new: true, runValidators: true }
-    );
-    
-    if (!updatedUniverse) {
-      return res.status(404).json({ message: "Universe not found" });
-    }
-    
-    res.json({ 
-      message: "Universe updated successfully", 
-      universe: updatedUniverse 
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// SIMULATE: Progress universe by N steps (with PhysicsEngine)
-router.post("/:id/simulate", verifyToken, async (req, res) => {
-  try {
-    const { steps = 1 } = req.body;
-    const universe = await Universe.findOne({ 
-      _id: req.params.id, 
-      userId: req.user.id 
-    });
-
-    if (!universe) {
-      return res.status(404).json({ message: "Universe not found" });
-    }
-
-    // Check if universe has ended
-    if (universe.status === 'ended') {
-      return res.status(400).json({ 
-        message: "Universe has ended", 
-        endCondition: universe.endCondition 
-      });
-    }
-
-    // Initialize Physics Engine and simulate
-    const physicsEngine = new PhysicsEngine(universe);
-    physicsEngine.simulateSteps(steps);
-
-    // Check for end conditions
-    physicsEngine.checkEndConditions();
-
-    // Save updated universe
-    universe.lastModified = new Date();
-    await universe.save();
-
-    res.json({ 
-      message: `Universe simulated ${steps} step(s)`,
-      currentState: universe.currentState,
-      anomalies: universe.anomalies.filter(a => !a.resolved),
-      metrics: universe.metrics,
-      significantEvents: universe.significantEvents,
-      statistics: physicsEngine.getStatistics()
-    });
-  } catch (err) {
-    console.error("Simulation error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// RESOLVE PROCEDURAL ANOMALY (from game)
-router.post("/:id/resolve-procedural-anomaly", verifyToken, async (req, res) => {
-  try {
-    const { type, severity, location } = req.body;
-    const universe = await Universe.findOne({ 
-      _id: req.params.id, 
-      userId: req.user.id 
-    });
-
-    if (!universe) {
-      return res.status(404).json({ message: "Universe not found" });
-    }
-
-    // Update metrics
-    if (!universe.metrics) {
-      universe.metrics = {};
-    }
-    
-    universe.metrics.playerInterventions = (universe.metrics.playerInterventions || 0) + 1;
-    
-    // Calculate new resolution rate
-    const totalAnomalies = universe.metrics.playerInterventions;
-    universe.metrics.anomalyResolutionRate = 
-      Math.min(1, (universe.metrics.playerInterventions / (totalAnomalies + 10)));
-
-    // Small stability boost for resolving anomalies
-    if (universe.currentState.stabilityIndex < 1) {
-      universe.currentState.stabilityIndex = Math.min(
-        1, 
-        universe.currentState.stabilityIndex + 0.001
-      );
-    }
-
-    universe.lastModified = new Date();
-    await universe.save();
-
-    res.json({ 
-      message: "Procedural anomaly resolved",
-      metrics: universe.metrics,
-      stabilityBoost: 0.001
-    });
-  } catch (err) {
-    console.error("Error resolving procedural anomaly:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// RESOLVE GLOBAL ANOMALY (from DB)
-router.patch("/:id/resolve-global-anomaly/:anomalyId", verifyToken, async (req, res) => {
-  try {
-    const { id, anomalyId } = req.params;
-    const universe = await Universe.findOne({ 
-      _id: id, 
-      userId: req.user.id 
-    });
-
-    if (!universe) {
-      return res.status(404).json({ message: "Universe not found" });
-    }
-
-    const anomaly = universe.anomalies.id(anomalyId);
-    
-    if (!anomaly) {
-      return res.status(404).json({ message: "Anomaly not found" });
-    }
-
-    if (anomaly.resolved) {
-      return res.status(400).json({ message: "Anomaly already resolved" });
-    }
-
-    // Mark as resolved
-    anomaly.resolved = true;
-
-    // Apply positive effects (reverse the negative impact)
-    if (anomaly.effects && anomaly.effects.length > 0) {
-      anomaly.effects.forEach(effect => {
-        if (effect.parameter === 'stabilityImpact' && effect.magnitude < 0) {
-          // Restore some stability
-          universe.currentState.stabilityIndex = Math.min(
-            1,
-            universe.currentState.stabilityIndex + Math.abs(effect.magnitude) * 0.5
-          );
-        }
-      });
-    }
-
-    // Update metrics
-    universe.metrics.playerInterventions = (universe.metrics.playerInterventions || 0) + 1;
-
-    universe.lastModified = new Date();
-    await universe.save();
-
-    res.json({ 
-      message: "Global anomaly resolved", 
-      anomaly,
-      currentState: universe.currentState
-    });
-  } catch (err) {
-    console.error("Error resolving global anomaly:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// CLEANUP: Remove resolved anomalies
-router.patch("/:id/cleanup-anomalies", verifyToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const universe = await Universe.findOne({ 
-      _id: id, 
-      userId: req.user.id 
-    });
-
-    if (!universe) {
-      return res.status(404).json({ message: "Universe not found" });
-    }
-
-    const beforeCount = universe.anomalies.length;
-    universe.anomalies = universe.anomalies.filter(a => !a.resolved);
-    const afterCount = universe.anomalies.length;
-
-    universe.lastModified = new Date();
-    await universe.save();
-
-    res.json({ 
-      message: "Resolved anomalies cleaned up", 
-      removed: beforeCount - afterCount,
-      remaining: afterCount 
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET STATISTICS: Detailed universe statistics
-router.get("/:id/statistics", verifyToken, async (req, res) => {
-  try {
-    const universe = await Universe.findOne({ 
-      _id: req.params.id, 
-      userId: req.user.id 
-    });
-
-    if (!universe) {
-      return res.status(404).json({ message: "Universe not found" });
-    }
-
-    const physicsEngine = new PhysicsEngine(universe);
-    const statistics = physicsEngine.getStatistics();
-
-    res.json({
-      ...statistics,
-      status: universe.status,
-      endCondition: universe.endCondition,
-      metrics: universe.metrics,
-      anomalies: {
-        total: universe.anomalies.length,
-        resolved: universe.anomalies.filter(a => a.resolved).length,
-        active: universe.anomalies.filter(a => !a.resolved).length
-      },
-      civilizations: {
-        total: universe.civilizations.length,
-        byType: {
-          Type0: universe.civilizations.filter(c => c.type === 'Type0').length,
-          Type1: universe.civilizations.filter(c => c.type === 'Type1').length,
-          Type2: universe.civilizations.filter(c => c.type === 'Type2').length,
-          Type3: universe.civilizations.filter(c => c.type === 'Type3').length
-        }
+    const uni = new Universe({
+      name: name || `Universe-${Date.now()}`,
+      seed: seed || Math.random().toString(36).slice(2),
+      difficulty: selectedDifficulty,
+      constants: universeConstants,
+      initialConditions: {
+        initialTemperature: initialConditions?.initialTemperature ?? 2.725
       }
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// GET TIMELINE: Significant events history
-router.get("/:id/timeline", verifyToken, async (req, res) => {
-  try {
-    const universe = await Universe.findOne({ 
-      _id: req.params.id, 
-      userId: req.user.id 
-    });
-
-    if (!universe) {
-      return res.status(404).json({ message: "Universe not found" });
-    }
-
-    const timeline = universe.significantEvents || [];
-    
-    res.json({
-      events: timeline.sort((a, b) => 
-        new Date(a.timestamp) - new Date(b.timestamp)
-      ),
-      totalEvents: timeline.length
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// PAUSE/RESUME universe
-router.patch("/:id/toggle-pause", verifyToken, async (req, res) => {
-  try {
-    const universe = await Universe.findOne({ 
-      _id: req.params.id, 
-      userId: req.user.id 
-    });
-
-    if (!universe) {
-      return res.status(404).json({ message: "Universe not found" });
-    }
-
-    if (universe.status === 'ended') {
-      return res.status(400).json({ 
-        message: "Cannot pause/resume ended universe" 
-      });
-    }
-
-    universe.status = universe.status === 'active' ? 'paused' : 'active';
-    universe.lastModified = new Date();
-    await universe.save();
-
-    res.json({ 
-      message: `Universe ${universe.status}`,
-      status: universe.status 
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// RESET universe to initial state
-router.post("/:id/reset", verifyToken, async (req, res) => {
-  try {
-    const universe = await Universe.findOne({ 
-      _id: req.params.id, 
-      userId: req.user.id 
-    });
-
-    if (!universe) {
-      return res.status(404).json({ message: "Universe not found" });
-    }
-
-    // Reset to initial state
-    universe.currentState = {
+    uni.currentState = {
       age: 0,
-      temperature: universe.initialConditions?.initialTemperature || 1e32,
-      expansionRate: 67.4,
+      _scaleFactor: 1.0,
+      expansionRate: universeConstants.H0_km_s_Mpc,
+      temperature: initialConditions?.initialTemperature ?? 2.725,
       entropy: 0,
       stabilityIndex: 1.0,
-      timeDialation: 1.0,
       galaxyCount: 0,
       starCount: 0,
       blackHoleCount: 0,
@@ -410,48 +97,464 @@ router.post("/:id/reset", verifyToken, async (req, res) => {
       civilizationCount: 0
     };
 
-    universe.anomalies = [];
-    universe.civilizations = [];
-    universe.significantEvents = [];
-    
-    universe.metrics = {
-      stabilityScore: 1,
-      complexityIndex: 0,
-      lifePotentialIndex: 0,
+    uni.metrics = {
       playerInterventions: 0,
-      anomalyResolutionRate: 0
+      anomalyResolutionRate: 0,
+      stabilityScore: 1.0,
+      complexityIndex: 0,
+      lifePotentialIndex: 0
     };
 
-    universe.status = 'active';
-    universe.endCondition = 'ongoing';
-    universe.lastModified = new Date();
-    
-    await universe.save();
+    uni.lastModified = new Date();
 
-    res.json({ 
-      message: "Universe reset to initial state",
-      universe 
-    });
+    await uni.save();
+    
+    console.log(`✅ Created universe: ${uni.name} [${selectedDifficulty}]`);
+    
+    return res.status(201).json({ ok: true, universe: uni });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Create universe error:", err);
+    return res.status(500).json({ ok: false, error: "Failed to create universe" });
   }
 });
 
-// DELETE a universe
-router.delete("/:id", verifyToken, async (req, res) => {
+// Get universe by ID
+router.get("/:id", async (req, res) => {
   try {
-    const deleted = await Universe.findOneAndDelete({ 
-      _id: req.params.id, 
-      userId: req.user.id 
-    });
+    const uni = await Universe.findById(req.params.id).lean();
+    if (!uni) return res.status(404).json({ ok: false, error: "Universe not found" });
+    return res.json({ ok: true, universe: uni });
+  } catch (err) {
+    console.error("Get universe error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
 
-    if (!deleted) {
-      return res.status(404).json({ message: "Universe not found" });
+// simulate N steps with modular architecture
+router.post("/:id/simulate", async (req, res) => {
+  try {
+    const stepsRequested = Math.max(1, Math.floor(Number(req.body.steps || req.query.steps || 1)));
+    const MAX_STEPS = 100;
+    const steps = Math.min(stepsRequested, MAX_STEPS);
+
+    const uni = await Universe.findById(req.params.id);
+    if (!uni) {
+      return res.status(404).json({ ok: false, error: "Universe not found" });
+    }
+    
+    if (uni.status === "ended") {
+      return res.status(400).json({ 
+        ok: false, 
+        error: "Universe already ended",
+        endCondition: uni.endCondition,
+        endReason: uni.endReason
+      });
     }
 
-    res.json({ message: "Universe deleted successfully" });
+    // Get difficulty-specific options
+    const diffOpts = difficultyOptions(uni.difficulty || "Intermediate");
+
+    // Apply observableGalaxies multiplier
+    if (!uni.constants) uni.constants = {};
+    const baseGalaxies = 2e11;
+    uni.constants.observableGalaxies = baseGalaxies * diffOpts.observableGalaxiesMultiplier;
+
+    // Build options with difficulty modifier
+    const engineOptions = {
+      timeStepYears: diffOpts.timeStepYears,
+      difficultyModifier: diffOpts.difficultyModifier,
+      seed: uni.seed
+    };
+
+    const anomalyOptions = {
+      anomalyProbabilityScale: diffOpts.anomalyProbabilityScale,
+      maxAnomalyPerStep: diffOpts.maxAnomalyPerStep,
+      difficultyModifier: diffOpts.difficultyModifier,
+      seed: uni.seed,
+      anomalyIdFactory: () => `${uni._id.toString()}_${Date.now()}_${Math.floor(Math.random()*1e6)}`
+    };
+
+    // ========== MODULAR SIMULATION PIPELINE ==========
+    
+    // 1 ------ Create Physics Engine
+    const Physics = new PhysicsEngine(uni, engineOptions);
+
+    // 2 ------ Create Anomaly Generator
+    const AnomalyGen = new AnomalyGenerator(uni, anomalyOptions);
+
+    // 3 ------ Create End Conditions Checker
+    const EndChecker = new EndConditions(uni, {
+      difficultyModifier: diffOpts.difficultyModifier
+    });
+
+    // 4 ------- Create ML Predictor
+    const Predictor = new MLPredictor(uni);
+
+    // all created anomalies
+    const allCreatedAnomalies = [];
+
+    // Simulate steps §§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§!
+    for (let i = 0; i < steps; i++) {
+      // physics simulation
+      Physics.simulateStep();
+      // generate anomalies
+      const newAnomalies = AnomalyGen.generateAnomalies();
+      
+      if (newAnomalies.length > 0) {
+        // Apply anomaly effects to universe state
+        for (const anomaly of newAnomalies) {
+          AnomalyGen.applyAnomalyEffects(anomaly.effectsRaw);
+          
+          // Record event
+          if (uni.significantEvents.length < 2000) {
+            uni.significantEvents.push({
+              timestamp: new Date(),
+              age: uni.currentState.age,
+              type: anomaly.type,
+              description: anomaly.description,
+              effects: anomaly.effectsRaw,
+              ageGyr: (uni.currentState.age / 1e9).toFixed(3)
+            });
+          }
+        }
+        
+        // Add to universe anomalies array
+        uni.anomalies.push(...newAnomalies);
+        allCreatedAnomalies.push(...newAnomalies);
+      }
+
+      // C. Decay unresolved anomalies
+      AnomalyGen.decayUnresolvedAnomalies();
+
+      // D. Update stability after anomaly effects
+      Physics._updateStability();
+
+      // E. Check end conditions
+      EndChecker.options.stabilityHistory = Physics.getStabilityHistory();
+      const hasEnded = EndChecker.checkEndConditions();
+      
+      if (hasEnded) {
+        // Record end event
+        uni.significantEvents.push({
+          timestamp: new Date(),
+          age: uni.currentState.age,
+          type: "universe_end",
+          description: uni.endReason,
+          effects: {},
+          ageGyr: (uni.currentState.age / 1e9).toFixed(3)
+        });
+        break;
+      }
+    }
+
+    // F. Run ML predictions (after simulation)
+    const predictions = Predictor.generatePredictions();
+
+    // Mark arrays as modified for Mongoose
+    if (allCreatedAnomalies.length > 0) {
+      uni.markModified('anomalies');
+      console.log(`🌌 Created ${allCreatedAnomalies.length} new anomalies`);
+    }
+    if (uni.significantEvents.length > 0) {
+      uni.markModified('significantEvents');
+    }
+    if (uni.civilizations.length > 0) {
+      uni.markModified('civilizations');
+    }
+    uni.markModified('currentState');
+    uni.markModified('metrics');
+
+    // Update timestamp
+    uni.lastModified = new Date();
+    
+    // Save with error handling
+    try {
+      await uni.save();
+    } catch (saveErr) {
+      console.error("Save error:", saveErr);
+      return res.status(500).json({ 
+        ok: false, 
+        error: "Failed to save simulation state",
+        details: saveErr.message 
+      });
+    }
+
+    const stats = Physics.getStatistics();
+    const anomalyStats = AnomalyGen.getAnomalyStats();
+    const endStatus = EndChecker.getEndConditionStatus();
+    const warnings = EndChecker.getWarnings();
+    
+    // Log simulation results
+    console.log(
+      `🎮 Simulated ${steps} steps | ` +
+      `Age: ${stats.ageGyr} Gyr | ` +
+      `Stability: ${stats.stability} | ` +
+      `Anomalies: ${anomalyStats.active}/${anomalyStats.total}`
+    );
+
+    if (uni.status === "ended") {
+      console.log(`🌑 Universe ended: ${uni.endCondition} - ${uni.endReason}`);
+    }
+    
+    return res.json({ 
+      ok: true, 
+      steps, 
+      stats,
+      anomalyStats,
+      endStatus,
+      warnings,
+      predictions,
+      createdAnomalies: allCreatedAnomalies,
+      hasEnded: uni.status === "ended",
+      endCondition: uni.endCondition,
+      endReason: uni.endReason,
+      universe: uni 
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Simulate error:", err);
+    return res.status(500).json({ 
+      ok: false, 
+      error: err.message || "Simulation error" 
+    });
+  }
+});
+
+// Delete a universe
+router.delete("/:id", async (req, res) => {
+  try {
+    const uni = await Universe.findById(req.params.id);
+
+    if (!uni) {
+      return res.status(404).json({ ok: false, error: "Universe not found" });
+    }
+
+    await uni.deleteOne();
+
+    console.log(`🗑️ Deleted universe: ${uni.name}`);
+
+    return res.json({ ok: true, message: "Universe deleted successfully" });
+  } catch (err) {
+    console.error("Delete universe error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// Resolve anomaly with modular architecture
+router.post("/:id/resolve-anomaly", async (req, res) => {
+  try {
+    const { anomalyId } = req.body;
+    
+    if (!anomalyId) {
+      return res.status(400).json({ ok: false, error: "anomalyId required" });
+    }
+
+    const uni = await Universe.findById(req.params.id);
+    
+    if (!uni) {
+      return res.status(404).json({ ok: false, error: "Universe not found" });
+    }
+
+    if (uni.status === "ended") {
+      return res.status(400).json({ 
+        ok: false, 
+        error: "Cannot resolve anomalies in ended universe" 
+      });
+    }
+
+    // Create anomaly generator to resolve
+    const AnomalyGen = new AnomalyGenerator(uni, { seed: uni.seed });
+    
+    // Resolve anomaly
+    const result = AnomalyGen.resolveAnomaly(anomalyId);
+    
+    if (!result.success) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: result.reason
+      });
+    }
+
+    // Record event
+    if (uni.significantEvents.length < 2000) {
+      uni.significantEvents.push({
+        timestamp: new Date(),
+        age: uni.currentState.age,
+        type: "anomaly_resolved",
+        description: `Resolved ${result.anomaly.type} anomaly (severity ${result.anomaly.severity})`,
+        effects: { 
+          anomalyId, 
+          category: result.anomaly.category,
+          severityResolved: result.anomaly.severity, 
+          stabilityBoost: result.stabilityBoost,
+          entropyReduction: result.entropyReduction
+        },
+        ageGyr: (uni.currentState.age / 1e9).toFixed(3)
+      });
+    }
+
+    // Mark arrays as modified
+    uni.markModified('anomalies');
+    uni.markModified('currentState');
+    uni.markModified('metrics');
+    uni.markModified('significantEvents');
+    
+    uni.lastModified = new Date();
+    
+    await uni.save();
+
+    // Get updated stats
+    const Physics = new PhysicsEngine(uni, { seed: uni.seed });
+    const stats = Physics.getStatistics();
+    
+    console.log(`✅ Resolved anomaly ${anomalyId} | Stability: ${stats.stability} (+${(result.stabilityBoost * 100).toFixed(2)}%)`);
+
+    return res.json({ 
+      ok: true, 
+      anomalyId,
+      stabilityBoost: result.stabilityBoost,
+      entropyReduction: result.entropyReduction,
+      universe: uni,
+      stats
+    });
+  } catch (err) {
+    console.error("Resolve anomaly error:", err);
+    return res.status(500).json({ 
+      ok: false, 
+      error: err.message || "Failed to resolve anomaly" 
+    });
+  }
+});
+
+// Get engine stats without mutating model
+router.get("/:id/stats", async (req, res) => {
+  try {
+    const uni = await Universe.findById(req.params.id).lean();
+    
+    if (!uni) {
+      return res.status(404).json({ ok: false, error: "Universe not found" });
+    }
+
+    const Physics = new PhysicsEngine(uni, { seed: uni.seed });
+    const stats = Physics.getStatistics();
+    
+    return res.json({ ok: true, stats });
+  } catch (err) {
+    console.error("Get stats error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// Get all anomalies for a universe
+router.get("/:id/anomalies", async (req, res) => {
+  try {
+    const uni = await Universe.findById(req.params.id)
+      .select('anomalies')
+      .lean();
+    
+    if (!uni) {
+      return res.status(404).json({ ok: false, error: "Universe not found" });
+    }
+
+    const anomalies = uni.anomalies || [];
+    const active = anomalies.filter(a => !a.resolved);
+    const resolved = anomalies.filter(a => a.resolved);
+
+    return res.json({ 
+      ok: true, 
+      anomalies,
+      active,
+      resolved,
+      counts: {
+        total: anomalies.length,
+        active: active.length,
+        resolved: resolved.length
+      }
+    });
+  } catch (err) {
+    console.error("Get anomalies error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// Get ML predictions
+router.get("/:id/predictions", async (req, res) => {
+  try {
+    const uni = await Universe.findById(req.params.id).lean();
+    
+    if (!uni) {
+      return res.status(404).json({ ok: false, error: "Universe not found" });
+    }
+
+    const Predictor = new MLPredictor(uni);
+    const predictions = Predictor.generatePredictions();
+    
+    return res.json({ ok: true, predictions });
+  } catch (err) {
+    console.error("Get predictions error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// Get end condition status
+router.get("/:id/end-conditions", async (req, res) => {
+  try {
+    const uni = await Universe.findById(req.params.id).lean();
+    
+    if (!uni) {
+      return res.status(404).json({ ok: false, error: "Universe not found" });
+    }
+
+    const diffOpts = difficultyOptions(uni.difficulty || "Intermediate");
+    const EndChecker = new EndConditions(uni, {
+      difficultyModifier: diffOpts.difficultyModifier
+    });
+    
+    const status = EndChecker.getEndConditionStatus();
+    const warnings = EndChecker.getWarnings();
+    
+    return res.json({ ok: true, status, warnings });
+  } catch (err) {
+    console.error("Get end conditions error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+// Bulk cleanup resolved anomalies
+router.post("/:id/cleanup-anomalies", async (req, res) => {
+  try {
+    const { keepRecentMinutes = 60 } = req.body;
+    
+    const uni = await Universe.findById(req.params.id);
+    
+    if (!uni) {
+      return res.status(404).json({ ok: false, error: "Universe not found" });
+    }
+
+    const cutoffTime = Date.now() - keepRecentMinutes * 60 * 1000;
+    const before = uni.anomalies.length;
+    
+    uni.anomalies = uni.anomalies.filter(a => 
+      !a.resolved || new Date(a.resolvedAt || a.timestamp).getTime() > cutoffTime
+    );
+    
+    const removed = before - uni.anomalies.length;
+    
+    if (removed > 0) {
+      uni.markModified('anomalies');
+      uni.lastModified = new Date();
+      await uni.save();
+      
+      console.log(`🧹 Cleaned ${removed} old resolved anomalies from ${uni.name}`);
+    }
+
+    return res.json({ 
+      ok: true, 
+      removed,
+      remaining: uni.anomalies.length 
+    });
+  } catch (err) {
+    console.error("Cleanup anomalies error:", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
   }
 });
 
