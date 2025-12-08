@@ -373,6 +373,7 @@ router.post("/:id/resolve-anomaly", async (req, res) => {
         error: result.reason
       });
     }
+    
 
     // Record event
     if (uni.significantEvents.length < 2000) {
