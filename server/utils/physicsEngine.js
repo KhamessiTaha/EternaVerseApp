@@ -221,7 +221,7 @@ class PhysicsEngine {
       console.log(`🆘 BOOTSTRAP: Adding 100 seed galaxies at ${ageGyr.toFixed(2)} Gyr`);
       dG += 100;
     }
-    
+  
     cs.galaxyCount = this._clamp(current + dG, 0, K * 1.5);
     
     // Milestone: First galaxy
@@ -317,7 +317,10 @@ class PhysicsEngine {
     this.milestones[milestoneKey] = true;
     
     // IMPORTANT: Mark milestones as modified for Mongoose
-    this.universe.markModified('milestones');
+    if (typeof this.universe.markModified === "function"){
+      this.universe.markModified('milestones');
+    }
+    
     
     // Then record the event
     this._recordSignificantEvent("milestone", `MILESTONE: ${title}`, { 
@@ -475,8 +478,11 @@ class PhysicsEngine {
       const removed = this.universe.significantEvents.length - uniqueEvents.length;
       console.log(`🧹 Removed ${removed} duplicate milestone events`);
       this.universe.significantEvents = uniqueEvents;
-      this.universe.markModified('significantEvents');
-      this.universe.markModified('milestones');
+      if (typeof this.universe.markModified === "function"){
+        this.universe.markModified('significantEvents');
+        this.universe.markModified('milestones');
+      }
+      
     }
   }
 
