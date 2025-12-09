@@ -1,7 +1,11 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getUserUniverses, deleteUniverse } from "../api/universeApi";
-import { AlertCircle, Plus, Loader2, Trash2, Rocket, RefreshCw } from "lucide-react";
+import { 
+  AlertCircle, Plus, Loader2, Trash2, Rocket, RefreshCw, 
+  Sparkles, TrendingUp, Zap, Award, Clock, Target,
+  Star, Activity, Users, Globe
+} from "lucide-react";
 
 // Alert Component
 const Alert = ({ children, variant = "error" }) => {
@@ -10,16 +14,83 @@ const Alert = ({ children, variant = "error" }) => {
   const textColor = variant === "error" ? "text-red-500" : "text-blue-500";
   
   return (
-    <div className={`${bgColor} ${borderColor} ${textColor} border rounded-lg p-4 flex items-center gap-2`}>
+    <div className={`${bgColor} ${borderColor} ${textColor} border rounded-lg p-4 flex items-center gap-2 animate-in fade-in duration-300`}>
       <AlertCircle className="h-4 w-4 flex-shrink-0" />
       <div>{children}</div>
     </div>
   );
 };
 
-// Universe Card Component
+// Stats Overview Component
+const StatsOverview = ({ universes }) => {
+  const stats = useMemo(() => {
+    const totalGalaxies = universes.reduce((sum, u) => sum + (u.currentState?.galaxyCount || 0), 0);
+    const totalCivs = universes.reduce((sum, u) => sum + (u.currentState?.civilizationCount || 0), 0);
+    const activeUniverses = universes.filter(u => u.status === 'running').length;
+    const avgStability = universes.length > 0 
+      ? universes.reduce((sum, u) => sum + (u.currentState?.stabilityIndex || 0), 0) / universes.length 
+      : 0;
+
+    return { totalGalaxies, totalCivs, activeUniverses, avgStability };
+  }, [universes]);
+
+  const statCards = [
+    { 
+      icon: Globe, 
+      label: "Active Universes", 
+      value: stats.activeUniverses, 
+      color: "from-cyan-500 to-blue-500",
+      bgGlow: "shadow-cyan-500/20"
+    },
+    { 
+      icon: Sparkles, 
+      label: "Total Galaxies", 
+      value: stats.totalGalaxies.toLocaleString(), 
+      color: "from-purple-500 to-pink-500",
+      bgGlow: "shadow-purple-500/20"
+    },
+    { 
+      icon: Users, 
+      label: "Civilizations", 
+      value: stats.totalCivs, 
+      color: "from-green-500 to-emerald-500",
+      bgGlow: "shadow-green-500/20"
+    },
+    { 
+      icon: Activity, 
+      label: "Avg Stability", 
+      value: `${(stats.avgStability * 100).toFixed(1)}%`, 
+      color: "from-orange-500 to-red-500",
+      bgGlow: "shadow-orange-500/20"
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {statCards.map((stat, idx) => (
+        <div 
+          key={idx} 
+          className={`bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 hover:scale-105 transition-all duration-300 shadow-lg ${stat.bgGlow}`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-lg bg-gradient-to-br ${stat.color}`}>
+              <stat.icon size={20} className="text-white" />
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs font-medium">{stat.label}</p>
+              <p className="text-white text-lg font-bold">{stat.value}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Enhanced Universe Card Component
 const UniverseCard = ({ universe, onDelete, onView }) => {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleDelete = async (e) => {
     e.stopPropagation();
@@ -35,63 +106,148 @@ const UniverseCard = ({ universe, onDelete, onView }) => {
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusConfig = (status) => {
     switch (status?.toLowerCase()) {
-      case 'active': return 'bg-green-500';
-      case 'paused': return 'bg-yellow-500';
-      case 'ended': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case 'running': 
+        return { color: 'bg-green-500', glow: 'shadow-green-500/50', text: 'Active', pulse: true };
+      case 'paused': 
+        return { color: 'bg-yellow-500', glow: 'shadow-yellow-500/50', text: 'Paused', pulse: false };
+      case 'ended': 
+        return { color: 'bg-red-500', glow: 'shadow-red-500/50', text: 'Ended', pulse: false };
+      default: 
+        return { color: 'bg-gray-500', glow: 'shadow-gray-500/50', text: 'Unknown', pulse: false };
     }
   };
 
-  const getStatusText = (status) => {
-    return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
+  const statusConfig = getStatusConfig(universe.status);
+  const stability = (universe.currentState?.stabilityIndex || 0) * 100;
+  const age = (universe.currentState?.age || 0) / 1e9; // Convert to Gyr
+  const milestones = universe.milestones ? Object.values(universe.milestones).filter(Boolean).length : 0;
+
+  const getDifficultyColor = (difficulty) => {
+    switch (difficulty) {
+      case 'Beginner': return 'text-green-400 bg-green-500/10 border-green-500/30';
+      case 'Intermediate': return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30';
+      case 'Advanced': return 'text-red-400 bg-red-500/10 border-red-500/30';
+      default: return 'text-gray-400 bg-gray-500/10 border-gray-500/30';
+    }
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/10 border border-gray-700 hover:border-gray-600">
+    <div 
+      className={`bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 transition-all duration-300 border-2 ${
+        isHovered ? 'border-indigo-500 shadow-2xl shadow-indigo-500/30 scale-105' : 'border-gray-700'
+      }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Header */}
       <div className="flex justify-between items-start mb-4">
-        <h3 className="text-xl font-semibold text-white pr-2">{universe.name}</h3>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">{getStatusText(universe.status)}</span>
-          <div className={`${getStatusColor(universe.status)} w-3 h-3 rounded-full`} title={getStatusText(universe.status)} />
-        </div>
-      </div>
-      
-      <div className="space-y-2 mb-4 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-400">Difficulty:</span>
-          <span className="text-gray-200 font-medium">{universe.difficulty || 'N/A'}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Age:</span>
-          <span className="text-gray-200">{(universe.currentState?.age || 0).toLocaleString()} years</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Galaxies:</span>
-          <span className="text-gray-200">{(universe.currentState?.galaxyCount || 0).toLocaleString()}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Civilizations:</span>
-          <span className="text-gray-200">{universe.currentState?.civilizationCount || 0}</span>
+        <div className="flex-1">
+          <h3 className="text-xl font-bold text-white mb-2 truncate">{universe.name}</h3>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${getDifficultyColor(universe.difficulty)}`}>
+              {universe.difficulty || 'N/A'}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <div className={`${statusConfig.color} w-2 h-2 rounded-full ${statusConfig.pulse ? 'animate-pulse' : ''} shadow-lg ${statusConfig.glow}`} />
+              <span className="text-xs text-gray-400">{statusConfig.text}</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="flex gap-3 mt-6">
+      {/* Stability Bar */}
+      <div className="mb-4">
+        <div className="flex justify-between text-xs mb-1">
+          <span className="text-gray-400">Stability</span>
+          <span className={`font-semibold ${stability > 70 ? 'text-green-400' : stability > 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+            {stability.toFixed(1)}%
+          </span>
+        </div>
+        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+          <div 
+            className={`h-full rounded-full transition-all duration-500 ${
+              stability > 70 ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 
+              stability > 40 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' : 
+              'bg-gradient-to-r from-red-500 to-pink-500'
+            }`}
+            style={{ width: `${stability}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="bg-gray-700/30 rounded-lg p-3 border border-gray-600/50">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock size={14} className="text-cyan-400" />
+            <span className="text-xs text-gray-400">Age</span>
+          </div>
+          <p className="text-white font-semibold text-sm">{age.toFixed(2)} Gyr</p>
+        </div>
+
+        <div className="bg-gray-700/30 rounded-lg p-3 border border-gray-600/50">
+          <div className="flex items-center gap-2 mb-1">
+            <Globe size={14} className="text-purple-400" />
+            <span className="text-xs text-gray-400">Galaxies</span>
+          </div>
+          <p className="text-white font-semibold text-sm">
+            {(universe.currentState?.galaxyCount || 0) > 1e6 
+              ? `${((universe.currentState?.galaxyCount || 0) / 1e6).toFixed(1)}M`
+              : (universe.currentState?.galaxyCount || 0).toLocaleString()}
+          </p>
+        </div>
+
+        <div className="bg-gray-700/30 rounded-lg p-3 border border-gray-600/50">
+          <div className="flex items-center gap-2 mb-1">
+            <Star size={14} className="text-yellow-400" />
+            <span className="text-xs text-gray-400">Stars</span>
+          </div>
+          <p className="text-white font-semibold text-sm">
+            {universe.currentState?.starCount 
+              ? `${(universe.currentState.starCount / 1e9).toFixed(1)}B`
+              : '0'}
+          </p>
+        </div>
+
+        <div className="bg-gray-700/30 rounded-lg p-3 border border-gray-600/50">
+          <div className="flex items-center gap-2 mb-1">
+            <Users size={14} className="text-green-400" />
+            <span className="text-xs text-gray-400">Civilizations</span>
+          </div>
+          <p className="text-white font-semibold text-sm">
+            {universe.currentState?.civilizationCount || 0}
+          </p>
+        </div>
+      </div>
+
+      {/* Milestones */}
+      {milestones > 0 && (
+        <div className="mb-4 flex items-center gap-2 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-lg p-2">
+          <Award size={16} className="text-yellow-400" />
+          <span className="text-xs text-yellow-300 font-medium">
+            {milestones} Milestone{milestones !== 1 ? 's' : ''} Achieved
+          </span>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2 mt-4">
         <button
           onClick={onView}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-md font-semibold tracking-wide transition-all hover:scale-105 active:scale-95"
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg font-semibold text-sm tracking-wide transition-all hover:scale-105 active:scale-95 shadow-lg shadow-indigo-500/30"
         >
-          <Rocket size={18} />
+          <Rocket size={16} />
           Enter Universe
         </button>
         <button
           onClick={handleDelete}
           disabled={isDeleting}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600/80 hover:bg-red-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
           title="Delete universe"
         >
-          {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+          {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
         </button>
       </div>
     </div>
@@ -106,6 +262,7 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState('name');
   const [filterDifficulty, setFilterDifficulty] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -144,9 +301,15 @@ const Dashboard = () => {
   };
 
   const sortedAndFilteredUniverses = useMemo(() => {
-    let filtered = filterDifficulty === 'all' 
-      ? universes 
-      : universes.filter(u => u.difficulty === filterDifficulty);
+    let filtered = universes;
+    
+    if (filterDifficulty !== 'all') {
+      filtered = filtered.filter(u => u.difficulty === filterDifficulty);
+    }
+    
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(u => u.status === filterStatus);
+    }
 
     return filtered.sort((a, b) => {
       switch (sortBy) {
@@ -156,19 +319,24 @@ const Dashboard = () => {
           return (b.currentState?.galaxyCount || 0) - (a.currentState?.galaxyCount || 0);
         case 'civilizations':
           return (b.currentState?.civilizationCount || 0) - (a.currentState?.civilizationCount || 0);
+        case 'stability':
+          return (b.currentState?.stabilityIndex || 0) - (a.currentState?.stabilityIndex || 0);
         case 'status':
           return (a.status || '').localeCompare(b.status || '');
         default:
           return a.name.localeCompare(b.name);
       }
     });
-  }, [universes, sortBy, filterDifficulty]);
+  }, [universes, sortBy, filterDifficulty, filterStatus]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-8 pt-20 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white p-8 pt-20 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 size={48} className="animate-spin text-indigo-500" />
+          <div className="relative">
+            <Loader2 size={48} className="animate-spin text-indigo-500" />
+            <div className="absolute inset-0 blur-xl bg-indigo-500/30 animate-pulse" />
+          </div>
           <span className="text-lg text-gray-300">Loading your universes...</span>
         </div>
       </div>
@@ -176,14 +344,16 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-8 pt-20">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white p-6 sm:p-8 pt-20">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+            <h2 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
               Your Universes
             </h2>
-            <p className="text-gray-400 mt-2">
+            <p className="text-gray-400 flex items-center gap-2">
+              <Sparkles size={16} className="text-indigo-400" />
               {universes.length} {universes.length === 1 ? 'universe' : 'universes'} created
             </p>
           </div>
@@ -191,7 +361,7 @@ const Dashboard = () => {
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="flex items-center gap-2 px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors border border-gray-700 disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-all border border-gray-700 disabled:opacity-50 hover:scale-105 active:scale-95"
               title="Refresh universes"
             >
               <RefreshCw size={20} className={isRefreshing ? 'animate-spin' : ''} />
@@ -199,62 +369,86 @@ const Dashboard = () => {
             </button>
             <button
               onClick={() => navigate("/universe-creation")}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg transition-all hover:scale-105 active:scale-95 shadow-lg shadow-green-500/20"
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg transition-all hover:scale-105 active:scale-95 shadow-lg shadow-green-500/30"
             >
               <Plus size={20} />
-              Create Universe
+              <span className="font-semibold">Create Universe</span>
             </button>
           </div>
         </div>
 
-        {error && (
-          <Alert variant="error" className="mb-6">
-            {error}
-          </Alert>
-        )}
+        {/* Stats Overview */}
+        {universes.length > 0 && <StatsOverview universes={universes} />}
 
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        {/* Error Alert */}
+        {error && <Alert variant="error" className="mb-6">{error}</Alert>}
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+            className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
           >
             <option value="name">Sort by Name</option>
             <option value="age">Sort by Age</option>
-            <option value="galaxies">Sort by Galaxy Count</option>
+            <option value="galaxies">Sort by Galaxies</option>
             <option value="civilizations">Sort by Civilizations</option>
+            <option value="stability">Sort by Stability</option>
             <option value="status">Sort by Status</option>
           </select>
 
           <select
             value={filterDifficulty}
             onChange={(e) => setFilterDifficulty(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+            className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
           >
             <option value="all">All Difficulties</option>
             <option value="Beginner">Beginner</option>
             <option value="Intermediate">Intermediate</option>
             <option value="Advanced">Advanced</option>
           </select>
+
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
+          >
+            <option value="all">All Statuses</option>
+            <option value="running">Active</option>
+            <option value="paused">Paused</option>
+            <option value="ended">Ended</option>
+          </select>
         </div>
 
+        {/* Universe Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedAndFilteredUniverses.length === 0 ? (
-            <div className="col-span-full text-center py-16 bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-700">
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center">
-                  <Plus size={32} className="text-gray-500" />
+            <div className="col-span-full text-center py-20 bg-gray-800/30 backdrop-blur-sm rounded-2xl border-2 border-dashed border-gray-700">
+              <div className="flex flex-col items-center gap-6">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center opacity-20">
+                    <Plus size={40} />
+                  </div>
+                  <div className="absolute inset-0 blur-2xl bg-indigo-500/20 animate-pulse" />
                 </div>
-                <p className="text-gray-400 text-lg">
-                  {filterDifficulty !== 'all' 
-                    ? `No ${filterDifficulty.toLowerCase()} universes found` 
-                    : 'No universes found'}
-                </p>
+                <div>
+                  <p className="text-gray-300 text-xl font-semibold mb-2">
+                    {filterDifficulty !== 'all' || filterStatus !== 'all'
+                      ? 'No universes match your filters'
+                      : 'No universes found'}
+                  </p>
+                  <p className="text-gray-500 text-sm">
+                    {filterDifficulty !== 'all' || filterStatus !== 'all'
+                      ? 'Try adjusting your filters'
+                      : 'Start your cosmic journey by creating your first universe'}
+                  </p>
+                </div>
                 <button
                   onClick={() => navigate("/universe-creation")}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-lg transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-500/20"
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-blue-500/30 font-semibold"
                 >
-                  <Plus size={20} />
+                  <Zap size={20} />
                   Create Your First Universe
                 </button>
               </div>
