@@ -75,7 +75,7 @@ class PhysicsEngine {
     this.stabilityHistory = [];
     this.maxHistoryLength = 100;
     
-    // Track milestones
+    // Track milestones - INITIALIZE from database or defaults
     this.milestones = this.universe.milestones || {
       firstGalaxy: false,
       firstStar: false,
@@ -85,7 +85,17 @@ class PhysicsEngine {
       complexLifeEra: false,
       technologicalSingularity: false
     };
-    this.universe.milestones = this.milestones;
+    
+    // Ensure universe.milestones exists and is properly linked
+    if (!this.universe.milestones) {
+      this.universe.milestones = this.milestones;
+    } else {
+      // Sync existing milestones to local reference
+      this.milestones = this.universe.milestones;
+    }
+    
+    // Run deduplication on initialization
+    this._deduplicateMilestones();
   }
 
   // ========== Helper Methods ==========
@@ -154,8 +164,7 @@ class PhysicsEngine {
     cs.entropy = this._clamp(cs.entropy + entropyGrowth, 0, 1e16);
     
     // Energy budget decreases over time (thermodynamic arrow)
-    // FIXED: Slower decay rate
-    const energyDecay = 5e-13 * dt; // REDUCED from 1e-12
+    const energyDecay = 5e-13 * dt;
     cs.energyBudget = this._clamp(cs.energyBudget - energyDecay, 0, 1.0);
     
     // Update cosmic phase
@@ -175,142 +184,165 @@ class PhysicsEngine {
     else cs.cosmicPhase = "degenerate_era";
   }
 
+  _updateStructures() {
+    const cs = this.universe.currentState;
+    const age = cs.age;
+    const dt = this.options.timeStepYears;
+    const ageGyr = age / 1e9;
 
-
-_updateStructures() {
-  const cs = this.universe.currentState;
-  const age = cs.age;
-  const dt = this.options.timeStepYears;
-  const ageGyr = age / 1e9;
-
-  // ==================== GALAXY FORMATION ====================
-  const K = this.constants.observableGalaxies;
-  
-  // Formation peaks between 2-8 Gyr, then slows
-  const formationPeak = Math.exp(-Math.pow((ageGyr - 5) / 3, 2));
-  const baseRate = 0.15 / 1e9;
-  const r = baseRate * (1 + formationPeak * 2);
-  
-  const current = cs.galaxyCount;
-  
-  let dG = 0;
-  
-  // CRITICAL: Bootstrap mechanism for early universe
-  if (ageGyr > 0.1 && ageGyr < 2.5 && current < 1000) {
-    // Rapid seed formation in early universe
-    const seedRate = 2000 * Math.exp(-Math.pow((ageGyr - 0.5) / 0.7, 2));
-    dG = seedRate * (dt / 1e7);
+    // ==================== GALAXY FORMATION ====================
+    const K = this.constants.observableGalaxies;
     
-    if (dG > 10) {
-      console.log(`🌌 SEED GALAXIES: Adding ${dG.toFixed(0)} galaxies (age: ${ageGyr.toFixed(2)} Gyr, total: ${(current + dG).toFixed(0)})`);
-    }
-  } else if (current > 0) {
-    // Normal logistic growth (requires existing population)
-    dG = r * current * (1 - current / Math.max(1, K)) * dt;
-  }
-  
-  // Safety: Ensure at least some galaxies exist after 1 Gyr
-  if (ageGyr > 1.0 && current < 100) {
-    console.log(`🆘 BOOTSTRAP: Adding 100 seed galaxies at ${ageGyr.toFixed(2)} Gyr`);
-    dG += 100;
-  }
-  
-  cs.galaxyCount = this._clamp(current + dG, 0, K * 1.5);
-  
-  // Milestone: First galaxy
-  if (cs.galaxyCount >= 1 && !this.milestones.firstGalaxy) {
-    this.milestones.firstGalaxy = true;
-    this._recordMilestone("First Galaxy Formation", "The first galaxy has formed from primordial gas clouds");
-  }
-
-  // ==================== STAR FORMATION ====================
-  const starsPerGalaxy = this.constants.averageStarsPerGalaxy;
-  const starsTarget = cs.galaxyCount * starsPerGalaxy;
-  
-  if (cs.galaxyCount > 0) {
-    // Star formation efficiency depends on metallicity and gas availability
-    const metallicityBoost = 1 + cs.metallicity * 0.5;
-    const gasFraction = Math.exp(-ageGyr / 10); // Gas depletes over time
+    // Formation peaks between 2-8 Gyr, then slows
+    const formationPeak = Math.exp(-Math.pow((ageGyr - 5) / 3, 2));
+    const baseRate = 0.15 / 1e9;
+    const r = baseRate * (1 + formationPeak * 2);
     
-    // Aggressive star formation rate for gameplay
-    const sfRate = 0.003 * gasFraction * metallicityBoost;
+    const current = cs.galaxyCount;
     
-    const starGrowth = (starsTarget - cs.starCount) * sfRate * (dt / 1e7);
-    cs.starCount = Math.max(0, cs.starCount + starGrowth);
+    let dG = 0;
     
-    // Bootstrap: Ensure stars form once galaxies exist
-    if (ageGyr > 0.5 && cs.galaxyCount > 10 && cs.starCount < 1e6) {
-      const boost = 1e6;
-      console.log(`⭐ BOOTSTRAP: Adding ${boost.toExponential(1)} stars`);
-      cs.starCount += boost;
+    // CRITICAL: Bootstrap mechanism for early universe
+    if (ageGyr > 0.1 && ageGyr < 2.5 && current < 1000) {
+      // Rapid seed formation in early universe
+      const seedRate = 2000 * Math.exp(-Math.pow((ageGyr - 0.5) / 0.7, 2));
+      dG = seedRate * (dt / 1e7);
+      
+      if (dG > 10) {
+        console.log(`🌌 SEED GALAXIES: Adding ${dG.toFixed(0)} galaxies (age: ${ageGyr.toFixed(2)} Gyr, total: ${(current + dG).toFixed(0)})`);
+      }
+    } else if (current > 0) {
+      // Normal logistic growth (requires existing population)
+      dG = r * current * (1 - current / Math.max(1, K)) * dt;
     }
     
-    // Milestone: First star
-    if (cs.starCount >= 1 && !this.milestones.firstStar) {
-      this.milestones.firstStar = true;
-      this._recordMilestone("First Star Ignition", "The first stars have ignited, ending the cosmic dark ages");
+    // Safety: Ensure at least some galaxies exist after 1 Gyr
+    if (ageGyr > 1.0 && current < 100) {
+      console.log(`🆘 BOOTSTRAP: Adding 100 seed galaxies at ${ageGyr.toFixed(2)} Gyr`);
+      dG += 100;
     }
-  }
-  
-  // ==================== STELLAR EVOLUTION ====================
-  if (cs.starCount > 0) {
-    // Stellar death and generations
-    const stellarDeathRate = cs.starCount * 1e-11 * dt;
-    const generationIncrease = stellarDeathRate / (starsPerGalaxy * 10);
-    cs.stellarGenerations = Math.min(cs.stellarGenerations + generationIncrease, 10);
     
-    // Metallicity increases from stellar nucleosynthesis
-    const metalProduction = stellarDeathRate * 1e-14;
-    cs.metallicity = this._clamp(cs.metallicity + metalProduction, 0, 1);
+    cs.galaxyCount = this._clamp(current + dG, 0, K * 1.5);
     
-    // Milestone: Population I stars (metal-rich)
-    if (cs.metallicity > 0.1 && !this.milestones.stellarPopulationI) {
-      this.milestones.stellarPopulationI = true;
-      this._recordMilestone("Population I Stars", "Metal-rich stars capable of forming rocky planets");
+    // Milestone: First galaxy
+    if (cs.galaxyCount >= 1 && !this.milestones.firstGalaxy) {
+      this._recordMilestone(
+        'firstGalaxy',
+        "First Galaxy Formation", 
+        "The first galaxy has formed from primordial gas clouds"
+      );
+    }
+
+    // ==================== STAR FORMATION ====================
+    const starsPerGalaxy = this.constants.averageStarsPerGalaxy;
+    const starsTarget = cs.galaxyCount * starsPerGalaxy;
+    
+    if (cs.galaxyCount > 0) {
+      // Star formation efficiency depends on metallicity and gas availability
+      const metallicityBoost = 1 + cs.metallicity * 0.5;
+      const gasFraction = Math.exp(-ageGyr / 10); // Gas depletes over time
+      
+      // Aggressive star formation rate for gameplay
+      const sfRate = 0.003 * gasFraction * metallicityBoost;
+      
+      const starGrowth = (starsTarget - cs.starCount) * sfRate * (dt / 1e7);
+      cs.starCount = Math.max(0, cs.starCount + starGrowth);
+      
+      // Bootstrap: Ensure stars form once galaxies exist
+      if (ageGyr > 0.5 && cs.galaxyCount > 10 && cs.starCount < 1e6) {
+        const boost = 1e6;
+        console.log(`⭐ BOOTSTRAP: Adding ${boost.toExponential(1)} stars`);
+        cs.starCount += boost;
+      }
+      
+      // Milestone: First star
+      if (cs.starCount >= 1 && !this.milestones.firstStar) {
+        this._recordMilestone(
+          'firstStar',
+          "First Star Ignition", 
+          "The first stars have ignited, ending the cosmic dark ages"
+        );
+      }
+    }
+    
+    // ==================== STELLAR EVOLUTION ====================
+    if (cs.starCount > 0) {
+      // Stellar death and generations
+      const stellarDeathRate = cs.starCount * 1e-11 * dt;
+      const generationIncrease = stellarDeathRate / (starsPerGalaxy * 10);
+      cs.stellarGenerations = Math.min(cs.stellarGenerations + generationIncrease, 10);
+      
+      // Metallicity increases from stellar nucleosynthesis
+      const metalProduction = stellarDeathRate * 1e-14;
+      cs.metallicity = this._clamp(cs.metallicity + metalProduction, 0, 1);
+      
+      // Milestone: Population I stars (metal-rich)
+      if (cs.metallicity > 0.1 && !this.milestones.stellarPopulationI) {
+        this._recordMilestone(
+          'stellarPopulationI',
+          "Population I Stars", 
+          "Metal-rich stars capable of forming rocky planets"
+        );
+      }
+    }
+
+    // ==================== BLACK HOLE FORMATION ====================
+    if (cs.starCount > 0) {
+      const massiveStarFraction = 1e-4;
+      const bhFormationRate = 0.1;
+      const newBHs = cs.starCount * massiveStarFraction * bhFormationRate * (dt / 1e9);
+      cs.blackHoleCount = Math.max(0, cs.blackHoleCount + newBHs);
+    }
+
+    // ==================== PERIODIC STATUS LOG ====================
+    // Log every 100 million years
+    if (Math.floor(age / 1e8) !== Math.floor((age - dt) / 1e8)) {
+      console.log(`📊 STRUCTURES [${ageGyr.toFixed(2)} Gyr]:`, {
+        galaxies: cs.galaxyCount.toExponential(2),
+        stars: cs.starCount.toExponential(2),
+        blackHoles: cs.blackHoleCount.toExponential(2),
+        metallicity: (cs.metallicity * 100).toFixed(1) + '%',
+        phase: cs.cosmicPhase
+      });
     }
   }
 
-  // ==================== BLACK HOLE FORMATION ====================
-  if (cs.starCount > 0) {
-    const massiveStarFraction = 1e-4;
-    const bhFormationRate = 0.1;
-    const newBHs = cs.starCount * massiveStarFraction * bhFormationRate * (dt / 1e9);
-    cs.blackHoleCount = Math.max(0, cs.blackHoleCount + newBHs);
+  _recordMilestone(milestoneKey, title, description) {
+    // CRITICAL: Only record if milestone hasn't been achieved yet
+    if (this.milestones[milestoneKey]) {
+      return; // Already recorded, skip
+    }
+    
+    // Set milestone flag FIRST to prevent duplicates
+    this.milestones[milestoneKey] = true;
+    
+    // IMPORTANT: Mark milestones as modified for Mongoose
+    this.universe.markModified('milestones');
+    
+    // Then record the event
+    this._recordSignificantEvent("milestone", `MILESTONE: ${title}`, { 
+      description,
+      milestoneKey // Add key for reference
+    });
+    
+    console.log(`🎯 MILESTONE ACHIEVED: ${title} (${milestoneKey})`);
   }
 
-  // ==================== PERIODIC STATUS LOG ====================
-  // Log every 100 million years
-  if (Math.floor(age / 1e8) !== Math.floor((age - dt) / 1e8)) {
-    console.log(`📊 STRUCTURES [${ageGyr.toFixed(2)} Gyr]:`, {
-      galaxies: cs.galaxyCount.toExponential(2),
-      stars: cs.starCount.toExponential(2),
-      blackHoles: cs.blackHoleCount.toExponential(2),
-      metallicity: (cs.metallicity * 100).toFixed(1) + '%',
-      phase: cs.cosmicPhase
+  _recordSignificantEvent(type, description, effects) {
+    // Limit events to prevent memory bloat
+    if (this.universe.significantEvents.length > 2000) {
+      this.universe.significantEvents.splice(0, 500);
+    }
+    
+    this.universe.significantEvents.push({
+      timestamp: new Date(),
+      age: this.universe.currentState.age,
+      type,
+      description,
+      effects,
+      ageGyr: (this.universe.currentState.age / 1e9).toFixed(3)
     });
   }
-}
-
-
-_recordMilestone(title, description) {
-  this._recordSignificantEvent("milestone", `MILESTONE: ${title}`, { description });
-}
-
-_recordSignificantEvent(type, description, effects) {
-  // Limit events to prevent memory bloat
-  if (this.universe.significantEvents.length > 2000) {
-    this.universe.significantEvents.splice(0, 500);
-  }
-  
-  this.universe.significantEvents.push({
-    timestamp: new Date(),
-    age: this.universe.currentState.age,
-    type,
-    description,
-    effects,
-    ageGyr: (this.universe.currentState.age / 1e9).toFixed(3)
-  });
-}
 
   _updateLifeEvolution() {
     const cs = this.universe.currentState;
@@ -339,14 +371,20 @@ _recordSignificantEvent(type, description, effects) {
       
       // Milestone: First life
       if (cs.lifeBearingPlanetsCount >= 1 && !this.milestones.firstLife) {
-        this.milestones.firstLife = true;
-        this._recordMilestone("Abiogenesis Event", "Life has emerged in the universe");
+        this._recordMilestone(
+          'firstLife',
+          "Abiogenesis Event", 
+          "Life has emerged in the universe"
+        );
       }
       
       // Milestone: Complex life era
       if (cs.lifeBearingPlanetsCount > 1000 && !this.milestones.complexLifeEra) {
-        this.milestones.complexLifeEra = true;
-        this._recordMilestone("Complex Life Era", "Complex multicellular life is widespread");
+        this._recordMilestone(
+          'complexLifeEra',
+          "Complex Life Era", 
+          "Complex multicellular life is widespread"
+        );
       }
     }
 
@@ -374,8 +412,11 @@ _recordSignificantEvent(type, description, effects) {
         
         // Milestone: First civilization
         if (cs.civilizationCount >= 1 && !this.milestones.firstCivilization) {
-          this.milestones.firstCivilization = true;
-          this._recordMilestone("First Civilization", "Intelligent civilization has emerged");
+          this._recordMilestone(
+            'firstCivilization',
+            "First Civilization", 
+            "Intelligent civilization has emerged"
+          );
         }
         
         // Milestone: Technological singularity (Type 1+)
@@ -383,14 +424,60 @@ _recordSignificantEvent(type, description, effects) {
           c.type !== "Type0"
         ).length;
         if (advancedCivs > 0 && !this.milestones.technologicalSingularity) {
-          this.milestones.technologicalSingularity = true;
-          this._recordMilestone("Technological Singularity", "Advanced civilizations have transcended planetary boundaries");
+          this._recordMilestone(
+            'technologicalSingularity',
+            "Technological Singularity", 
+            "Advanced civilizations have transcended planetary boundaries"
+          );
         }
       }
     }
     
     // Evolve existing civilizations
     this._evolveCivilizations(dt);
+  }
+
+  _deduplicateMilestones() {
+    const seenMilestones = new Set();
+    const uniqueEvents = [];
+    
+    for (const event of this.universe.significantEvents) {
+      if (event.type === 'milestone') {
+        // Extract milestone key from description
+        const milestoneText = event.description.replace('MILESTONE: ', '');
+        
+        if (!seenMilestones.has(milestoneText)) {
+          seenMilestones.add(milestoneText);
+          uniqueEvents.push(event);
+          
+          // Map milestone description to milestone key and mark as achieved
+          const milestoneKeyMap = {
+            'First Galaxy Formation': 'firstGalaxy',
+            'First Star Ignition': 'firstStar',
+            'Population I Stars': 'stellarPopulationI',
+            'Abiogenesis Event': 'firstLife',
+            'Complex Life Era': 'complexLifeEra',
+            'First Civilization': 'firstCivilization',
+            'Technological Singularity': 'technologicalSingularity'
+          };
+          
+          const milestoneKey = milestoneKeyMap[milestoneText];
+          if (milestoneKey && this.milestones[milestoneKey] !== undefined) {
+            this.milestones[milestoneKey] = true;
+          }
+        }
+      } else {
+        uniqueEvents.push(event);
+      }
+    }
+    
+    if (uniqueEvents.length < this.universe.significantEvents.length) {
+      const removed = this.universe.significantEvents.length - uniqueEvents.length;
+      console.log(`🧹 Removed ${removed} duplicate milestone events`);
+      this.universe.significantEvents = uniqueEvents;
+      this.universe.markModified('significantEvents');
+      this.universe.markModified('milestones');
+    }
   }
 
   _evolveCivilizations(dt) {
@@ -459,7 +546,7 @@ _recordSignificantEvent(type, description, effects) {
 
     // Apply difficulty modifier (MORE FORGIVING)
     const diffMod = this.options.difficultyModifier ?? 1.0;
-    rawStability = rawStability * (0.6 + 0.4 / diffMod); // FIXED: More forgiving calculation
+    rawStability = rawStability * (0.6 + 0.4 / diffMod);
 
     cs.stabilityIndex = this._clamp(rawStability, 0, 1);
     
@@ -479,8 +566,8 @@ _recordSignificantEvent(type, description, effects) {
 
   _calculateEntropyFactor() {
     const cs = this.universe.currentState;
-    const maxEntropy = 3e14; // FIXED: Increased threshold (was 2e14)
-    return Math.max(0, 1 - Math.pow(cs.entropy / maxEntropy, 0.7)); // FIXED: Gentler curve
+    const maxEntropy = 3e14;
+    return Math.max(0, 1 - Math.pow(cs.entropy / maxEntropy, 0.7));
   }
 
   _calculateStructureFactor() {
@@ -514,9 +601,8 @@ _recordSignificantEvent(type, description, effects) {
     const unresolved = this.universe.anomalies.filter(a => !a.resolved).length;
     const total = this.universe.anomalies.length;
     
-    // FIXED: Less punishing anomaly impact
-    const unresolvedImpact = Math.min(unresolved * 0.008, 0.35); // REDUCED from 0.01/0.4
-    const totalImpact = Math.min(total * 0.0015, 0.25); // REDUCED from 0.002/0.3
+    const unresolvedImpact = Math.min(unresolved * 0.008, 0.35);
+    const totalImpact = Math.min(total * 0.0015, 0.25);
     
     return Math.max(0, 1 - unresolvedImpact - totalImpact);
   }
@@ -579,26 +665,6 @@ _recordSignificantEvent(type, description, effects) {
       0,
       1
     );
-  }
-
-  _recordSignificantEvent(type, description, effects) {
-    // Limit events to prevent memory bloat
-    if (this.universe.significantEvents.length > 2000) {
-      this.universe.significantEvents.splice(0, 500);
-    }
-    
-    this.universe.significantEvents.push({
-      timestamp: new Date(),
-      age: this.universe.currentState.age,
-      type,
-      description,
-      effects,
-      ageGyr: (this.universe.currentState.age / 1e9).toFixed(3)
-    });
-  }
-
-  _recordMilestone(title, description) {
-    this._recordSignificantEvent("milestone", `MILESTONE: ${title}`, { description });
   }
 
   // ========== Public API =================================================================
