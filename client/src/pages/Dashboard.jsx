@@ -6,6 +6,8 @@ import {
   Sparkles, TrendingUp, Zap, Award, Clock, Target,
   Star, Activity, Users, Globe
 } from "lucide-react";
+import NavHeader from "../components/NavHeader";
+
 
 // Alert Component
 const Alert = ({ children, variant = "error" }) => {
@@ -331,141 +333,147 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white p-8 pt-20 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <Loader2 size={48} className="animate-spin text-indigo-500" />
-            <div className="absolute inset-0 blur-xl bg-indigo-500/30 animate-pulse" />
+      <>
+        <NavHeader />
+        <div className="min-h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white p-8 pt-20 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              <Loader2 size={48} className="animate-spin text-indigo-500" />
+              <div className="absolute inset-0 blur-xl bg-indigo-500/30 animate-pulse" />
+            </div>
+            <span className="text-lg text-gray-300">Loading your universes...</span>
           </div>
-          <span className="text-lg text-gray-300">Loading your universes...</span>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white p-6 sm:p-8 pt-20">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <div>
-            <h2 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
-              Your Universes
-            </h2>
-            <p className="text-gray-400 flex items-center gap-2">
-              <Sparkles size={16} className="text-indigo-400" />
-              {universes.length} {universes.length === 1 ? 'universe' : 'universes'} created
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="flex items-center gap-2 px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-all border border-gray-700 disabled:opacity-50 hover:scale-105 active:scale-95"
-              title="Refresh universes"
-            >
-              <RefreshCw size={20} className={isRefreshing ? 'animate-spin' : ''} />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
-            <button
-              onClick={() => navigate("/universe-creation")}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg transition-all hover:scale-105 active:scale-95 shadow-lg shadow-green-500/30"
-            >
-              <Plus size={20} />
-              <span className="font-semibold">Create Universe</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Stats Overview */}
-        {universes.length > 0 && <StatsOverview universes={universes} />}
-
-        {/* Error Alert */}
-        {error && <Alert variant="error" className="mb-6">{error}</Alert>}
-
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
-          >
-            <option value="name">Sort by Name</option>
-            <option value="age">Sort by Age</option>
-            <option value="galaxies">Sort by Galaxies</option>
-            <option value="civilizations">Sort by Civilizations</option>
-            <option value="stability">Sort by Stability</option>
-            <option value="status">Sort by Status</option>
-          </select>
-
-          <select
-            value={filterDifficulty}
-            onChange={(e) => setFilterDifficulty(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
-          >
-            <option value="all">All Difficulties</option>
-            <option value="Beginner">Beginner</option>
-            <option value="Intermediate">Intermediate</option>
-            <option value="Advanced">Advanced</option>
-          </select>
-
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
-          >
-            <option value="all">All Statuses</option>
-            <option value="running">Active</option>
-            <option value="paused">Paused</option>
-            <option value="ended">Ended</option>
-          </select>
-        </div>
-
-        {/* Universe Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sortedAndFilteredUniverses.length === 0 ? (
-            <div className="col-span-full text-center py-20 bg-gray-800/30 backdrop-blur-sm rounded-2xl border-2 border-dashed border-gray-700">
-              <div className="flex flex-col items-center gap-6">
-                <div className="relative">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center opacity-20">
-                    <Plus size={40} />
-                  </div>
-                  <div className="absolute inset-0 blur-2xl bg-indigo-500/20 animate-pulse" />
-                </div>
-                <div>
-                  <p className="text-gray-300 text-xl font-semibold mb-2">
-                    {filterDifficulty !== 'all' || filterStatus !== 'all'
-                      ? 'No universes match your filters'
-                      : 'No universes found'}
-                  </p>
-                  <p className="text-gray-500 text-sm">
-                    {filterDifficulty !== 'all' || filterStatus !== 'all'
-                      ? 'Try adjusting your filters'
-                      : 'Start your cosmic journey by creating your first universe'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => navigate("/universe-creation")}
-                  className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-blue-500/30 font-semibold"
-                >
-                  <Zap size={20} />
-                  Create Your First Universe
-                </button>
-              </div>
+    <>
+      <NavHeader />
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white p-6 sm:p-8 pt-20">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <div>
+              <h2 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
+                Your Universes
+              </h2>
+              <p className="text-gray-400 flex items-center gap-2">
+                <Sparkles size={16} className="text-indigo-400" />
+                {universes.length} {universes.length === 1 ? 'universe' : 'universes'} created
+              </p>
             </div>
-          ) : (
-            sortedAndFilteredUniverses.map((universe) => (
-              <UniverseCard
-                key={universe._id}
-                universe={universe}
-                onDelete={handleDelete}
-                onView={() => navigate(`/gameplay/${universe._id}`)}
-              />
-            ))
-          )}
+            <div className="flex gap-3">
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="flex items-center gap-2 px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-all border border-gray-700 disabled:opacity-50 hover:scale-105 active:scale-95"
+                title="Refresh universes"
+              >
+                <RefreshCw size={20} className={isRefreshing ? 'animate-spin' : ''} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+              <button
+                onClick={() => navigate("/universe-creation")}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg transition-all hover:scale-105 active:scale-95 shadow-lg shadow-green-500/30"
+              >
+                <Plus size={20} />
+                <span className="font-semibold">Create Universe</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Stats Overview */}
+          {universes.length > 0 && <StatsOverview universes={universes} />}
+
+          {/* Error Alert */}
+          {error && <Alert variant="error" className="mb-6">{error}</Alert>}
+
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-6">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
+            >
+              <option value="name">Sort by Name</option>
+              <option value="age">Sort by Age</option>
+              <option value="galaxies">Sort by Galaxies</option>
+              <option value="civilizations">Sort by Civilizations</option>
+              <option value="stability">Sort by Stability</option>
+              <option value="status">Sort by Status</option>
+            </select>
+
+            <select
+              value={filterDifficulty}
+              onChange={(e) => setFilterDifficulty(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
+            >
+              <option value="all">All Difficulties</option>
+              <option value="Beginner">Beginner</option>
+              <option value="Intermediate">Intermediate</option>
+              <option value="Advanced">Advanced</option>
+            </select>
+
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
+            >
+              <option value="all">All Statuses</option>
+              <option value="running">Active</option>
+              <option value="paused">Paused</option>
+              <option value="ended">Ended</option>
+            </select>
+          </div>
+
+          {/* Universe Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {sortedAndFilteredUniverses.length === 0 ? (
+              <div className="col-span-full text-center py-20 bg-gray-800/30 backdrop-blur-sm rounded-2xl border-2 border-dashed border-gray-700">
+                <div className="flex flex-col items-center gap-6">
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center opacity-20">
+                      <Plus size={40} />
+                    </div>
+                    <div className="absolute inset-0 blur-2xl bg-indigo-500/20 animate-pulse" />
+                  </div>
+                  <div>
+                    <p className="text-gray-300 text-xl font-semibold mb-2">
+                      {filterDifficulty !== 'all' || filterStatus !== 'all'
+                        ? 'No universes match your filters'
+                        : 'No universes found'}
+                    </p>
+                    <p className="text-gray-500 text-sm">
+                      {filterDifficulty !== 'all' || filterStatus !== 'all'
+                        ? 'Try adjusting your filters'
+                        : 'Start your cosmic journey by creating your first universe'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate("/universe-creation")}
+                    className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-blue-500/30 font-semibold"
+                  >
+                    <Zap size={20} />
+                    Create Your First Universe
+                  </button>
+                </div>
+              </div>
+            ) : (
+              sortedAndFilteredUniverses.map((universe) => (
+                <UniverseCard
+                  key={universe._id}
+                  universe={universe}
+                  onDelete={handleDelete}
+                  onView={() => navigate(`/gameplay/${universe._id}`)}
+                />
+              ))
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

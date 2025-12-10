@@ -8,7 +8,6 @@ import Dashboard from "./pages/Dashboard";
 import UniverseCreation from "./pages/UniverseCreation";
 import SimulationDashboard from "./pages/SimulationDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
-import NavHeader from "./components/NavHeader";
 import BigBangPage from "./pages/BigBangPage";
 import GameplayPage from "./pages/GameplayPage";
 import './index.css'; 
@@ -19,7 +18,7 @@ function App() {
 
   return (
     <Router>
-      <NavHeader />
+      
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />

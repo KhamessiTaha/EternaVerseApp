@@ -75,25 +75,26 @@ const SimulationDashboard = () => {
     }
   };
 
-  const progressUniverse = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.put(
-        `http://localhost:5000/api/universe/${id}/progress`,
-        { timeStep: 10 }, // Progress by 10 million years per update
-        { headers: { Authorization: token } }
-      );
-      setUniverse(response.data.universe);
-    } catch (error) {
-      console.error("Error progressing universe:", error);
-    }
-  };
-
   useEffect(() => {
     if (!running || !simulationStarted) return;
+
+    const progressUniverse = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.put(
+          `http://localhost:5000/api/universe/${id}/progress`,
+          { timeStep: 10 }, // Progress by 10 million years per update
+          { headers: { Authorization: token } }
+        );
+        setUniverse(response.data.universe);
+      } catch (error) {
+        console.error("Error progressing universe:", error);
+      }
+    };
+
     const interval = setInterval(progressUniverse, 5000); // Update every 5 seconds
     return () => clearInterval(interval);
-  }, [running, simulationStarted]);
+  }, [running, simulationStarted, id]);
 
   const handleInputChange = (e) => {
     setPreBigBangConfig({ ...preBigBangConfig, [e.target.name]: parseFloat(e.target.value) });
