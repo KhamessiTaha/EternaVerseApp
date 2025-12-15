@@ -5,6 +5,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Lock, Mail, AlertCircle, Loader2, Sparkles } from "lucide-react";
 import NavHeader from "../components/NavHeader";
+import dotenv from "dotenv";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -20,7 +21,7 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/login", { email, password });
+      const res = await axios.post(dotenv.process.env.API+"/auth/login", { email, password });
       login(res.data, res.data.token);
       navigate("/dashboard");
     } catch (err) {

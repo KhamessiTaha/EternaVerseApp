@@ -4,6 +4,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { User, Mail, Lock, AlertCircle, Loader2, Sparkles, CheckCircle } from "lucide-react";
 import NavHeader from "../components/NavHeader";
+import dotenv from "dotenv";
 
 const Register = () => {
   const [username, setUsername] = useState("");
@@ -27,7 +28,7 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      await axios.post("http://localhost:5000/api/auth/register", { username, email, password });
+      await axios.post(dotenv.process.env.API+"/auth/register", { username, email, password });
       navigate("/login");
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed. Please try again.");

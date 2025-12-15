@@ -2,8 +2,9 @@ import { useParams } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import PhaserGame from "../components/PhaserGame";
+import dotenv from "dotenv";
 
-const API_BASE = "http://localhost:5000/api/universe";
+const API_BASE = dotenv.process.env.API+ "/universe";
 
 const GameplayPage = () => {
   const { id } = useParams();

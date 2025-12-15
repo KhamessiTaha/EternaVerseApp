@@ -476,7 +476,7 @@ class PhysicsEngine {
     
     if (uniqueEvents.length < this.universe.significantEvents.length) {
       const removed = this.universe.significantEvents.length - uniqueEvents.length;
-      console.log(`🧹 Removed ${removed} duplicate milestone events`);
+      console.log(`Removed ${removed} duplicate milestone events`);
       this.universe.significantEvents = uniqueEvents;
       if (typeof this.universe.markModified === "function"){
         this.universe.markModified('significantEvents');

@@ -1,6 +1,7 @@
 import axios from "axios";
+import dotenv from "dotenv";
 
-const API_URL = "http://localhost:5000/api/universe";
+const API_URL = dotenv.process.env.API+"/universe";
 
 // Get the auth token from localStorage
 const getAuthHeaders = () => {
