@@ -5,7 +5,9 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Lock, Mail, AlertCircle, Loader2, Sparkles } from "lucide-react";
 import NavHeader from "../components/NavHeader";
-import dotenv from "dotenv";
+
+const API_BASE = import.meta.env.VITE_API_URL;
+
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -21,11 +23,18 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const res = await axios.post(dotenv.process.env.API+"/auth/login", { email, password });
+      const res = await axios.post(`${API_BASE}/auth/login`, {
+        email,
+        password,
+      });
+
       login(res.data, res.data.token);
       navigate("/dashboard");
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed. Please try again.");
+      setError(
+        err.response?.data?.message ||
+          "Login failed. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
