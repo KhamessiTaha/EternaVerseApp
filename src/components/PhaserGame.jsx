@@ -736,17 +736,36 @@ const UniverseSceneFactory = (props) => {
 
       const width = this.scale.width;
       const height = this.scale.height;
-      const padding = 80;
+      const padding = 100;
       const mapWidth = width - padding * 2;
-      const mapHeight = height - padding * 2;
+      const mapHeight = height - padding * 2 - 40;
 
       this.fullMapBg.clear();
       this.fullMapGraphics.clear();
       
-      // Dark background with vignette effect
-      this.fullMapBg.fillStyle(0x000000, 0.97).fillRect(0, 0, width, height);
-      this.fullMapBg.fillStyle(0x001122, 0.3)
-        .fillRect(padding - 30, padding - 30, mapWidth + 60, mapHeight + 60);
+      // Animated dark background with scan line effect
+      this.fullMapBg.fillStyle(0x000000, 0.98).fillRect(0, 0, width, height);
+      
+      // Corner brackets for sci-fi feel
+      const bracketSize = 40;
+      const bracketThick = 3;
+      this.fullMapBg.lineStyle(bracketThick, 0x00ffff, 0.8);
+      // Top-left
+      this.fullMapBg.lineBetween(20, 20, 20 + bracketSize, 20);
+      this.fullMapBg.lineBetween(20, 20, 20, 20 + bracketSize);
+      // Top-right
+      this.fullMapBg.lineBetween(width - 20, 20, width - 20 - bracketSize, 20);
+      this.fullMapBg.lineBetween(width - 20, 20, width - 20, 20 + bracketSize);
+      // Bottom-left
+      this.fullMapBg.lineBetween(20, height - 20, 20 + bracketSize, height - 20);
+      this.fullMapBg.lineBetween(20, height - 20, 20, height - 20 - bracketSize);
+      // Bottom-right
+      this.fullMapBg.lineBetween(width - 20, height - 20, width - 20 - bracketSize, height - 20);
+      this.fullMapBg.lineBetween(width - 20, height - 20, width - 20, height - 20 - bracketSize);
+      
+      // Dark frame around map area
+      this.fullMapBg.fillStyle(0x001122, 0.4)
+        .fillRect(padding - 35, padding - 35, mapWidth + 70, mapHeight + 70);
 
       // Calculate bounds of loaded chunks
       const radius = this.activeChunkRadius;
@@ -764,28 +783,37 @@ const UniverseSceneFactory = (props) => {
       const worldHeight = worldMaxY - worldMinY;
 
       // Calculate scale to fit loaded area
-      const scale = Math.min(mapWidth / worldWidth, mapHeight / worldHeight) * 0.88;
+      const scale = Math.min(mapWidth / worldWidth, mapHeight / worldHeight) * 0.85;
       const offsetX = padding + (mapWidth - worldWidth * scale) / 2;
       const offsetY = padding + (mapHeight - worldHeight * scale) / 2;
 
-      // Draw outer glow border
-      this.fullMapGraphics.lineStyle(1, 0x00ffff, 0.3)
+      // Outer decorative borders
+      this.fullMapGraphics.lineStyle(1, 0x00ffff, 0.2)
+        .strokeRect(offsetX - 20, offsetY - 20, worldWidth * scale + 40, worldHeight * scale + 40);
+      this.fullMapGraphics.lineStyle(2, 0x00ffff, 0.4)
         .strokeRect(offsetX - 15, offsetY - 15, worldWidth * scale + 30, worldHeight * scale + 30);
-      this.fullMapGraphics.lineStyle(2, 0x00ffff, 0.6)
+      this.fullMapGraphics.lineStyle(1, 0x00ddff, 0.6)
         .strokeRect(offsetX - 10, offsetY - 10, worldWidth * scale + 20, worldHeight * scale + 20);
       this.fullMapGraphics.lineStyle(3, 0x00ffff, 1)
         .strokeRect(offsetX - 5, offsetY - 5, worldWidth * scale + 10, worldHeight * scale + 10);
 
-      // Draw chunk grid with highlighted current chunk
-      this.fullMapGraphics.lineStyle(1, 0x004466, 0.5);
+      // Draw chunk grid with better styling
+      this.fullMapGraphics.lineStyle(1, 0x004466, 0.6);
       for (let cx = minChunkX; cx <= maxChunkX; cx++) {
         const x = offsetX + (cx * CHUNK_SIZE - worldMinX) * scale;
         this.fullMapGraphics.lineBetween(x, offsetY, x, offsetY + worldHeight * scale);
         
-        // Chunk coordinate labels
-        const coordText = this.add.text(x, offsetY - 15, `${cx}`, {
-          font: "9px Courier",
-          fill: "#006688",
+        // Chunk coordinate labels with background
+        const coordBg = this.add.graphics()
+          .fillStyle(0x000000, 0.8)
+          .fillRect(x - 12, offsetY - 25, 24, 14)
+          .setScrollFactor(0)
+          .setDepth(2001);
+        this.fullMapTexts.push(coordBg);
+        
+        const coordText = this.add.text(x, offsetY - 18, `${cx}`, {
+          font: "bold 9px Courier",
+          fill: "#00aacc",
           align: "center"
         }).setOrigin(0.5).setScrollFactor(0).setDepth(2002);
         this.fullMapTexts.push(coordText);
@@ -795,34 +823,61 @@ const UniverseSceneFactory = (props) => {
         const y = offsetY + (cy * CHUNK_SIZE - worldMinY) * scale;
         this.fullMapGraphics.lineBetween(offsetX, y, offsetX + worldWidth * scale, y);
         
-        // Chunk coordinate labels
-        const coordText = this.add.text(offsetX - 15, y, `${cy}`, {
-          font: "9px Courier",
-          fill: "#006688",
+        // Chunk coordinate labels with background
+        const coordBg = this.add.graphics()
+          .fillStyle(0x000000, 0.8)
+          .fillRect(offsetX - 30, y - 7, 24, 14)
+          .setScrollFactor(0)
+          .setDepth(2001);
+        this.fullMapTexts.push(coordBg);
+        
+        const coordText = this.add.text(offsetX - 18, y, `${cy}`, {
+          font: "bold 9px Courier",
+          fill: "#00aacc",
           align: "right"
-        }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(2002);
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(2002);
         this.fullMapTexts.push(coordText);
       }
 
-      // Highlight current chunk
+      // Highlight current chunk with animated border
       const currentChunkX = offsetX + (this.currentChunk.chunkX * CHUNK_SIZE - worldMinX) * scale;
       const currentChunkY = offsetY + (this.currentChunk.chunkY * CHUNK_SIZE - worldMinY) * scale;
-      this.fullMapGraphics.fillStyle(0x00ffff, 0.1)
-        .fillRect(currentChunkX, currentChunkY, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
-      this.fullMapGraphics.lineStyle(2, 0x00ffff, 0.7)
-        .strokeRect(currentChunkX, currentChunkY, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
+      const chunkWidth = CHUNK_SIZE * scale;
+      
+      this.fullMapGraphics.fillStyle(0x00ffff, 0.12)
+        .fillRect(currentChunkX, currentChunkY, chunkWidth, chunkWidth);
+      this.fullMapGraphics.lineStyle(2, 0x00ffff, 0.8)
+        .strokeRect(currentChunkX, currentChunkY, chunkWidth, chunkWidth);
+      this.fullMapGraphics.lineStyle(1, 0x00ffff, 0.4)
+        .strokeRect(currentChunkX - 2, currentChunkY - 2, chunkWidth + 4, chunkWidth + 4);
+      
+      // Current chunk label
+      const chunkLabel = this.add.text(
+        currentChunkX + chunkWidth / 2, 
+        currentChunkY + chunkWidth / 2, 
+        "ACTIVE\nCHUNK", 
+        {
+          font: "bold 11px Courier",
+          fill: "#00ffff",
+          align: "center",
+          stroke: "#000000",
+          strokeThickness: 4
+        }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(2002).setAlpha(0.6);
+      this.fullMapTexts.push(chunkLabel);
 
-      // Render galaxies with density-based opacity
+      // Render galaxies with improved visuals
       this.loadedChunks.forEach((chunk) => {
         chunk.galaxies.forEach((galaxy) => {
           const mx = offsetX + (galaxy.x - worldMinX) * scale;
           const my = offsetY + (galaxy.y - worldMinY) * scale;
-          this.fullMapGraphics.fillStyle(0xaaaaaa, 0.5).fillCircle(mx, my, 2.5);
-          this.fullMapGraphics.fillStyle(0xffffff, 0.3).fillCircle(mx, my, 1.5);
+          this.fullMapGraphics.fillStyle(0xcccccc, 0.3).fillCircle(mx, my, 3);
+          this.fullMapGraphics.fillStyle(0xffffff, 0.6).fillCircle(mx, my, 2);
+          this.fullMapGraphics.fillStyle(0xffffff, 1).fillCircle(mx, my, 1);
         });
       });
 
-      // Render procedural anomalies with type indicators
+      // Collect and render procedural anomalies
       const proceduralAnomalies = [];
       this.loadedChunks.forEach((chunk) => {
         chunk.anomalies.forEach((anom) => {
@@ -837,22 +892,24 @@ const UniverseSceneFactory = (props) => {
         const my = offsetY + (anom.y - worldMinY) * scale;
         const typeConfig = ANOMALY_TYPE_MAP[anom.type];
         
-        // Outer glow
-        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.15)
-          .fillCircle(mx, my, 10);
+        // Layered glow effect
+        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.1)
+          .fillCircle(mx, my, 12);
+        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.3)
+          .fillCircle(mx, my, 8);
+        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.6)
+          .fillCircle(mx, my, 5);
         
-        // Inner glow
-        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.5)
-          .fillCircle(mx, my, 6);
-        
-        // Core
-        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.9)
+        // Core with white border
+        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 1)
           .fillCircle(mx, my, 4);
-        this.fullMapGraphics.lineStyle(1.5, 0xffffff, 0.8)
+        this.fullMapGraphics.lineStyle(1.5, 0xffffff, 0.9)
           .strokeCircle(mx, my, 4);
+        this.fullMapGraphics.lineStyle(1, typeConfig?.color || 0xff0000, 0.5)
+          .strokeCircle(mx, my, 7);
       });
 
-      // Render backend anomalies with enhanced visuals
+      // Collect backend anomalies in view
       const backendAnomaliesInView = [];
       this.backendAnomalies.forEach((backendAnomaly) => {
         if (!this.resolvedAnomalies.has(backendAnomaly.id)) {
@@ -866,127 +923,237 @@ const UniverseSceneFactory = (props) => {
         }
       });
 
+      // Render backend anomalies with enhanced effects
       backendAnomaliesInView.forEach((backendAnomaly) => {
         const mx = offsetX + (backendAnomaly.location.x - worldMinX) * scale;
         const my = offsetY + (backendAnomaly.location.y - worldMinY) * scale;
         const typeConfig = ANOMALY_TYPE_MAP[backendAnomaly.type];
         
-        // Animated warning rings
-        this.fullMapGraphics.lineStyle(4, 0xffff00, 0.3).strokeCircle(mx, my, 18);
+        // Pulsing danger rings
+        this.fullMapGraphics.lineStyle(5, 0xffff00, 0.15).strokeCircle(mx, my, 22);
+        this.fullMapGraphics.lineStyle(4, 0xffaa00, 0.3).strokeCircle(mx, my, 17);
         this.fullMapGraphics.lineStyle(3, 0xffff00, 0.6).strokeCircle(mx, my, 13);
-        this.fullMapGraphics.lineStyle(3, 0xffff00, 1).strokeCircle(mx, my, 9);
+        this.fullMapGraphics.lineStyle(3, 0xffff00, 1).strokeCircle(mx, my, 10);
         
-        // Outer danger glow
-        this.fullMapGraphics.fillStyle(0xffaa00, 0.2).fillCircle(mx, my, 15);
+        // Outer glow
+        this.fullMapGraphics.fillStyle(0xffaa00, 0.2).fillCircle(mx, my, 16);
+        this.fullMapGraphics.fillStyle(0xffdd00, 0.3).fillCircle(mx, my, 12);
         
-        // Colored center with type
+        // Core with type color
         this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 1)
-          .fillCircle(mx, my, 7);
+          .fillCircle(mx, my, 8);
         this.fullMapGraphics.lineStyle(2, 0xffffff, 1)
-          .strokeCircle(mx, my, 7);
+          .strokeCircle(mx, my, 8);
+        this.fullMapGraphics.lineStyle(1, 0xffff00, 0.8)
+          .strokeCircle(mx, my, 11);
         
-        // Severity and type label
+        // Enhanced label with icon
+        const labelWidth = 85;
+        const labelHeight = 22;
         const labelBg = this.add.graphics()
-          .fillStyle(0x000000, 0.85)
-          .fillRoundedRect(mx - 35, my - 32, 70, 20, 5)
-          .lineStyle(1, 0xffff00, 0.8)
-          .strokeRoundedRect(mx - 35, my - 32, 70, 20, 5)
+          .fillStyle(0x000000, 0.9)
+          .fillRoundedRect(mx - labelWidth/2, my - 38, labelWidth, labelHeight, 6)
+          .lineStyle(2, 0xffff00, 1)
+          .strokeRoundedRect(mx - labelWidth/2, my - 38, labelWidth, labelHeight, 6)
+          .lineStyle(1, 0xffaa00, 0.5)
+          .strokeRoundedRect(mx - labelWidth/2 - 1, my - 39, labelWidth + 2, labelHeight + 2, 6)
           .setScrollFactor(0)
           .setDepth(2001);
         this.fullMapTexts.push(labelBg);
         
-        const severityText = this.add.text(mx, my - 22, 
-          `⚡ SEV ${backendAnomaly.severity}`, {
-          font: "bold 11px Courier",
+        const severityText = this.add.text(mx, my - 27, 
+          `⚡ PRIORITY ${backendAnomaly.severity}`, {
+          font: "bold 10px Courier",
           fill: "#ffff00",
         }).setOrigin(0.5).setScrollFactor(0).setDepth(2003);
         this.fullMapTexts.push(severityText);
         
-        // Distance from player
+        // Type label below
+        const typeLabel = this.add.text(mx, my + 18, typeConfig?.label || "ANOMALY", {
+          font: "bold 8px Courier",
+          fill: "#ffffff",
+          backgroundColor: "#000000",
+          padding: { x: 4, y: 2 }
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(2002);
+        this.fullMapTexts.push(typeLabel);
+        
+        // Distance indicator
         const dist = Math.sqrt(
           (backendAnomaly.location.x - this.player.x) ** 2 + 
           (backendAnomaly.location.y - this.player.y) ** 2
         );
-        const distText = this.add.text(mx, my + 20, `${dist.toFixed(0)}u`, {
-          font: "9px Courier",
+        const distText = this.add.text(mx, my + 30, `${dist.toFixed(0)}u`, {
+          font: "bold 9px Courier",
           fill: "#00ffff",
           backgroundColor: "#000000",
           padding: { x: 3, y: 1 }
         }).setOrigin(0.5).setScrollFactor(0).setDepth(2002);
         this.fullMapTexts.push(distText);
+        
+        // Draw line to player if close
+        if (dist < worldWidth / 2) {
+          const px = offsetX + (this.player.x - worldMinX) * scale;
+          const py = offsetY + (this.player.y - worldMinY) * scale;
+          this.fullMapGraphics.lineStyle(1, 0xffff00, 0.3);
+          this.fullMapGraphics.lineBetween(mx, my, px, py);
+        }
       });
 
-      // Render player with direction indicator
+      // Render player with enhanced visuals
       const px = offsetX + (this.player.x - worldMinX) * scale;
       const py = offsetY + (this.player.y - worldMinY) * scale;
       
-      // Direction cone
+      // Movement trail/direction
       const vel = this.player.body.velocity;
       if (vel.x !== 0 || vel.y !== 0) {
         const angle = Math.atan2(vel.y, vel.x);
-        const dirLength = 20;
-        this.fullMapGraphics.lineStyle(2, 0x00ffff, 0.5);
-        this.fullMapGraphics.lineBetween(
-          px, py,
+        const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2);
+        const dirLength = 15 + Math.min(speed / 10, 20);
+        
+        // Direction cone
+        this.fullMapGraphics.lineStyle(3, 0x00ffff, 0.3);
+        this.fullMapGraphics.lineBetween(px, py, 
           px + Math.cos(angle) * dirLength,
           py + Math.sin(angle) * dirLength
         );
+        this.fullMapGraphics.lineStyle(2, 0x00ffff, 0.6);
+        this.fullMapGraphics.lineBetween(px, py, 
+          px + Math.cos(angle) * (dirLength - 5),
+          py + Math.sin(angle) * (dirLength - 5)
+        );
       }
       
-      // Player marker
-      this.fullMapGraphics.fillStyle(0x000000, 1).fillCircle(px, py, 9);
-      this.fullMapGraphics.fillStyle(0x00ffff, 1).fillCircle(px, py, 8);
-      this.fullMapGraphics.lineStyle(2, 0xffffff, 1).strokeCircle(px, py, 8);
-      this.fullMapGraphics.lineStyle(1, 0x00ffff, 0.6).strokeCircle(px, py, 12);
+      // Player icon with rings
+      this.fullMapGraphics.fillStyle(0x00ffff, 0.15).fillCircle(px, py, 18);
+      this.fullMapGraphics.fillStyle(0x00ffff, 0.3).fillCircle(px, py, 14);
+      this.fullMapGraphics.fillStyle(0x000000, 1).fillCircle(px, py, 10);
+      this.fullMapGraphics.fillStyle(0x00ffff, 1).fillCircle(px, py, 9);
+      this.fullMapGraphics.lineStyle(2, 0xffffff, 1).strokeCircle(px, py, 9);
+      this.fullMapGraphics.lineStyle(1, 0x00ffff, 0.8).strokeCircle(px, py, 12);
+      this.fullMapGraphics.lineStyle(1, 0x00ffff, 0.4).strokeCircle(px, py, 15);
       
       // Player label
-      const playerLabel = this.add.text(px, py + 18, "YOU", {
-        font: "bold 10px Courier",
+      const playerLabelBg = this.add.graphics()
+        .fillStyle(0x000000, 0.9)
+        .fillRoundedRect(px - 20, py + 20, 40, 16, 4)
+        .lineStyle(1, 0x00ffff, 0.8)
+        .strokeRoundedRect(px - 20, py + 20, 40, 16, 4)
+        .setScrollFactor(0)
+        .setDepth(2001);
+      this.fullMapTexts.push(playerLabelBg);
+      
+      const playerLabel = this.add.text(px, py + 28, "◆ YOU ◆", {
+        font: "bold 9px Courier",
         fill: "#00ffff",
-        backgroundColor: "#000000",
-        padding: { x: 4, y: 2 }
       }).setOrigin(0.5).setScrollFactor(0).setDepth(2002);
       this.fullMapTexts.push(playerLabel);
 
-      // Legend
-      const legendX = offsetX + worldWidth * scale + 20;
-      const legendY = offsetY;
+      // Enhanced legend panel
+      const legendX = offsetX + worldWidth * scale + 35;
+      const legendY = offsetY + 10;
+      const legendWidth = 120;
+      
+      // Legend background
+      const legendBg = this.add.graphics()
+        .fillStyle(0x000000, 0.85)
+        .fillRoundedRect(legendX - 10, legendY - 10, legendWidth, 140, 8)
+        .lineStyle(2, 0x00ffff, 0.6)
+        .strokeRoundedRect(legendX - 10, legendY - 10, legendWidth, 140, 8)
+        .setScrollFactor(0)
+        .setDepth(2000);
+      this.fullMapTexts.push(legendBg);
+      
+      const legendTitle = this.add.text(legendX + legendWidth/2 - 10, legendY, "LEGEND", {
+        font: "bold 11px Courier",
+        fill: "#00ffff",
+      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(2002);
+      this.fullMapTexts.push(legendTitle);
       
       const legendItems = [
-        { color: 0xaaaaaa, label: "Galaxy", isCircle: true },
-        { color: 0xff6600, label: "Procedural", isCircle: true },
-        { color: 0xffff00, label: "Backend ⚡", isCircle: true, isSpecial: true },
-        { color: 0x00ffff, label: "You", isCircle: true },
+        { color: 0xffffff, label: "Galaxy", isCircle: true, size: 2 },
+        { color: 0xff6600, label: "Procedural", isCircle: true, size: 4 },
+        { color: 0xffff00, label: "Backend ⚡", isCircle: true, isSpecial: true, size: 8 },
+        { color: 0x00ffff, label: "Your Ship", isCircle: true, size: 9 },
+        { color: 0x00ffff, label: "Active Chunk", isBox: true },
       ];
 
       legendItems.forEach((item, i) => {
-        const ly = legendY + i * 25;
+        const ly = legendY + 25 + i * 22;
         
         if (item.isCircle) {
           if (item.isSpecial) {
-            this.fullMapGraphics.lineStyle(2, item.color, 1).strokeCircle(legendX + 6, ly + 6, 5);
+            this.fullMapGraphics.lineStyle(2, item.color, 0.8).strokeCircle(legendX + 8, ly + 6, 6);
           }
-          this.fullMapGraphics.fillStyle(item.color, 0.9).fillCircle(legendX + 6, ly + 6, 4);
+          this.fullMapGraphics.fillStyle(item.color, 0.9).fillCircle(legendX + 8, ly + 6, item.size);
+          if (item.size > 2) {
+            this.fullMapGraphics.lineStyle(1, 0xffffff, 0.7).strokeCircle(legendX + 8, ly + 6, item.size);
+          }
         }
         
-        const legendText = this.add.text(legendX + 20, ly + 6, item.label, {
-          font: "10px Courier",
-          fill: "#aaaaaa"
+        if (item.isBox) {
+          this.fullMapGraphics.fillStyle(item.color, 0.15).fillRect(legendX + 2, ly, 12, 12);
+          this.fullMapGraphics.lineStyle(1.5, item.color, 0.8).strokeRect(legendX + 2, ly, 12, 12);
+        }
+        
+        const legendText = this.add.text(legendX + 25, ly + 6, item.label, {
+          font: "9px Courier",
+          fill: "#cccccc"
         }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2002);
         this.fullMapTexts.push(legendText);
       });
 
-      // Update title and stats
-      this.fullMapTitle.setText("⚡ TACTICAL MAP ⚡").setVisible(true);
+      // Stats panel on left side
+      const statsX = offsetX - worldWidth * scale / 2 - 140;
+      const statsY = offsetY + 10;
+      const statsWidth = 130;
       
-      const backendCount = backendAnomaliesInView.length;
-      const proceduralCount = proceduralAnomalies.length;
+      const statsBg = this.add.graphics()
+        .fillStyle(0x000000, 0.85)
+        .fillRoundedRect(statsX, statsY, statsWidth, 180, 8)
+        .lineStyle(2, 0x00ff88, 0.6)
+        .strokeRoundedRect(statsX, statsY, statsWidth, 180, 8)
+        .setScrollFactor(0)
+        .setDepth(2000);
+      this.fullMapTexts.push(statsBg);
+      
+      const statsTitle = this.add.text(statsX + statsWidth/2, statsY + 12, "SCAN REPORT", {
+        font: "bold 11px Courier",
+        fill: "#00ff88",
+      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(2002);
+      this.fullMapTexts.push(statsTitle);
+      
       const totalGalaxies = Array.from(this.loadedChunks.values())
         .reduce((sum, chunk) => sum + chunk.galaxies.length, 0);
       
-      const statsInfo = `Chunks: ${this.loadedChunks.size} | Galaxies: ${totalGalaxies} | Backend: ${backendCount} ⚡ | Procedural: ${proceduralCount} | Press M to close`;
+      const statsData = [
+        { label: "Loaded Chunks", value: this.loadedChunks.size, color: "#00aacc" },
+        { label: "Galaxies", value: totalGalaxies, color: "#ffffff" },
+        { label: "Backend ⚡", value: backendAnomaliesInView.length, color: "#ffff00" },
+        { label: "Procedural", value: proceduralAnomalies.length, color: "#ff6600" },
+        { label: "Position", value: `${this.player.x.toFixed(0)}, ${this.player.y.toFixed(0)}`, color: "#00ffff" },
+      ];
       
-      this.fullMapInstruction.setText(statsInfo).setVisible(true);
+      statsData.forEach((stat, i) => {
+        const sy = statsY + 38 + i * 24;
+        
+        const statLabel = this.add.text(statsX + 10, sy, stat.label + ":", {
+          font: "9px Courier",
+          fill: "#999999"
+        }).setOrigin(0, 0).setScrollFactor(0).setDepth(2002);
+        this.fullMapTexts.push(statLabel);
+        
+        const statValue = this.add.text(statsX + 10, sy + 11, String(stat.value), {
+          font: "bold 10px Courier",
+          fill: stat.color
+        }).setOrigin(0, 0).setScrollFactor(0).setDepth(2002);
+        this.fullMapTexts.push(statValue);
+      });
+
+      // Update title with scan animation effect
+      this.fullMapTitle.setText("═══ TACTICAL SCAN ═══").setVisible(true);
+      
+      const instructionText = `Viewing ${this.loadedChunks.size} chunks • ${backendAnomaliesInView.length} priority targets • Press M to close`;
+      this.fullMapInstruction.setText(instructionText).setVisible(true);
     }
 
     updateFromUniverse(newUniverse) {
