@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
 
@@ -7,6 +7,7 @@ const UNIVERSE_SIZE = 100000;
 const MINIMAP_SIZE = 150;
 const ANOMALIES_PER_CHUNK = 2;
 const ANOMALY_SPAWN_CHANCE = 0.3;
+const CHUNK_UNLOAD_RADIUS = 3;
 
 const getChunkCoords = (x, y) => ({
   chunkX: Math.floor(x / CHUNK_SIZE),
@@ -14,7 +15,6 @@ const getChunkCoords = (x, y) => ({
 });
 const getChunkKey = (x, y) => `${x}:${y}`;
 
-// Map backend anomaly types to visual types
 const ANOMALY_TYPE_MAP = {
   blackHoleMerger: { color: 0x9900ff, label: "BLACK HOLE", baseRadius: 15 },
   darkEnergySurge: { color: 0x0066ff, label: "DARK ENERGY", baseRadius: 12 },
@@ -24,7 +24,6 @@ const ANOMALY_TYPE_MAP = {
   cosmicVoid: { color: 0x6600ff, label: "COSMIC VOID", baseRadius: 14 },
   magneticReversal: { color: 0xffcc00, label: "MAGNETIC", baseRadius: 13 },
   darkMatterClump: { color: 0xff0066, label: "DARK MATTER", baseRadius: 14 },
-  // Fallback for procedural anomalies
   cosmicString: { color: 0xff0066, label: "COSMIC STRING", baseRadius: 14 },
   quantumTunneling: { color: 0x00ff99, label: "QUANTUM", baseRadius: 10 },
 };
@@ -42,8 +41,9 @@ const UniverseSceneFactory = (props) => {
       this.activeChunkRadius = 2;
       this.discoveredAnomalies = new Set();
       this.resolvedAnomalies = new Set();
-      this.backendAnomalies = new Map(); // Store backend anomalies separately
+      this.backendAnomalies = new Map();
       this.arrowStates = { up: false, down: false, left: false, right: false };
+      this.fullMapTexts = [];
     }
 
     init(data) {
@@ -51,8 +51,6 @@ const UniverseSceneFactory = (props) => {
       this.onAnomalyResolved = data.onAnomalyResolved;
       this.setStats = data.setStats;
       this.rng = seedrandom(this.universe.seed ?? "default");
-      
-      // Initialize backend anomalies
       this.syncBackendAnomalies();
     }
 
@@ -61,22 +59,41 @@ const UniverseSceneFactory = (props) => {
     }
 
     create() {
-      // Player
+      // Player setup
       this.player = this.physics.add
         .sprite(0, 0, "Player")
         .setScale(0.05)
         .setDamping(true)
         .setDrag(0.98)
-        .setMaxVelocity(400)
-        .setCollideWorldBounds(false);
+        .setMaxVelocity(400);
 
       this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
       this.cameras.main.setZoom(1.5);
 
+      // Lighting system
       this.lights.enable().setAmbientColor(0x0a0a0a);
       this.playerLight = this.lights.addLight(0, 0, 250).setIntensity(2.5);
 
-      // Controls
+      // Input setup
+      this.setupControls();
+
+      // Initial chunk loading
+      this.currentChunk = getChunkCoords(this.player.x, this.player.y);
+      this.loadNearbyChunks(this.currentChunk.chunkX, this.currentChunk.chunkY);
+
+      // UI creation
+      this.showFullMap = false;
+      this.createUI();
+      this.updateUIPositions();
+
+      // Event handlers
+      this.scale.on("resize", this.handleResize, this);
+      
+      this.renderFullMap();
+      this.renderBackendAnomalies();
+    }
+
+    setupControls() {
       this.cursors = this.input.keyboard.addKeys({
         up: Phaser.Input.Keyboard.KeyCodes.W,
         down: Phaser.Input.Keyboard.KeyCodes.S,
@@ -89,42 +106,25 @@ const UniverseSceneFactory = (props) => {
       });
       this.fixKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
       this.mapKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
-
-      this.createTouchControls();
-
-      this.currentChunk = getChunkCoords(this.player.x, this.player.y);
-      this.loadNearbyChunks(this.currentChunk.chunkX, this.currentChunk.chunkY);
-
-      this.showFullMap = false;
-      this.createUI();
-      this.updateUIPositions();
-
-      this.scale.on("resize", () => {
-        this.updateUIPositions();
-        if (this.showFullMap) this.renderFullMap();
-      });
-
-      this.renderFullMap();
-      
-      // Render backend anomalies initially
-      this.renderBackendAnomalies();
     }
 
-    // NEW: Sync backend anomalies from universe data
+    handleResize() {
+      this.updateUIPositions();
+      if (this.showFullMap) this.renderFullMap();
+    }
+
     syncBackendAnomalies() {
       if (!this.universe?.anomalies) return;
 
       const activeBackendAnomalies = this.universe.anomalies.filter(a => !a.resolved);
-      
-      console.log(`🔄 Syncing ${activeBackendAnomalies.length} backend anomalies`);
+      const activeIds = new Set(activeBackendAnomalies.map(a => a.id));
 
-      // Update or create backend anomaly visuals
+      // Add or update backend anomalies
       for (const backendAnomaly of activeBackendAnomalies) {
         if (!this.backendAnomalies.has(backendAnomaly.id)) {
-          // New backend anomaly - will be rendered when in range
           this.backendAnomalies.set(backendAnomaly.id, {
             ...backendAnomaly,
-            visual: null // Will be created when chunk loads
+            visual: null
           });
           
           if (!this.discoveredAnomalies.has(backendAnomaly.id)) {
@@ -138,10 +138,8 @@ const UniverseSceneFactory = (props) => {
       }
 
       // Remove resolved backend anomalies
-      const activeIds = new Set(activeBackendAnomalies.map(a => a.id));
       for (const [id, anomaly] of this.backendAnomalies.entries()) {
         if (!activeIds.has(id)) {
-          // Backend anomaly was resolved
           if (anomaly.visual) {
             this.destroyAnomalyVisual(anomaly.visual);
           }
@@ -151,87 +149,84 @@ const UniverseSceneFactory = (props) => {
       }
     }
 
-    // NEW: Render backend anomalies that are in loaded chunks
     renderBackendAnomalies() {
       for (const [id, backendAnomaly] of this.backendAnomalies.entries()) {
-        // Skip if already has visual or is resolved
         if (backendAnomaly.visual || this.resolvedAnomalies.has(id)) continue;
 
-        // Use backend location (convert from universe coordinates)
         const x = backendAnomaly.location?.x || 0;
         const y = backendAnomaly.location?.y || 0;
-
-        // Check if in loaded chunks
         const chunk = getChunkCoords(x, y);
         const isLoaded = this.loadedChunks.has(getChunkKey(chunk.chunkX, chunk.chunkY));
 
         if (isLoaded) {
           const typeConfig = ANOMALY_TYPE_MAP[backendAnomaly.type] || ANOMALY_TYPE_MAP.quantumFluctuation;
-          
-          const visual = this.createAnomaly(
-            x, 
-            y, 
-            typeConfig, 
-            backendAnomaly.severity,
-            backendAnomaly.id,
-            true // Mark as backend anomaly
+          backendAnomaly.visual = this.createAnomaly(
+            x, y, typeConfig, backendAnomaly.severity, backendAnomaly.id, true
           );
-
-          backendAnomaly.visual = visual;
-          
-          console.log(`✨ Rendered backend anomaly: ${backendAnomaly.type} at (${x.toFixed(0)}, ${y.toFixed(0)})`);
         }
       }
     }
 
     update(time, delta) {
+      this.handlePlayerMovement();
+      this.updatePlayerLight();
+      this.updateHUD();
+      this.checkChunkChange();
+      this.handleAnomalyInteraction();
+      this.handleMapToggle();
+      this.updateMinimap();
+    }
+
+    handlePlayerMovement() {
       const speed = 250;
-      const isMovingLeft =
-        this.cursors.left.isDown || this.cursors.q?.isDown || this.arrowStates.left;
-      const isMovingRight =
-        this.cursors.right.isDown || this.cursors.d2?.isDown || this.arrowStates.right;
-      const isMovingUp =
-        this.cursors.up.isDown || this.cursors.z?.isDown || this.arrowStates.up;
-      const isMovingDown =
-        this.cursors.down.isDown || this.cursors.s2?.isDown || this.arrowStates.down;
+      const isMovingLeft = this.cursors.left.isDown || this.cursors.q?.isDown;
+      const isMovingRight = this.cursors.right.isDown || this.cursors.d2?.isDown;
+      const isMovingUp = this.cursors.up.isDown || this.cursors.z?.isDown;
+      const isMovingDown = this.cursors.down.isDown || this.cursors.s2?.isDown;
 
       this.player.setAcceleration(
         isMovingLeft ? -speed : isMovingRight ? speed : 0,
         isMovingUp ? -speed : isMovingDown ? speed : 0
       );
+    }
 
+    updatePlayerLight() {
       this.playerLight.setPosition(this.player.x, this.player.y);
+    }
 
-      const vel =
-        Math.sqrt(this.player.body.velocity.x ** 2 + this.player.body.velocity.y ** 2) || 0;
+    updateHUD() {
+      const vel = Math.sqrt(
+        this.player.body.velocity.x ** 2 + this.player.body.velocity.y ** 2
+      );
       this.velocityText?.setText(`VELOCITY: ${vel.toFixed(1)} u/s`);
       this.coordText?.setText(
         `COORDINATES: X:${this.player.x.toFixed(0)} Y:${this.player.y.toFixed(0)}`
       );
+    }
 
+    checkChunkChange() {
       const newChunk = getChunkCoords(this.player.x, this.player.y);
-      if (newChunk.chunkX !== this.currentChunk.chunkX || newChunk.chunkY !== this.currentChunk.chunkY) {
+      if (newChunk.chunkX !== this.currentChunk.chunkX || 
+          newChunk.chunkY !== this.currentChunk.chunkY) {
         this.currentChunk = newChunk;
         this.loadNearbyChunks(newChunk.chunkX, newChunk.chunkY);
-        // Re-render backend anomalies when chunks change
         this.renderBackendAnomalies();
       }
+    }
 
-      this.handleAnomalyInteraction();
-
+    handleMapToggle() {
       if (Phaser.Input.Keyboard.JustDown(this.mapKey)) {
         this.showFullMap = !this.showFullMap;
         this.fullMapContainer?.setVisible(this.showFullMap);
         this.renderFullMap();
       }
-
-      this.updateMinimap();
     }
 
     loadNearbyChunks(centerX, centerY) {
       const newChunks = new Map();
       const radius = this.activeChunkRadius;
 
+      // Load nearby chunks
       for (let dx = -radius; dx <= radius; dx++) {
         for (let dy = -radius; dy <= radius; dy++) {
           const chunkX = centerX + dx;
@@ -239,23 +234,26 @@ const UniverseSceneFactory = (props) => {
           const key = getChunkKey(chunkX, chunkY);
 
           if (!this.loadedChunks.has(key)) {
-            const chunk = this.generateChunk(chunkX, chunkY);
-            newChunks.set(key, chunk);
+            newChunks.set(key, this.generateChunk(chunkX, chunkY));
           } else {
             newChunks.set(key, this.loadedChunks.get(key));
           }
         }
       }
 
-      // Cleanup old chunks
+      // Cleanup far chunks
       this.loadedChunks.forEach((chunk, key) => {
         if (!newChunks.has(key)) {
-          chunk.galaxies.forEach(g => g.destroy());
-          chunk.anomalies.forEach(a => this.destroyAnomalyVisual(a));
+          this.cleanupChunk(chunk);
         }
       });
 
       this.loadedChunks = newChunks;
+    }
+
+    cleanupChunk(chunk) {
+      chunk.galaxies.forEach(g => g.destroy());
+      chunk.anomalies.forEach(a => this.destroyAnomalyVisual(a));
     }
 
     generateChunk(chunkX, chunkY) {
@@ -263,8 +261,20 @@ const UniverseSceneFactory = (props) => {
       const chunkSeed = (this.universe.seed ?? "seed") + getChunkKey(chunkX, chunkY);
       const rng = seedrandom(chunkSeed);
 
-      // Galaxies (visual only, not synced with backend)
+      // Generate galaxies
+      this.generateGalaxies(chunk, chunkX, chunkY, rng);
+
+      // Generate procedural anomalies
+      if (rng() < ANOMALY_SPAWN_CHANCE) {
+        this.generateProceduralAnomalies(chunk, chunkX, chunkY, rng);
+      }
+
+      return chunk;
+    }
+
+    generateGalaxies(chunk, chunkX, chunkY, rng) {
       const galaxyCount = 8 + Math.floor(rng() * 12);
+      
       for (let i = 0; i < galaxyCount; i++) {
         const x = chunkX * CHUNK_SIZE + rng() * CHUNK_SIZE;
         const y = chunkY * CHUNK_SIZE + rng() * CHUNK_SIZE;
@@ -273,50 +283,54 @@ const UniverseSceneFactory = (props) => {
         const wheel = Phaser.Display.Color.HSVColorWheel();
         const color = wheel[hue % wheel.length];
 
-        const g = this.add.graphics({ x, y }).fillStyle(
-          Phaser.Display.Color.GetColor(color.r, color.g, color.b),
-          0.8
-        ).fillCircle(0, 0, size).setDepth(-1);
+        const g = this.add.graphics({ x, y })
+          .fillStyle(Phaser.Display.Color.GetColor(color.r, color.g, color.b), 0.8)
+          .fillCircle(0, 0, size)
+          .setDepth(-1);
 
         if (size > 20) {
-          this.lights.addLight(x, y, size * 6, Phaser.Display.Color.GetColor(color.r, color.g, color.b), 0.2);
+          this.lights.addLight(
+            x, y, size * 6, 
+            Phaser.Display.Color.GetColor(color.r, color.g, color.b), 
+            0.2
+          );
         }
 
         chunk.galaxies.push(g);
       }
+    }
 
-      // Procedural anomalies (visual only, lower priority than backend)
-      if (rng() < ANOMALY_SPAWN_CHANCE) {
-        const anomalyCount = Math.floor(rng() * ANOMALIES_PER_CHUNK) + 1;
-        for (let i = 0; i < anomalyCount; i++) {
-          const type = ANOMALY_TYPES[Math.floor(rng() * ANOMALY_TYPES.length)];
-          const severity = Math.floor(rng() * 3) + 1; // Lower severity for procedural
-          const x = chunkX * CHUNK_SIZE + rng() * CHUNK_SIZE;
-          const y = chunkY * CHUNK_SIZE + rng() * CHUNK_SIZE;
-          const anomalyId = `${chunkX}:${chunkY}:${i}`;
+    generateProceduralAnomalies(chunk, chunkX, chunkY, rng) {
+      const anomalyCount = Math.floor(rng() * ANOMALIES_PER_CHUNK) + 1;
+      
+      for (let i = 0; i < anomalyCount; i++) {
+        const type = ANOMALY_TYPES[Math.floor(rng() * ANOMALY_TYPES.length)];
+        const severity = Math.floor(rng() * 3) + 1;
+        const x = chunkX * CHUNK_SIZE + rng() * CHUNK_SIZE;
+        const y = chunkY * CHUNK_SIZE + rng() * CHUNK_SIZE;
+        const anomalyId = `${chunkX}:${chunkY}:${i}`;
 
-          if (this.resolvedAnomalies.has(anomalyId)) continue;
+        if (this.resolvedAnomalies.has(anomalyId)) continue;
 
-          const anomaly = this.createAnomaly(x, y, type, severity, anomalyId, false);
-          chunk.anomalies.push(anomaly);
+        const anomaly = this.createAnomaly(x, y, type, severity, anomalyId, false);
+        chunk.anomalies.push(anomaly);
 
-          if (!this.discoveredAnomalies.has(anomalyId)) {
-            this.discoveredAnomalies.add(anomalyId);
-            this.setStats?.((prev) => ({ ...prev, discovered: (prev.discovered || 0) + 1 }));
-          }
+        if (!this.discoveredAnomalies.has(anomalyId)) {
+          this.discoveredAnomalies.add(anomalyId);
+          this.setStats?.((prev) => ({ 
+            ...prev, 
+            discovered: (prev.discovered || 0) + 1 
+          }));
         }
       }
-
-      return chunk;
     }
 
     createAnomaly(x, y, typeObj, severity, id, isBackend = false) {
       const radius = typeObj.baseRadius + severity * 2;
-      
-      // Backend anomalies are more prominent
       const alpha = isBackend ? 0.9 : 0.7;
       const glowAlpha = isBackend ? 0.35 : 0.25;
 
+      // Core entity
       const entity = this.add.graphics({ x, y })
         .fillStyle(typeObj.color, alpha)
         .fillCircle(0, 0, radius)
@@ -324,12 +338,14 @@ const UniverseSceneFactory = (props) => {
         .strokeCircle(0, 0, radius)
         .setDepth(10);
 
+      // Glow effect
       const glow = this.add.graphics({ x, y })
         .fillStyle(typeObj.color, glowAlpha)
         .fillCircle(0, 0, radius * 1.8)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(9);
 
+      // Pulsing animation
       this.tweens.add({
         targets: glow,
         scaleX: { from: 1, to: 1.3 },
@@ -341,9 +357,10 @@ const UniverseSceneFactory = (props) => {
         ease: "Sine.easeInOut",
       });
 
+      // Light source
       const light = this.lights.addLight(x, y, radius * 12, typeObj.color, 1.2);
-
       const lightProxy = { i: 1.2 };
+      
       this.tweens.add({
         targets: lightProxy,
         i: { from: 1.2, to: 2.0 },
@@ -352,12 +369,13 @@ const UniverseSceneFactory = (props) => {
         repeat: -1,
         ease: "Sine.easeInOut",
         onUpdate: () => {
-          if (light && light.setIntensity) light.setIntensity(lightProxy.i);
+          if (light?.setIntensity) light.setIntensity(lightProxy.i);
         },
       });
 
+      // Interaction text
       const labelText = isBackend 
-        ? `[⚡ ${typeObj.label}]\nPRESS F TO RESOLVE`
+        ? `[⚡ ${typeObj.label}]\nSEV: ${severity} | PRESS F`
         : `[${typeObj.label}]\nPRESS F TO RESOLVE`;
 
       const interactionText = this.add
@@ -373,19 +391,14 @@ const UniverseSceneFactory = (props) => {
         .setVisible(false);
 
       return {
-        id,
-        x,
-        y,
+        id, x, y,
         type: typeObj.type,
-        severity,
-        radius,
-        entity,
-        glow,
-        light,
+        severity, radius,
+        entity, glow, light,
         interactionText,
         inRange: false,
         resolved: false,
-        isBackend, // Flag to distinguish backend vs procedural
+        isBackend,
       };
     }
 
@@ -400,30 +413,13 @@ const UniverseSceneFactory = (props) => {
       let nearest = null;
       let minDist = Infinity;
 
-      // Check procedural anomalies
-      this.loadedChunks.forEach((chunk) => {
-        chunk.anomalies.forEach((anom) => {
-          if (anom.resolved) return;
+      // Check all anomalies
+      const checkAnomaly = (anom) => {
+        if (anom.resolved) return;
 
-          const dist = Phaser.Math.Distance.Between(anom.x, anom.y, this.player.x, this.player.y);
-          const interactionRange = anom.radius * 5;
-
-          anom.inRange = dist < interactionRange;
-          anom.interactionText?.setVisible(anom.inRange);
-
-          if (anom.inRange && dist < minDist) {
-            minDist = dist;
-            nearest = anom;
-          }
-        });
-      });
-
-      // Check backend anomalies
-      this.backendAnomalies.forEach((backendAnomaly) => {
-        if (!backendAnomaly.visual || backendAnomaly.visual.resolved) return;
-
-        const anom = backendAnomaly.visual;
-        const dist = Phaser.Math.Distance.Between(anom.x, anom.y, this.player.x, this.player.y);
+        const dist = Phaser.Math.Distance.Between(
+          anom.x, anom.y, this.player.x, this.player.y
+        );
         const interactionRange = anom.radius * 5;
 
         anom.inRange = dist < interactionRange;
@@ -433,49 +429,59 @@ const UniverseSceneFactory = (props) => {
           minDist = dist;
           nearest = anom;
         }
+      };
+
+      // Check procedural anomalies
+      this.loadedChunks.forEach((chunk) => {
+        chunk.anomalies.forEach(checkAnomaly);
+      });
+
+      // Check backend anomalies
+      this.backendAnomalies.forEach((backendAnomaly) => {
+        if (backendAnomaly.visual) {
+          checkAnomaly(backendAnomaly.visual);
+        }
       });
 
       // Resolve nearest anomaly
       if (nearest && Phaser.Input.Keyboard.JustDown(this.fixKey)) {
-        nearest.resolved = true;
-        this.resolvedAnomalies.add(nearest.id);
+        this.resolveAnomaly(nearest);
+      }
+    }
 
-        this.cameras.main.shake(200, 0.005);
+    resolveAnomaly(anomaly) {
+      anomaly.resolved = true;
+      this.resolvedAnomalies.add(anomaly.id);
 
-        const particleBurst = this.add.particles(
-          nearest.x,
-          nearest.y,
-          "Player",
-          {
-            speed: { min: 50, max: 150 },
-            scale: { start: 0.02, end: 0 },
-            lifespan: 800,
-            quantity: 20,
-            blendMode: "ADD"
-          }
-        );
+      // Visual feedback
+      this.cameras.main.shake(200, 0.005);
 
-        this.time.delayedCall(800, () => particleBurst.destroy());
+      const particleBurst = this.add.particles(anomaly.x, anomaly.y, "Player", {
+        speed: { min: 50, max: 150 },
+        scale: { start: 0.02, end: 0 },
+        lifespan: 800,
+        quantity: 20,
+        blendMode: "ADD"
+      });
 
-        this.destroyAnomalyVisual(nearest);
+      this.time.delayedCall(800, () => particleBurst.destroy());
+      this.destroyAnomalyVisual(anomaly);
 
-        this.setStats?.((prev) => ({
-          ...prev,
-          resolved: (prev.resolved || 0) + 1,
-        }));
+      // Update stats
+      this.setStats?.((prev) => ({
+        ...prev,
+        resolved: (prev.resolved || 0) + 1,
+      }));
 
-        // Notify GameplayPage with full anomaly data
-        if (this.onAnomalyResolved) {
-          this.onAnomalyResolved({
-            id: nearest.id,
-            type: nearest.type,
-            severity: nearest.severity,
-            location: { x: nearest.x, y: nearest.y },
-            isBackend: nearest.isBackend
-          });
-        }
-
-        console.log(`✅ Resolved ${nearest.isBackend ? 'BACKEND' : 'procedural'} anomaly: ${nearest.type}`);
+      // Notify parent component
+      if (this.onAnomalyResolved) {
+        this.onAnomalyResolved({
+          id: anomaly.id,
+          type: anomaly.type,
+          severity: anomaly.severity,
+          location: { x: anomaly.x, y: anomaly.y },
+          isBackend: anomaly.isBackend
+        });
       }
     }
 
@@ -491,18 +497,19 @@ const UniverseSceneFactory = (props) => {
           .setDepth(1001)
           .setInteractive(tri, Phaser.Geom.Triangle.Contains);
 
-        g.on("pointerdown", () => {
+        const activate = () => {
           this.arrowStates[direction] = true;
           g.clear().fillStyle(0x00ff00, 1).fillTriangle(-15, 10, 15, 10, 0, -10);
-        });
-        g.on("pointerup", () => {
+        };
+
+        const deactivate = () => {
           this.arrowStates[direction] = false;
           g.clear().fillStyle(0x00ff00, 0.5).fillTriangle(-15, 10, 15, 10, 0, -10);
-        });
-        g.on("pointerout", () => {
-          this.arrowStates[direction] = false;
-          g.clear().fillStyle(0x00ff00, 0.5).fillTriangle(-15, 10, 15, 10, 0, -10);
-        });
+        };
+
+        g.on("pointerdown", activate);
+        g.on("pointerup", deactivate);
+        g.on("pointerout", deactivate);
 
         return g;
       };
@@ -515,10 +522,16 @@ const UniverseSceneFactory = (props) => {
     }
 
     createUI() {
+      // Minimap
       this.minimap = this.add.graphics().setScrollFactor(0).setDepth(1000);
       this.minimapBorder = this.add.graphics().setScrollFactor(0).setDepth(999);
 
-      this.fullMapContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(2000).setVisible(false);
+      // Full map
+      this.fullMapContainer = this.add.container(0, 0)
+        .setScrollFactor(0)
+        .setDepth(2000)
+        .setVisible(false);
+      
       this.fullMapBg = this.add.graphics().setScrollFactor(0);
       this.fullMapGraphics = this.add.graphics().setScrollFactor(0);
       this.fullMapContainer.add([this.fullMapBg, this.fullMapGraphics]);
@@ -537,6 +550,7 @@ const UniverseSceneFactory = (props) => {
         padding: { x: 10, y: 5 },
       }).setOrigin(0.5).setScrollFactor(0).setDepth(2001).setVisible(false);
 
+      // HUD elements
       this.velocityText = this.add.text(10, 80, "", {
         font: "bold 12px Courier",
         fill: "#00ff00",
@@ -602,9 +616,16 @@ const UniverseSceneFactory = (props) => {
       this.minimap.clear();
       this.minimapBorder.clear();
 
-      this.minimapBorder.lineStyle(2, 0x00ffff, 0.8).strokeRect(mapX - 2, mapY - 2, MINIMAP_SIZE + 4, MINIMAP_SIZE + 4);
-      this.minimap.fillStyle(0x000022, 0.95).fillRect(mapX, mapY, MINIMAP_SIZE, MINIMAP_SIZE);
+      // Border and background
+      this.minimapBorder
+        .lineStyle(2, 0x00ffff, 0.8)
+        .strokeRect(mapX - 2, mapY - 2, MINIMAP_SIZE + 4, MINIMAP_SIZE + 4);
+      
+      this.minimap
+        .fillStyle(0x000022, 0.95)
+        .fillRect(mapX, mapY, MINIMAP_SIZE, MINIMAP_SIZE);
 
+      // Grid lines
       this.minimapBorder.lineStyle(1, 0x004444, 0.5);
       for (let dx = -radius; dx <= radius; dx++) {
         const x = mapX + (dx * CHUNK_SIZE + chunksWidth / 2) * scale;
@@ -615,139 +636,359 @@ const UniverseSceneFactory = (props) => {
         this.minimapBorder.lineBetween(mapX, y, mapX + MINIMAP_SIZE, y);
       }
 
-      // Galaxies
+      // Render galaxies
+      this.renderMinimapGalaxies(mapX, mapY, centerX, centerY, scale, chunksWidth, chunksHeight);
+
+      // Render anomalies
+      this.renderMinimapAnomalies(mapX, mapY, centerX, centerY, scale, chunksWidth, chunksHeight);
+
+      // Render player
+      this.renderMinimapPlayer(mapX, mapY, centerX, centerY, scale, chunksWidth, chunksHeight);
+    }
+
+    renderMinimapGalaxies(mapX, mapY, centerX, centerY, scale, chunksWidth, chunksHeight) {
       this.loadedChunks.forEach((chunk) => {
         chunk.galaxies.forEach((galaxy) => {
           const relX = galaxy.x - centerX;
           const relY = galaxy.y - centerY;
           const mx = mapX + (relX + chunksWidth / 2) * scale;
           const my = mapY + (relY + chunksHeight / 2) * scale;
-          if (mx >= mapX && mx <= mapX + MINIMAP_SIZE && my >= mapY && my <= mapY + MINIMAP_SIZE) {
+          
+          if (this.isInMinimapBounds(mx, my, mapX, mapY)) {
             this.minimap.fillStyle(0x666666, 0.6).fillCircle(mx, my, 1.5);
           }
         });
       });
+    }
 
+    renderMinimapAnomalies(mapX, mapY, centerX, centerY, scale, chunksWidth, chunksHeight) {
       // Procedural anomalies
       this.loadedChunks.forEach((chunk) => {
         chunk.anomalies.forEach((anom) => {
           if (!anom.resolved) {
-            const relX = anom.x - centerX;
-            const relY = anom.y - centerY;
-            const mx = mapX + (relX + chunksWidth / 2) * scale;
-            const my = mapY + (relY + chunksHeight / 2) * scale;
-            if (mx >= mapX && mx <= mapX + MINIMAP_SIZE && my >= mapY && my <= mapY + MINIMAP_SIZE) {
+            const coords = this.getMinimapCoords(
+              anom.x, anom.y, centerX, centerY, mapX, mapY, scale, chunksWidth, chunksHeight
+            );
+            
+            if (coords) {
               const typeConfig = ANOMALY_TYPE_MAP[anom.type];
-              this.minimap.fillStyle(typeConfig?.color || 0xff0000, 0.7).fillCircle(mx, my, 2);
+              this.minimap.fillStyle(typeConfig?.color || 0xff0000, 0.7)
+                .fillCircle(coords.mx, coords.my, 2);
             }
           }
         });
       });
 
-      // Backend anomalies (larger dots, yellow border)
+      // Backend anomalies (highlighted)
       this.backendAnomalies.forEach((backendAnomaly) => {
         if (backendAnomaly.visual && !backendAnomaly.visual.resolved) {
-          const relX = backendAnomaly.location.x - centerX;
-          const relY = backendAnomaly.location.y - centerY;
-          const mx = mapX + (relX + chunksWidth / 2) * scale;
-          const my = mapY + (relY + chunksHeight / 2) * scale;
-          if (mx >= mapX && mx <= mapX + MINIMAP_SIZE && my >= mapY && my <= mapY + MINIMAP_SIZE) {
+          const coords = this.getMinimapCoords(
+            backendAnomaly.location.x, backendAnomaly.location.y,
+            centerX, centerY, mapX, mapY, scale, chunksWidth, chunksHeight
+          );
+          
+          if (coords) {
             const typeConfig = ANOMALY_TYPE_MAP[backendAnomaly.type];
-            // Draw with yellow border to distinguish
-            this.minimap.lineStyle(2, 0xffff00, 1).strokeCircle(mx, my, 4);
-            this.minimap.fillStyle(typeConfig?.color || 0xff0000, 1).fillCircle(mx, my, 3);
+            this.minimap.lineStyle(2, 0xffff00, 1).strokeCircle(coords.mx, coords.my, 4);
+            this.minimap.fillStyle(typeConfig?.color || 0xff0000, 1)
+              .fillCircle(coords.mx, coords.my, 3);
           }
         }
       });
+    }
 
-      // Player
+    renderMinimapPlayer(mapX, mapY, centerX, centerY, scale, chunksWidth, chunksHeight) {
       const relPX = this.player.x - centerX;
       const relPY = this.player.y - centerY;
       const px = mapX + (relPX + chunksWidth / 2) * scale;
       const py = mapY + (relPY + chunksHeight / 2) * scale;
-      this.minimap.fillStyle(0x00ffff, 1).fillCircle(px, py, 4).lineStyle(1, 0xffffff, 1).strokeCircle(px, py, 4);
+      
+      this.minimap.fillStyle(0x00ffff, 1).fillCircle(px, py, 4);
+      this.minimap.lineStyle(1, 0xffffff, 1).strokeCircle(px, py, 4);
+    }
+
+    getMinimapCoords(x, y, centerX, centerY, mapX, mapY, scale, chunksWidth, chunksHeight) {
+      const relX = x - centerX;
+      const relY = y - centerY;
+      const mx = mapX + (relX + chunksWidth / 2) * scale;
+      const my = mapY + (relY + chunksHeight / 2) * scale;
+      
+      return this.isInMinimapBounds(mx, my, mapX, mapY) ? { mx, my } : null;
+    }
+
+    isInMinimapBounds(mx, my, mapX, mapY) {
+      return mx >= mapX && mx <= mapX + MINIMAP_SIZE && 
+             my >= mapY && my <= mapY + MINIMAP_SIZE;
     }
 
     renderFullMap() {
-      if (!this.showFullMap) return;
+      // Clear previous texts first
+      this.fullMapTexts.forEach(t => t.destroy());
+      this.fullMapTexts = [];
+
+      if (!this.showFullMap) {
+        this.fullMapBg.clear();
+        this.fullMapGraphics.clear();
+        this.fullMapTitle?.setVisible(false);
+        this.fullMapInstruction?.setVisible(false);
+        return;
+      }
+
       const width = this.scale.width;
       const height = this.scale.height;
-      const padding = 50;
+      const padding = 80;
       const mapWidth = width - padding * 2;
       const mapHeight = height - padding * 2;
 
       this.fullMapBg.clear();
       this.fullMapGraphics.clear();
-      this.fullMapBg.fillStyle(0x000000, 0.95).fillRect(0, 0, width, height);
+      
+      // Dark background with vignette effect
+      this.fullMapBg.fillStyle(0x000000, 0.97).fillRect(0, 0, width, height);
+      this.fullMapBg.fillStyle(0x001122, 0.3)
+        .fillRect(padding - 30, padding - 30, mapWidth + 60, mapHeight + 60);
 
-      this.fullMapGraphics.lineStyle(3, 0x00ffff, 1).strokeRect(padding - 3, padding - 3, mapWidth + 6, mapHeight + 6);
+      // Calculate bounds of loaded chunks
+      const radius = this.activeChunkRadius;
+      const minChunkX = this.currentChunk.chunkX - radius;
+      const maxChunkX = this.currentChunk.chunkX + radius;
+      const minChunkY = this.currentChunk.chunkY - radius;
+      const maxChunkY = this.currentChunk.chunkY + radius;
+      
+      const worldMinX = minChunkX * CHUNK_SIZE;
+      const worldMaxX = (maxChunkX + 1) * CHUNK_SIZE;
+      const worldMinY = minChunkY * CHUNK_SIZE;
+      const worldMaxY = (maxChunkY + 1) * CHUNK_SIZE;
+      
+      const worldWidth = worldMaxX - worldMinX;
+      const worldHeight = worldMaxY - worldMinY;
 
-      const scale = Math.min(mapWidth / UNIVERSE_SIZE, mapHeight / UNIVERSE_SIZE);
-      const offsetX = padding + (mapWidth - UNIVERSE_SIZE * scale) / 2;
-      const offsetY = padding + (mapHeight - UNIVERSE_SIZE * scale) / 2;
+      // Calculate scale to fit loaded area
+      const scale = Math.min(mapWidth / worldWidth, mapHeight / worldHeight) * 0.88;
+      const offsetX = padding + (mapWidth - worldWidth * scale) / 2;
+      const offsetY = padding + (mapHeight - worldHeight * scale) / 2;
 
-      // Galaxies
+      // Draw outer glow border
+      this.fullMapGraphics.lineStyle(1, 0x00ffff, 0.3)
+        .strokeRect(offsetX - 15, offsetY - 15, worldWidth * scale + 30, worldHeight * scale + 30);
+      this.fullMapGraphics.lineStyle(2, 0x00ffff, 0.6)
+        .strokeRect(offsetX - 10, offsetY - 10, worldWidth * scale + 20, worldHeight * scale + 20);
+      this.fullMapGraphics.lineStyle(3, 0x00ffff, 1)
+        .strokeRect(offsetX - 5, offsetY - 5, worldWidth * scale + 10, worldHeight * scale + 10);
+
+      // Draw chunk grid with highlighted current chunk
+      this.fullMapGraphics.lineStyle(1, 0x004466, 0.5);
+      for (let cx = minChunkX; cx <= maxChunkX; cx++) {
+        const x = offsetX + (cx * CHUNK_SIZE - worldMinX) * scale;
+        this.fullMapGraphics.lineBetween(x, offsetY, x, offsetY + worldHeight * scale);
+        
+        // Chunk coordinate labels
+        const coordText = this.add.text(x, offsetY - 15, `${cx}`, {
+          font: "9px Courier",
+          fill: "#006688",
+          align: "center"
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(2002);
+        this.fullMapTexts.push(coordText);
+      }
+      
+      for (let cy = minChunkY; cy <= maxChunkY; cy++) {
+        const y = offsetY + (cy * CHUNK_SIZE - worldMinY) * scale;
+        this.fullMapGraphics.lineBetween(offsetX, y, offsetX + worldWidth * scale, y);
+        
+        // Chunk coordinate labels
+        const coordText = this.add.text(offsetX - 15, y, `${cy}`, {
+          font: "9px Courier",
+          fill: "#006688",
+          align: "right"
+        }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(2002);
+        this.fullMapTexts.push(coordText);
+      }
+
+      // Highlight current chunk
+      const currentChunkX = offsetX + (this.currentChunk.chunkX * CHUNK_SIZE - worldMinX) * scale;
+      const currentChunkY = offsetY + (this.currentChunk.chunkY * CHUNK_SIZE - worldMinY) * scale;
+      this.fullMapGraphics.fillStyle(0x00ffff, 0.1)
+        .fillRect(currentChunkX, currentChunkY, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
+      this.fullMapGraphics.lineStyle(2, 0x00ffff, 0.7)
+        .strokeRect(currentChunkX, currentChunkY, CHUNK_SIZE * scale, CHUNK_SIZE * scale);
+
+      // Render galaxies with density-based opacity
       this.loadedChunks.forEach((chunk) => {
         chunk.galaxies.forEach((galaxy) => {
-          const mx = offsetX + (galaxy.x + UNIVERSE_SIZE / 2) * scale;
-          const my = offsetY + (galaxy.y + UNIVERSE_SIZE / 2) * scale;
-          this.fullMapGraphics.fillStyle(0x666666, 0.5).fillCircle(mx, my, 2);
+          const mx = offsetX + (galaxy.x - worldMinX) * scale;
+          const my = offsetY + (galaxy.y - worldMinY) * scale;
+          this.fullMapGraphics.fillStyle(0xaaaaaa, 0.5).fillCircle(mx, my, 2.5);
+          this.fullMapGraphics.fillStyle(0xffffff, 0.3).fillCircle(mx, my, 1.5);
         });
       });
 
-      // Procedural anomalies
+      // Render procedural anomalies with type indicators
+      const proceduralAnomalies = [];
       this.loadedChunks.forEach((chunk) => {
         chunk.anomalies.forEach((anom) => {
           if (!anom.resolved) {
-            const mx = offsetX + (anom.x + UNIVERSE_SIZE / 2) * scale;
-            const my = offsetY + (anom.y + UNIVERSE_SIZE / 2) * scale;
-            const typeConfig = ANOMALY_TYPE_MAP[anom.type];
-            this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.6).fillCircle(mx, my, 3)
-              .lineStyle(1, typeConfig?.color || 0xff0000, 1).strokeCircle(mx, my, 3);
+            proceduralAnomalies.push(anom);
           }
         });
       });
 
-      // Backend anomalies (larger, with star marker)
+      proceduralAnomalies.forEach((anom) => {
+        const mx = offsetX + (anom.x - worldMinX) * scale;
+        const my = offsetY + (anom.y - worldMinY) * scale;
+        const typeConfig = ANOMALY_TYPE_MAP[anom.type];
+        
+        // Outer glow
+        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.15)
+          .fillCircle(mx, my, 10);
+        
+        // Inner glow
+        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.5)
+          .fillCircle(mx, my, 6);
+        
+        // Core
+        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.9)
+          .fillCircle(mx, my, 4);
+        this.fullMapGraphics.lineStyle(1.5, 0xffffff, 0.8)
+          .strokeCircle(mx, my, 4);
+      });
+
+      // Render backend anomalies with enhanced visuals
+      const backendAnomaliesInView = [];
       this.backendAnomalies.forEach((backendAnomaly) => {
         if (!this.resolvedAnomalies.has(backendAnomaly.id)) {
-          const mx = offsetX + (backendAnomaly.location.x + UNIVERSE_SIZE / 2) * scale;
-          const my = offsetY + (backendAnomaly.location.y + UNIVERSE_SIZE / 2) * scale;
-          const typeConfig = ANOMALY_TYPE_MAP[backendAnomaly.type];
+          const anomX = backendAnomaly.location.x;
+          const anomY = backendAnomaly.location.y;
           
-          // Draw star shape for backend anomalies
-          this.fullMapGraphics.lineStyle(2, 0xffff00, 1).strokeCircle(mx, my, 6);
-          this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 0.9).fillCircle(mx, my, 5);
-          
-          // Add severity indicator
-          const severityText = backendAnomaly.severity;
-          const textObj = this.add.text(mx, my - 10, `${severityText}`, {
-            font: "bold 10px Courier",
-            fill: "#ffff00",
-            stroke: "#000000",
-            strokeThickness: 2
-          }).setOrigin(0.5).setScrollFactor(0).setDepth(2002);
-          
-          // Store text to clean up later
-          if (!this.fullMapTexts) this.fullMapTexts = [];
-          this.fullMapTexts.push(textObj);
+          if (anomX >= worldMinX && anomX <= worldMaxX && 
+              anomY >= worldMinY && anomY <= worldMaxY) {
+            backendAnomaliesInView.push(backendAnomaly);
+          }
         }
       });
 
-      // Player
-      const px = offsetX + (this.player.x + UNIVERSE_SIZE / 2) * scale;
-      const py = offsetY + (this.player.y + UNIVERSE_SIZE / 2) * scale;
-      this.fullMapGraphics.fillStyle(0x00ffff, 1).fillCircle(px, py, 6).lineStyle(2, 0xffffff, 1).strokeCircle(px, py, 8);
+      backendAnomaliesInView.forEach((backendAnomaly) => {
+        const mx = offsetX + (backendAnomaly.location.x - worldMinX) * scale;
+        const my = offsetY + (backendAnomaly.location.y - worldMinY) * scale;
+        const typeConfig = ANOMALY_TYPE_MAP[backendAnomaly.type];
+        
+        // Animated warning rings
+        this.fullMapGraphics.lineStyle(4, 0xffff00, 0.3).strokeCircle(mx, my, 18);
+        this.fullMapGraphics.lineStyle(3, 0xffff00, 0.6).strokeCircle(mx, my, 13);
+        this.fullMapGraphics.lineStyle(3, 0xffff00, 1).strokeCircle(mx, my, 9);
+        
+        // Outer danger glow
+        this.fullMapGraphics.fillStyle(0xffaa00, 0.2).fillCircle(mx, my, 15);
+        
+        // Colored center with type
+        this.fullMapGraphics.fillStyle(typeConfig?.color || 0xff0000, 1)
+          .fillCircle(mx, my, 7);
+        this.fullMapGraphics.lineStyle(2, 0xffffff, 1)
+          .strokeCircle(mx, my, 7);
+        
+        // Severity and type label
+        const labelBg = this.add.graphics()
+          .fillStyle(0x000000, 0.85)
+          .fillRoundedRect(mx - 35, my - 32, 70, 20, 5)
+          .lineStyle(1, 0xffff00, 0.8)
+          .strokeRoundedRect(mx - 35, my - 32, 70, 20, 5)
+          .setScrollFactor(0)
+          .setDepth(2001);
+        this.fullMapTexts.push(labelBg);
+        
+        const severityText = this.add.text(mx, my - 22, 
+          `⚡ SEV ${backendAnomaly.severity}`, {
+          font: "bold 11px Courier",
+          fill: "#ffff00",
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(2003);
+        this.fullMapTexts.push(severityText);
+        
+        // Distance from player
+        const dist = Math.sqrt(
+          (backendAnomaly.location.x - this.player.x) ** 2 + 
+          (backendAnomaly.location.y - this.player.y) ** 2
+        );
+        const distText = this.add.text(mx, my + 20, `${dist.toFixed(0)}u`, {
+          font: "9px Courier",
+          fill: "#00ffff",
+          backgroundColor: "#000000",
+          padding: { x: 3, y: 1 }
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(2002);
+        this.fullMapTexts.push(distText);
+      });
 
-      this.fullMapTitle.setText("UNIVERSE MAP").setVisible(true);
+      // Render player with direction indicator
+      const px = offsetX + (this.player.x - worldMinX) * scale;
+      const py = offsetY + (this.player.y - worldMinY) * scale;
       
-      const backendCount = Array.from(this.backendAnomalies.values()).filter(a => !this.resolvedAnomalies.has(a.id)).length;
-      this.fullMapInstruction.setText(
-        `Backend Anomalies: ${backendCount} (yellow star) | Procedural: ${this.loadedChunks.size * 2} | Press M to close`
-      ).setVisible(true);
+      // Direction cone
+      const vel = this.player.body.velocity;
+      if (vel.x !== 0 || vel.y !== 0) {
+        const angle = Math.atan2(vel.y, vel.x);
+        const dirLength = 20;
+        this.fullMapGraphics.lineStyle(2, 0x00ffff, 0.5);
+        this.fullMapGraphics.lineBetween(
+          px, py,
+          px + Math.cos(angle) * dirLength,
+          py + Math.sin(angle) * dirLength
+        );
+      }
+      
+      // Player marker
+      this.fullMapGraphics.fillStyle(0x000000, 1).fillCircle(px, py, 9);
+      this.fullMapGraphics.fillStyle(0x00ffff, 1).fillCircle(px, py, 8);
+      this.fullMapGraphics.lineStyle(2, 0xffffff, 1).strokeCircle(px, py, 8);
+      this.fullMapGraphics.lineStyle(1, 0x00ffff, 0.6).strokeCircle(px, py, 12);
+      
+      // Player label
+      const playerLabel = this.add.text(px, py + 18, "YOU", {
+        font: "bold 10px Courier",
+        fill: "#00ffff",
+        backgroundColor: "#000000",
+        padding: { x: 4, y: 2 }
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(2002);
+      this.fullMapTexts.push(playerLabel);
+
+      // Legend
+      const legendX = offsetX + worldWidth * scale + 20;
+      const legendY = offsetY;
+      
+      const legendItems = [
+        { color: 0xaaaaaa, label: "Galaxy", isCircle: true },
+        { color: 0xff6600, label: "Procedural", isCircle: true },
+        { color: 0xffff00, label: "Backend ⚡", isCircle: true, isSpecial: true },
+        { color: 0x00ffff, label: "You", isCircle: true },
+      ];
+
+      legendItems.forEach((item, i) => {
+        const ly = legendY + i * 25;
+        
+        if (item.isCircle) {
+          if (item.isSpecial) {
+            this.fullMapGraphics.lineStyle(2, item.color, 1).strokeCircle(legendX + 6, ly + 6, 5);
+          }
+          this.fullMapGraphics.fillStyle(item.color, 0.9).fillCircle(legendX + 6, ly + 6, 4);
+        }
+        
+        const legendText = this.add.text(legendX + 20, ly + 6, item.label, {
+          font: "10px Courier",
+          fill: "#aaaaaa"
+        }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2002);
+        this.fullMapTexts.push(legendText);
+      });
+
+      // Update title and stats
+      this.fullMapTitle.setText("⚡ TACTICAL MAP ⚡").setVisible(true);
+      
+      const backendCount = backendAnomaliesInView.length;
+      const proceduralCount = proceduralAnomalies.length;
+      const totalGalaxies = Array.from(this.loadedChunks.values())
+        .reduce((sum, chunk) => sum + chunk.galaxies.length, 0);
+      
+      const statsInfo = `Chunks: ${this.loadedChunks.size} | Galaxies: ${totalGalaxies} | Backend: ${backendCount} ⚡ | Procedural: ${proceduralCount} | Press M to close`;
+      
+      this.fullMapInstruction.setText(statsInfo).setVisible(true);
     }
 
-    // NEW: Update method to sync with universe changes
     updateFromUniverse(newUniverse) {
       this.universe = newUniverse;
       this.syncBackendAnomalies();
@@ -760,6 +1001,17 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
   const gameRef = useRef(null);
   const sceneRef = useRef(null);
   const [stats, setStats] = useState({ resolved: 0, discovered: 0 });
+  const [expandedPanels, setExpandedPanels] = useState({
+    universe: true,
+    structures: true,
+    life: true,
+    mission: true,
+    controls: true
+  });
+
+  const togglePanel = (panel) => {
+    setExpandedPanels(prev => ({ ...prev, [panel]: !prev[panel] }));
+  };
 
   useEffect(() => {
     const SceneClass = UniverseSceneFactory({ universe, onAnomalyResolved, setStats });
@@ -774,8 +1026,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
       },
       scale: {
         mode: Phaser.Scale.RESIZE,
-        width:"100%",
-        height:"100%",
+        width: "100%",
+        height: "100%",
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
       scene: SceneClass,
@@ -798,7 +1050,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
         try {
           gameRef.current.destroy(true);
         } catch (e) {
-          /* ignore */
+          console.error("Cleanup error:", e);
         }
       }
       gameRef.current = null;
@@ -806,48 +1058,297 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
     };
   }, [universe?.seed, universe?.name]);
 
-  // NEW: Sync universe updates to the Phaser scene
   useEffect(() => {
     if (sceneRef.current && universe) {
       sceneRef.current.updateFromUniverse(universe);
     }
   }, [universe?.anomalies, universe?.currentState]);
 
+  // Helper function to format large numbers
+  const formatNumber = (num) => {
+    if (!num) return '0';
+    if (num < 1e3) return Math.floor(num).toLocaleString();
+    if (num < 1e6) return (num / 1e3).toFixed(1) + 'K';
+    if (num < 1e9) return (num / 1e6).toFixed(1) + 'M';
+    if (num < 1e12) return (num / 1e9).toFixed(2) + 'B';
+    return num.toExponential(1);
+  };
+
+  // Calculate stability status
+  const getStabilityStatus = () => {
+    const stability = universe?.currentState?.stabilityIndex || 1;
+    if (stability > 0.8) return { text: 'Excellent', color: 'text-green-400', icon: '✓' };
+    if (stability > 0.6) return { text: 'Good', color: 'text-lime-400', icon: '○' };
+    if (stability > 0.4) return { text: 'Fair', color: 'text-yellow-400', icon: '△' };
+    if (stability > 0.2) return { text: 'Poor', color: 'text-orange-400', icon: '!' };
+    return { text: 'Critical', color: 'text-red-400', icon: '⚠' };
+  };
+
+  // Get cosmic phase display
+  const getCosmicPhase = () => {
+    const phase = universe?.currentState?.cosmicPhase || 'unknown';
+    const phases = {
+      dark_ages: { text: 'Dark Ages', icon: '🌑' },
+      reionization: { text: 'Reionization', icon: '🌓' },
+      galaxy_formation: { text: 'Galaxy Formation', icon: '🌌' },
+      stellar_peak: { text: 'Stellar Peak', icon: '⭐' },
+      gradual_decline: { text: 'Gradual Decline', icon: '🌅' },
+      twilight_era: { text: 'Twilight Era', icon: '🌆' },
+      degenerate_era: { text: 'Degenerate Era', icon: '🌃' }
+    };
+    return phases[phase] || { text: phase, icon: '❓' };
+  };
+
+  const stabilityStatus = getStabilityStatus();
+  const cosmicPhase = getCosmicPhase();
+  const activeCivs = universe?.civilizations?.filter(c => !c.extinct).length || 0;
+  const advancedCivs = universe?.civilizations?.filter(c => !c.extinct && c.type !== 'Type0').length || 0;
+
   return (
     <div className="w-screen h-screen bg-black relative overflow-hidden">
-      <div className="absolute top-4 left-4 z-10 text-white text-sm px-4 py-3 bg-black bg-opacity-90 rounded-lg border-2 border-cyan-500 shadow-lg shadow-cyan-500/50">
-        <div className="font-bold text-cyan-400 mb-2 text-base">🌌 {universe?.name}</div>
-        <div className="space-y-1 text-xs">
-          <div className="text-gray-300">Difficulty: <span className="text-yellow-400">{universe?.difficulty}</span></div>
-          <div className="text-green-400">Discovered: {stats.discovered}</div>
-          <div className="text-cyan-400">Resolved: {stats.resolved}</div>
-          <div className="text-purple-400 mt-2 pt-2 border-t border-cyan-700">
-            Age: {((universe?.currentState?.age || 0) / 1e9).toFixed(2)} Gyr
+      {/* Enhanced Universe Status Panel */}
+      <div className="absolute top-4 left-4 z-10 text-white text-sm max-w-xs">
+        {/* Main Info Card */}
+        <div className="bg-black bg-opacity-95 rounded-lg border-2 border-cyan-500 shadow-lg shadow-cyan-500/50 mb-3">
+          <div 
+            className="px-4 py-3 border-b border-cyan-700 cursor-pointer hover:bg-cyan-900 hover:bg-opacity-20 transition-colors"
+            onClick={() => togglePanel('universe')}
+          >
+            <div className="font-bold text-cyan-400 text-base flex items-center justify-between">
+              <span>🌌 {universe?.name || "Unknown Universe"}</span>
+              <span className="text-xs text-gray-400 flex items-center gap-2">
+                {universe?.difficulty || "N/A"}
+                <span className="text-lg">{expandedPanels.universe ? '−' : '+'}</span>
+              </span>
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {cosmicPhase.icon} {cosmicPhase.text}
+            </div>
           </div>
-          <div className="text-yellow-400">
-            Galaxies: {universe?.currentState?.galaxyCount?.toLocaleString() || 0}
+          
+          {expandedPanels.universe && (
+            <div className="px-4 py-3 space-y-2 text-xs">
+              {/* Age & Time */}
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Age:</span>
+                <span className="text-purple-400 font-mono">
+                  {((universe?.currentState?.age || 0) / 1e9).toFixed(2)} Gyr
+                </span>
+              </div>
+
+              {/* Stability with visual indicator */}
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Stability:</span>
+                <span className={`${stabilityStatus.color} font-mono flex items-center gap-1`}>
+                  <span>{stabilityStatus.icon}</span>
+                  {((universe?.currentState?.stabilityIndex || 1) * 100).toFixed(1)}%
+                  <span className="text-xs">({stabilityStatus.text})</span>
+                </span>
+              </div>
+
+              {/* Temperature */}
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Temperature:</span>
+                <span className="text-blue-300 font-mono">
+                  {(universe?.currentState?.temperature || 2.725).toFixed(3)} K
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Structures Card */}
+        <div className="bg-black bg-opacity-95 rounded-lg border-2 border-purple-500 shadow-lg shadow-purple-500/30 mb-3">
+          <div 
+            className="px-4 py-2 border-b border-purple-700 cursor-pointer hover:bg-purple-900 hover:bg-opacity-20 transition-colors"
+            onClick={() => togglePanel('structures')}
+          >
+            <div className="font-bold text-purple-400 text-xs flex items-center justify-between">
+              <span>🏗️ COSMIC STRUCTURES</span>
+              <span className="text-lg">{expandedPanels.structures ? '−' : '+'}</span>
+            </div>
           </div>
-          <div className="text-blue-400">
-            Stars: {universe?.currentState?.starCount ? (universe.currentState.starCount / 1e9).toFixed(2) + 'B' : 0}
+          
+          {expandedPanels.structures && (
+            <div className="px-4 py-3 space-y-1.5 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Galaxies:</span>
+                <span className="text-yellow-400 font-mono">
+                  {formatNumber(universe?.currentState?.galaxyCount)}
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Stars:</span>
+                <span className="text-blue-400 font-mono">
+                  {formatNumber(universe?.currentState?.starCount)}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Black Holes:</span>
+                <span className="text-indigo-400 font-mono">
+                  {formatNumber(universe?.currentState?.blackHoleCount)}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Metallicity:</span>
+                <span className="text-amber-400 font-mono">
+                  {((universe?.currentState?.metallicity || 0) * 100).toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Life & Civilizations Card */}
+        {(universe?.currentState?.lifeBearingPlanetsCount > 0 || activeCivs > 0) && (
+          <div className="bg-black bg-opacity-95 rounded-lg border-2 border-green-500 shadow-lg shadow-green-500/30 mb-3">
+            <div 
+              className="px-4 py-2 border-b border-green-700 cursor-pointer hover:bg-green-900 hover:bg-opacity-20 transition-colors"
+              onClick={() => togglePanel('life')}
+            >
+              <div className="font-bold text-green-400 text-xs flex items-center justify-between">
+                <span>🌿 LIFE & CIVILIZATION</span>
+                <span className="text-lg">{expandedPanels.life ? '−' : '+'}</span>
+              </div>
+            </div>
+            
+            {expandedPanels.life && (
+              <div className="px-4 py-3 space-y-1.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Life-Bearing:</span>
+                  <span className="text-green-400 font-mono">
+                    {formatNumber(universe?.currentState?.lifeBearingPlanetsCount)}
+                  </span>
+                </div>
+                
+                {activeCivs > 0 && (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Civilizations:</span>
+                      <span className="text-cyan-400 font-mono">
+                        {activeCivs}
+                      </span>
+                    </div>
+
+                    {advancedCivs > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Advanced (Type I+):</span>
+                        <span className="text-purple-400 font-mono">
+                          {advancedCivs}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center text-gray-500 text-[10px]">
+                      <span>Extinct:</span>
+                      <span className="font-mono">
+                        {universe?.civilizations?.filter(c => c.extinct).length || 0}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-          <div className="text-orange-400">
-            Stability: {(((universe?.currentState?.stabilityIndex || 1) * 100)).toFixed(1)}%
+        )}
+
+        {/* Mission Status Card */}
+        <div className="bg-black bg-opacity-95 rounded-lg border-2 border-pink-500 shadow-lg shadow-pink-500/30">
+          <div 
+            className="px-4 py-2 border-b border-pink-700 cursor-pointer hover:bg-pink-900 hover:bg-opacity-20 transition-colors"
+            onClick={() => togglePanel('mission')}
+          >
+            <div className="font-bold text-pink-400 text-xs flex items-center justify-between">
+              <span>🎯 MISSION STATUS</span>
+              <span className="text-lg">{expandedPanels.mission ? '−' : '+'}</span>
+            </div>
           </div>
-          <div className="text-pink-400">
-            Backend Anomalies: {universe?.anomalies?.filter(a => !a.resolved).length || 0}
-          </div>
+          
+          {expandedPanels.mission && (
+            <div className="px-4 py-3 space-y-1.5 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Anomalies Discovered:</span>
+                <span className="text-green-400 font-mono">{stats.discovered}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">Anomalies Resolved:</span>
+                <span className="text-cyan-400 font-mono">{stats.resolved}</span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">⚡ Backend Active:</span>
+                <span className="text-yellow-400 font-mono">
+                  {universe?.anomalies?.filter(a => !a.resolved).length || 0}
+                </span>
+              </div>
+
+              {stats.discovered > 0 && (
+                <div className="pt-2 border-t border-pink-700">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="text-gray-500">Success Rate:</span>
+                    <span className="text-purple-400 font-mono">
+                      {((stats.resolved / stats.discovered) * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="absolute bottom-5 right-4 z-10 text-white text-xs px-3 py-2 bg-black bg-opacity-90 rounded border border-cyan-500">
-        <div className="font-bold text-cyan-400 mb-1">CONTROLS</div>
-        <div className="space-y-0.5 text-gray-300">
-          <div>WASD/ZQSD: Move</div>
-          <div>F: Resolve Anomaly</div>
-          <div>M: Toggle Map</div>
-          <div className="text-yellow-400 text-xs pt-1 border-t border-cyan-700">
-            ⚡ = Backend Anomaly
+      {/* Enhanced Controls Panel */}
+      <div className="absolute bottom-5 right-4 z-10 text-white">
+        <div className="bg-black bg-opacity-95 rounded-lg border-2 border-cyan-500 shadow-lg shadow-cyan-500/30">
+          <div 
+            className="px-4 py-2 border-b border-cyan-700 cursor-pointer hover:bg-cyan-900 hover:bg-opacity-20 transition-colors"
+            onClick={() => togglePanel('controls')}
+          >
+            <div className="font-bold text-cyan-400 text-sm flex items-center justify-between">
+              <span>⌨️ CONTROLS</span>
+              <span className="text-lg">{expandedPanels.controls ? '−' : '+'}</span>
+            </div>
           </div>
+          
+          {expandedPanels.controls && (
+            <div className="px-4 py-3 space-y-1 text-xs">
+              <div className="flex items-center gap-3">
+                <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono">
+                  WASD
+                </kbd>
+                <span className="text-gray-300">Movement</span>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono">
+                  F
+                </kbd>
+                <span className="text-gray-300">Resolve Anomaly</span>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono">
+                  M
+                </kbd>
+                <span className="text-gray-300">Toggle Chunk Map</span>
+              </div>
+
+              <div className="pt-2 border-t border-cyan-700 mt-2">
+                <div className="text-yellow-400 text-[10px] flex items-center gap-1">
+                  <span>⚡</span>
+                  <span>Backend Anomaly (High Priority)</span>
+                </div>
+                <div className="text-gray-400 text-[10px] mt-1 flex items-center gap-1">
+                  <span>○</span>
+                  <span>Procedural Anomaly</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
