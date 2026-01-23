@@ -1,73 +1,126 @@
-import Phaser from 'phaser';
+import Phaser from "phaser";
 
 export class InputSystem {
   constructor(scene) {
     this.scene = scene;
-    this.arrowStates = { up: false, down: false, left: false, right: false };
     this.setupControls();
+    
+    // Enhanced physics parameters
+    this.params = {
+      ROTATION_SPEED: 0.06,
+      ROTATION_ACCEL: 0.003,
+      MAX_ROTATION_VEL: 0.08,
+      THRUST: 280,
+      BRAKE: 180,
+      STRAFE_FORCE: 150,
+      BOOST_MULTIPLIER: 1.8,
+      BOOST_COST: 0.3, // per frame
+    };
+    
+    this.rotationVelocity = 0;
+    this.boostEnergy = 100;
+    this.boostRechargeRate = 0.5;
   }
 
   setupControls() {
-    this.cursors = this.scene.input.keyboard.addKeys({
-      up: Phaser.Input.Keyboard.KeyCodes.W,
-      down: Phaser.Input.Keyboard.KeyCodes.S,
-      left: Phaser.Input.Keyboard.KeyCodes.A,
+    this.keys = this.scene.input.keyboard.addKeys({
+      thrust: Phaser.Input.Keyboard.KeyCodes.Z,
+      brake: Phaser.Input.Keyboard.KeyCodes.S,
+      left: Phaser.Input.Keyboard.KeyCodes.Q,
       right: Phaser.Input.Keyboard.KeyCodes.D,
-      z: Phaser.Input.Keyboard.KeyCodes.Z,
-      q: Phaser.Input.Keyboard.KeyCodes.Q,
-      s2: Phaser.Input.Keyboard.KeyCodes.S,
-      d2: Phaser.Input.Keyboard.KeyCodes.D,
+      strafeLeft: Phaser.Input.Keyboard.KeyCodes.A,
+      strafeRight: Phaser.Input.Keyboard.KeyCodes.E,
+      boost: Phaser.Input.Keyboard.KeyCodes.SHIFT,
+      map: Phaser.Input.Keyboard.KeyCodes.M,
+      fix: Phaser.Input.Keyboard.KeyCodes.F,
     });
-    this.fixKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
-    this.mapKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+
+    this.mapKey = this.keys.map;
+    this.fixKey = this.keys.fix;
   }
 
   handlePlayerMovement(player) {
-    const speed = 250;
-    const isMovingLeft = this.cursors.left.isDown || this.cursors.q?.isDown;
-    const isMovingRight = this.cursors.right.isDown || this.cursors.d2?.isDown;
-    const isMovingUp = this.cursors.up.isDown || this.cursors.z?.isDown;
-    const isMovingDown = this.cursors.down.isDown || this.cursors.s2?.isDown;
+    // --- SMOOTH ROTATION WITH ACCELERATION ---
+    let rotationInput = 0;
+    if (this.keys.left.isDown) rotationInput -= 1;
+    if (this.keys.right.isDown) rotationInput += 1;
 
-    player.setAcceleration(
-      isMovingLeft ? -speed : isMovingRight ? speed : 0,
-      isMovingUp ? -speed : isMovingDown ? speed : 0
-    );
+    if (rotationInput !== 0) {
+      this.rotationVelocity += rotationInput * this.params.ROTATION_ACCEL;
+      this.rotationVelocity = Phaser.Math.Clamp(
+        this.rotationVelocity,
+        -this.params.MAX_ROTATION_VEL,
+        this.params.MAX_ROTATION_VEL
+      );
+    } else {
+      // Smooth deceleration
+      this.rotationVelocity *= 0.9;
+    }
+
+    player.rotation += this.rotationVelocity;
+
+    // --- THRUST SYSTEM ---
+    const angle = player.rotation - Math.PI / 2;
+    const perpAngle = angle + Math.PI / 2; // For strafing
+    
+    // Check for boost
+    const isBoosting = this.keys.boost.isDown && this.boostEnergy > 0;
+    const thrustMultiplier = isBoosting ? this.params.BOOST_MULTIPLIER : 1;
+
+    let isThrusting = false;
+    let acceleration = new Phaser.Math.Vector2(0, 0);
+
+    // Forward/Backward thrust
+    if (this.keys.thrust.isDown) {
+      const thrust = this.params.THRUST * thrustMultiplier;
+      this.scene.physics.velocityFromRotation(angle, thrust, acceleration);
+      isThrusting = true;
+    } else if (this.keys.brake.isDown) {
+      this.scene.physics.velocityFromRotation(angle, -this.params.BRAKE, acceleration);
+      isThrusting = true;
+    }
+
+    // Strafing (sideways movement)
+    if (this.keys.strafeLeft.isDown) {
+      const strafeVec = new Phaser.Math.Vector2();
+      this.scene.physics.velocityFromRotation(
+        perpAngle - Math.PI,
+        this.params.STRAFE_FORCE,
+        strafeVec
+      );
+      acceleration.add(strafeVec);
+      isThrusting = true;
+    } else if (this.keys.strafeRight.isDown) {
+      const strafeVec = new Phaser.Math.Vector2();
+      this.scene.physics.velocityFromRotation(
+        perpAngle,
+        this.params.STRAFE_FORCE,
+        strafeVec
+      );
+      acceleration.add(strafeVec);
+      isThrusting = true;
+    }
+
+    // Apply acceleration
+    if (isThrusting) {
+      player.setAcceleration(acceleration.x, acceleration.y);
+    } else {
+      player.setAcceleration(0, 0);
+    }
+
+    // --- BOOST ENERGY MANAGEMENT ---
+    if (isBoosting && isThrusting) {
+      this.boostEnergy = Math.max(0, this.boostEnergy - this.params.BOOST_COST);
+    } else if (this.boostEnergy < 100) {
+      this.boostEnergy = Math.min(100, this.boostEnergy + this.boostRechargeRate);
+    }
+
+    // Store state for HUD
+    player.boostEnergy = this.boostEnergy;
+    player.isBoosting = isBoosting && isThrusting;
   }
 
-  createTouchControls() {
-    const createArrow = (x, y, rotation, direction) => {
-      const tri = new Phaser.Geom.Triangle(-15, 10, 15, 10, 0, -10);
-      const g = this.scene.add.graphics()
-        .fillStyle(0x00ff00, 0.5)
-        .fillTriangle(-15, 10, 15, 10, 0, -10)
-        .setPosition(x, y)
-        .setRotation(rotation)
-        .setScrollFactor(0)
-        .setDepth(1001)
-        .setInteractive(tri, Phaser.Geom.Triangle.Contains);
-
-      const activate = () => {
-        this.arrowStates[direction] = true;
-        g.clear().fillStyle(0x00ff00, 1).fillTriangle(-15, 10, 15, 10, 0, -10);
-      };
-
-      const deactivate = () => {
-        this.arrowStates[direction] = false;
-        g.clear().fillStyle(0x00ff00, 0.5).fillTriangle(-15, 10, 15, 10, 0, -10);
-      };
-
-      g.on("pointerdown", activate);
-      g.on("pointerup", deactivate);
-      g.on("pointerout", deactivate);
-
-      return g;
-    };
-
-    const h = this.scene.scale.height;
-    this.arrowUp = createArrow(100, h - 120, 0, "up");
-    this.arrowDown = createArrow(100, h - 40, Math.PI, "down");
-    this.arrowLeft = createArrow(50, h - 80, -Math.PI / 2, "left");
-    this.arrowRight = createArrow(150, h - 80, Math.PI / 2, "right");
+  getBoostEnergy() {
+    return this.boostEnergy;
   }
 }

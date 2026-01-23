@@ -217,26 +217,68 @@ export const ControlsPanel = ({ expanded, onToggle }) => (
     </div>
     
     {expanded && (
-      <div className="px-4 py-3 space-y-1 text-xs">
-        <div className="flex items-center gap-3">
-          <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono">
-            WASD
-          </kbd>
-          <span className="text-gray-300">Movement</span>
+      <div className="px-4 py-3 space-y-2 text-xs">
+        <div className="space-y-1">
+          <div className="text-cyan-300 font-semibold text-[11px] mb-1.5">Flight Controls</div>
+          
+          <div className="flex items-center gap-3">
+            <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono min-w-[32px] text-center">
+              Z
+            </kbd>
+            <span className="text-gray-300">Forward Thrust</span>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono min-w-[32px] text-center">
+              S
+            </kbd>
+            <span className="text-gray-300">Reverse Thrust</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono min-w-[32px] text-center">
+              Q
+            </kbd>
+            <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono min-w-[32px] text-center">
+              D
+            </kbd>
+            <span className="text-gray-300">Rotate Left/Right</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono min-w-[32px] text-center">
+              A
+            </kbd>
+            <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono min-w-[32px] text-center">
+              E
+            </kbd>
+            <span className="text-gray-300">Strafe Left/Right</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <kbd className="px-2 py-1 bg-blue-900 rounded border border-blue-600 text-[10px] font-mono">
+              SHIFT
+            </kbd>
+            <span className="text-blue-300">Boost (drains energy)</span>
+          </div>
         </div>
-        
-        <div className="flex items-center gap-3">
-          <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono">
-            F
-          </kbd>
-          <span className="text-gray-300">Resolve Anomaly</span>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono">
-            M
-          </kbd>
-          <span className="text-gray-300">Toggle Chunk Map</span>
+
+        <div className="pt-2 border-t border-cyan-700 space-y-1">
+          <div className="text-cyan-300 font-semibold text-[11px] mb-1.5">Actions</div>
+          
+          <div className="flex items-center gap-3">
+            <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono min-w-[32px] text-center">
+              F
+            </kbd>
+            <span className="text-gray-300">Resolve Anomaly</span>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <kbd className="px-2 py-1 bg-gray-800 rounded border border-gray-600 text-[10px] font-mono min-w-[32px] text-center">
+              M
+            </kbd>
+            <span className="text-gray-300">Toggle Full Map</span>
+          </div>
         </div>
 
         <div className="pt-2 border-t border-cyan-700 mt-2">

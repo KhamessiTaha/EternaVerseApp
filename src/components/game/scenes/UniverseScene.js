@@ -10,12 +10,15 @@ import { HUD } from "../systems/HUD";
 import { MINIMAP_SIZE } from "../constants";
 
 export const UniverseSceneFactory = (props) => {
+  const { onHUDUpdate } = props; // Callback to update React state
+
   return class UniverseScene extends Phaser.Scene {
     constructor() {
       super({ key: "UniverseScene" });
       this.currentChunk = null;
       this.lastChunkCheck = 0;
       this.CHUNK_CHECK_INTERVAL = 150; // ms
+      this.onHUDUpdate = onHUDUpdate;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -63,28 +66,35 @@ export const UniverseSceneFactory = (props) => {
         .sprite(0, 0, "Player")
         .setScale(0.05)
         .setDamping(true)
-        .setDrag(0.96)
-        .setMaxVelocity(500)
-        .setAngularDrag(0.95);
+        .setDrag(0.97)
+        .setMaxVelocity(600)
+        .setAngularDrag(0.96);
 
-      // Physics properties for better control
-      this.player.body.setMass(1);
+      this.player.body.setMass(1.2);
       this.player.body.useDamping = true;
+      this.player.body.allowRotation = false;
 
-      // Movement state
       this.playerState = {
         boosting: false,
         drifting: false,
         velocity: { x: 0, y: 0 },
+        thrustParticles: null,
+        boostGlow: 0,
       };
 
-      this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+      this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
       this.cameras.main.setZoom(1.5);
+      
+      this.cameraShakeIntensity = 0;
     }
 
     initLighting() {
       this.lights.enable().setAmbientColor(0x0a0a0a);
       this.playerLight = this.lights.addLight(0, 0, 250).setIntensity(2.5);
+      
+      this.boostLight = this.lights.addLight(0, 0, 180)
+        .setIntensity(0)
+        .setColor(0x4488ff);
     }
 
     registerEvents() {
@@ -93,13 +103,20 @@ export const UniverseSceneFactory = (props) => {
 
     update(time, delta) {
       this.inputSystem.handlePlayerMovement(this.player);
-      this.updatePlayerRotation();
       this.applyBanking();
       this.updatePlayerThrusters();
+      this.updateBoostEffects();
 
       this.playerLight.setPosition(this.player.x, this.player.y);
+      this.boostLight.setPosition(this.player.x, this.player.y);
 
       this.hud.update(this.player);
+      
+      // Send HUD data to React
+      if (this.onHUDUpdate) {
+        this.onHUDUpdate(this.hud.getData());
+      }
+
       this.checkChunkChange(time);
 
       this.anomalySystem.handleInteraction(
@@ -116,42 +133,74 @@ export const UniverseSceneFactory = (props) => {
         this.chunkSystem.loadedChunks,
         this.anomalySystem.backendAnomalies,
       );
+      
+      this.updateCameraShake();
     }
-    updatePlayerRotation() {
-      const body = this.player.body;
-      if (!body) return;
 
-      const vx = body.velocity.x;
-      const vy = body.velocity.y;
-
-      if (Math.abs(vx) < 5 && Math.abs(vy) < 5) return;
-
-      const ASSET_ANGLE_OFFSET = 90;
-
-      const targetAngle =
-        Phaser.Math.RadToDeg(Math.atan2(vy, vx)) + ASSET_ANGLE_OFFSET;
-
-      this.player.rotation = Phaser.Math.Angle.RotateTo(
-        this.player.rotation,
-        Phaser.Math.DegToRad(targetAngle),
-        0.15,
-      );
-    }
     applyBanking() {
       const vx = this.player.body.velocity.x;
-      const bank = Phaser.Math.Clamp(vx / 400, -0.3, 0.3);
-
-      this.player.rotation += bank * 0.02;
+      const vy = this.player.body.velocity.y;
+      
+      const velocityBank = Phaser.Math.Clamp(vx / 500, -0.25, 0.25);
+      const rotationBank = this.inputSystem.rotationVelocity * 2;
+      const totalBank = velocityBank + rotationBank;
+      
+      this.player.rotation += totalBank * 0.015;
     }
 
     updatePlayerThrusters() {
       const speed = this.player.body.velocity.length();
+      const isBoosting = this.player.isBoosting;
 
-      const targetScale = speed > 50 ? 0.055 : 0.05;
+      const baseScale = 0.05;
+      const speedScale = speed > 50 ? 0.055 : baseScale;
+      const boostScale = isBoosting ? 0.062 : speedScale;
 
       this.player.setScale(
-        Phaser.Math.Linear(this.player.scaleX, targetScale, 0.1),
+        Phaser.Math.Linear(this.player.scaleX, boostScale, 0.15),
       );
+
+      if (isBoosting) {
+        this.cameraShakeIntensity = Phaser.Math.Linear(
+          this.cameraShakeIntensity,
+          0.0008,
+          0.2
+        );
+      } else {
+        this.cameraShakeIntensity = Phaser.Math.Linear(
+          this.cameraShakeIntensity,
+          0,
+          0.1
+        );
+      }
+    }
+
+    updateBoostEffects() {
+      const isBoosting = this.player.isBoosting;
+      const targetGlow = isBoosting ? 1.5 : 0;
+      
+      this.playerState.boostGlow = Phaser.Math.Linear(
+        this.playerState.boostGlow,
+        targetGlow,
+        0.2
+      );
+      
+      this.boostLight.setIntensity(this.playerState.boostGlow);
+      
+      const mainLightIntensity = isBoosting ? 3.0 : 2.5;
+      this.playerLight.setIntensity(
+        Phaser.Math.Linear(
+          this.playerLight.intensity,
+          mainLightIntensity,
+          0.1
+        )
+      );
+    }
+
+    updateCameraShake() {
+      if (this.cameraShakeIntensity > 0.0001) {
+        this.cameras.main.shake(16, this.cameraShakeIntensity);
+      }
     }
 
     checkChunkChange(time) {
@@ -199,7 +248,7 @@ export const UniverseSceneFactory = (props) => {
 
       this.minimapSystem.updatePosition(w - MINIMAP_SIZE - 280, 160);
 
-      this.hud.updatePositions(265, 300);
+      // HUD is now in React, no need to update positions
       this.inputSystem.updateArrowPositions?.(w, h);
 
       this.fullMapSystem.updatePosition(w / 2, 40, w / 2, h - 40);
