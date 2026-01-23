@@ -85,14 +85,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
 
   return (
     <div className="w-screen h-screen bg-black relative overflow-hidden">
-      {/* Status Panels */}
+      {/* Status Panels - Top Left */}
       <div className="absolute top-4 left-4 z-10 text-white text-sm max-w-xs">
-        <HUDPanel 
-          hudData={hudData}
-          expanded={expandedPanels.hud} 
-          onToggle={() => togglePanel('hud')} 
-        />
-
         <UniversePanel 
           universe={universe} 
           expanded={expandedPanels.universe} 
@@ -119,8 +113,17 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
         />
       </div>
 
-      {/* Controls Panel */}
-      <div className="absolute bottom-5 right-4 z-10 text-white">
+      {/* HUD Panel - Bottom Center (Dashboard) */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 text-white">
+        <HUDPanel 
+          hudData={hudData}
+          expanded={expandedPanels.hud} 
+          onToggle={() => togglePanel('hud')} 
+        />
+      </div>
+
+      {/* Controls Panel - Bottom Right */}
+      <div className="absolute bottom-4 right-4 z-10 text-white">
         <ControlsPanel 
           expanded={expandedPanels.controls} 
           onToggle={() => togglePanel('controls')} 
