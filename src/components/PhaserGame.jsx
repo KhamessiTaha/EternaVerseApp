@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import { UniverseSceneFactory } from "./game/scenes/UniverseScene";
 import { UniversePanel, StructuresPanel, LifePanel, MissionPanel, ControlsPanel } from "./game/ui/Panels";
+import { HUDPanel } from "./game/ui/HUDPanel";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
   const gameRef = useRef(null);
   const sceneRef = useRef(null);
   const [stats, setStats] = useState({ resolved: 0, discovered: 0 });
+  const [hudData, setHudData] = useState(null);
   const [expandedPanels, setExpandedPanels] = useState({
+    hud: true,
     universe: true,
     structures: true,
     life: true,
@@ -19,8 +22,18 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
     setExpandedPanels(prev => ({ ...prev, [panel]: !prev[panel] }));
   };
 
+  // HUD update callback
+  const handleHUDUpdate = (data) => {
+    setHudData(data);
+  };
+
   useEffect(() => {
-    const SceneClass = UniverseSceneFactory({ universe, onAnomalyResolved, setStats });
+    const SceneClass = UniverseSceneFactory({ 
+      universe, 
+      onAnomalyResolved, 
+      setStats,
+      onHUDUpdate: handleHUDUpdate 
+    });
 
     const config = {
       type: Phaser.AUTO,
@@ -74,6 +87,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
     <div className="w-screen h-screen bg-black relative overflow-hidden">
       {/* Status Panels */}
       <div className="absolute top-4 left-4 z-10 text-white text-sm max-w-xs">
+        <HUDPanel 
+          hudData={hudData}
+          expanded={expandedPanels.hud} 
+          onToggle={() => togglePanel('hud')} 
+        />
+
         <UniversePanel 
           universe={universe} 
           expanded={expandedPanels.universe} 
