@@ -10,15 +10,17 @@ import { HUD } from "../systems/HUD";
 import { MINIMAP_SIZE } from "../constants";
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate } = props; // Callback to update React state
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
       super({ key: "UniverseScene" });
       this.currentChunk = null;
       this.lastChunkCheck = 0;
-      this.CHUNK_CHECK_INTERVAL = 150; // ms
+      this.CHUNK_CHECK_INTERVAL = 150; // ms (update chunk every 150ms) !!!up for testing!!!
       this.onHUDUpdate = onHUDUpdate;
+      this.onMinimapUpdate = onMinimapUpdate; 
+      this.onFullMapUpdate = onFullMapUpdate;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -125,14 +127,16 @@ export const UniverseSceneFactory = (props) => {
         this.inputSystem.fixKey,
       );
 
-      this.handleMapToggle();
-
+      // Update minimap (now sends data to React)
       this.minimapSystem.update(
         this.player,
         this.currentChunk,
         this.chunkSystem.loadedChunks,
         this.anomalySystem.backendAnomalies,
       );
+      
+      // Update full map (send data to React)
+      this.renderFullMap();
       
       this.updateCameraShake();
     }
@@ -220,12 +224,7 @@ export const UniverseSceneFactory = (props) => {
       }
     }
 
-    handleMapToggle() {
-      if (!Phaser.Input.Keyboard.JustDown(this.inputSystem.mapKey)) return;
-      this.fullMapSystem.toggle();
-      this.renderFullMap();
-    }
-
+    // Keep renderFullMap but it now just sends data
     renderFullMap() {
       this.fullMapSystem.render(
         this.player,
@@ -236,22 +235,16 @@ export const UniverseSceneFactory = (props) => {
       );
     }
 
+
     handleResize() {
-      this.updateUIPositions();
-      if (this.fullMapSystem.showFullMap) {
-        this.renderFullMap();
-      }
+
+      this.inputSystem.updateArrowPositions?.(this.scale.width, this.scale.height);
     }
 
     updateUIPositions() {
       const { width: w, height: h } = this.scale;
 
-      this.minimapSystem.updatePosition(w - MINIMAP_SIZE - 280, 160);
-
-      // HUD is now in React, no need to update positions
       this.inputSystem.updateArrowPositions?.(w, h);
-
-      this.fullMapSystem.updatePosition(w / 2, 40, w / 2, h - 40);
     }
 
     updateFromUniverse(newUniverse) {

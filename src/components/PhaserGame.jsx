@@ -3,12 +3,17 @@ import Phaser from "phaser";
 import { UniverseSceneFactory } from "./game/scenes/UniverseScene";
 import { UniversePanel, StructuresPanel, LifePanel, MissionPanel, ControlsPanel } from "./game/ui/Panels";
 import { HUDPanel } from "./game/ui/HUDPanel";
+import { MinimapPanel } from "./game/ui/MinimapPanel";
+import { FullMapPanel } from "./game/ui/FullMapPanel";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
   const gameRef = useRef(null);
   const sceneRef = useRef(null);
   const [stats, setStats] = useState({ resolved: 0, discovered: 0 });
   const [hudData, setHudData] = useState(null);
+  const [minimapData, setMinimapData] = useState(null);
+  const [fullMapData, setFullMapData] = useState(null);
+  const [isFullMapOpen, setIsFullMapOpen] = useState(false);
   const [expandedPanels, setExpandedPanels] = useState({
     hud: true,
     universe: true,
@@ -27,12 +32,41 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
     setHudData(data);
   };
 
+  // Minimap update callback
+  const handleMinimapUpdate = (data) => {
+    setMinimapData(data);
+  };
+
+  // Full map update callback
+  const handleFullMapUpdate = (data) => {
+    setFullMapData(data);
+  };
+
+  // Map toggle handler
+  const handleMapToggle = () => {
+    setIsFullMapOpen(prev => !prev);
+  };
+
+  // Listen for M key to toggle map
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.key === 'm' || e.key === 'M') {
+        handleMapToggle();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
+
   useEffect(() => {
     const SceneClass = UniverseSceneFactory({ 
       universe, 
       onAnomalyResolved, 
       setStats,
-      onHUDUpdate: handleHUDUpdate 
+      onHUDUpdate: handleHUDUpdate,
+      onMinimapUpdate: handleMinimapUpdate,
+      onFullMapUpdate: handleFullMapUpdate
     });
 
     const config = {
@@ -113,8 +147,16 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
         />
       </div>
 
+      {/* Minimap - Top Right */}
+      <div className="absolute top-4 right-4 z-10">
+        <MinimapPanel 
+          minimapData={minimapData}
+          onMapToggle={handleMapToggle}
+        />
+      </div>
+
       {/* HUD Panel - Bottom Center (Dashboard) */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 text-white">
+      <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 z-10 text-white">
         <HUDPanel 
           hudData={hudData}
           expanded={expandedPanels.hud} 
@@ -129,6 +171,13 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
           onToggle={() => togglePanel('controls')} 
         />
       </div>
+
+      {/* Full Map Overlay */}
+      <FullMapPanel 
+        isOpen={isFullMapOpen}
+        onClose={handleMapToggle}
+        fullMapData={fullMapData}
+      />
 
       <div id="phaser-container" className="w-full h-full" />
     </div>
