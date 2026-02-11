@@ -37,6 +37,77 @@ export class InputSystem {
 
     this.mapKey = this.keys.map;
     this.fixKey = this.keys.fix;
+
+    // Setup F key listener for anomaly interaction
+    this.scene.input.keyboard.on('keydown-F', () => {
+      this.handleAnomalyInteraction();
+    });
+  }
+
+  /**
+   * Handle F key press - trigger anomaly interaction
+   */
+  handleAnomalyInteraction() {
+    if (!this.scene.anomalySystem) return;
+
+    const nearestAnomaly = this.findNearestAnomaly();
+
+    if (nearestAnomaly) {
+      console.log(`[Input] Anomaly interaction: ${nearestAnomaly.type} at (${nearestAnomaly.location.x.toFixed(0)}, ${nearestAnomaly.location.y.toFixed(0)})`);
+
+      // Map anomaly type to minigame scene
+      const gameScene = this.mapAnomalyToGame(nearestAnomaly.type);
+
+      // Start minigame scene (this pauses the current scene)
+      this.scene.scene.launch(gameScene, { anomaly: nearestAnomaly });
+    } else {
+      console.log('[Input] No anomalies nearby');
+    }
+  }
+
+  /**
+   * Map anomaly type to minigame scene key
+   */
+  mapAnomalyToGame(anomalyType) {
+    const mapping = {
+      'quantum_fluctuation': 'QuantumStabilizerScene',
+      'temporal_distortion': 'QuantumStabilizerScene',
+      'gravity_anomaly': 'QuantumStabilizerScene',
+      'cosmic_radiation_burst': 'QuantumStabilizerScene',
+      'dark_matter_spike': 'QuantumStabilizerScene',
+      'exotic_particle_cascade': 'QuantumStabilizerScene'
+    };
+    return mapping[anomalyType] || 'QuantumStabilizerScene';
+  }
+
+  /**
+   * Find the nearest anomaly within interaction range
+   */
+  findNearestAnomaly() {
+    const INTERACTION_RANGE = 300; // World units
+    const anomalies = Array.from(this.scene.anomalySystem.backendAnomalies.values());
+
+    if (anomalies.length === 0) return null;
+
+    const player = this.scene.player;
+    let nearest = null;
+    let nearestDistance = INTERACTION_RANGE;
+
+    for (const anomaly of anomalies) {
+      const distance = Phaser.Math.Distance.Between(
+        player.x,
+        player.y,
+        anomaly.location.x,
+        anomaly.location.y
+      );
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = anomaly;
+      }
+    }
+
+    return nearest;
   }
 
   handlePlayerMovement(player) {

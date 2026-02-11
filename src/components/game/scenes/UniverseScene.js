@@ -19,7 +19,7 @@ export const UniverseSceneFactory = (props) => {
       this.lastChunkCheck = 0;
       this.CHUNK_CHECK_INTERVAL = 150; // ms (update chunk every 150ms) !!!up for testing!!!
       this.onHUDUpdate = onHUDUpdate;
-      this.onMinimapUpdate = onMinimapUpdate; 
+      this.onMinimapUpdate = onMinimapUpdate;
       this.onFullMapUpdate = onFullMapUpdate;
     }
 
@@ -101,6 +101,38 @@ export const UniverseSceneFactory = (props) => {
 
     registerEvents() {
       this.scale.on("resize", this.handleResize, this);
+
+      // Listen for minigame completion
+      this.events.on('minigame:complete', (data) => {
+        this.handleMinigameComplete(data);
+      });
+
+      // Listen for minigame abort
+      this.events.on('minigame:abort', (data) => {
+        this.handleMinigameAbort(data);
+      });
+    }
+
+    handleMinigameComplete(data) {
+      const { anomaly, result } = data;
+
+      console.log(`✅ Minigame completed: ${result.status}`);
+      console.log(`   Score: ${result.score}`);
+      console.log(`   Accuracy: ${result.accuracy}%`);
+      console.log(`   Impact: ${JSON.stringify(result.impact)}`);
+
+      // If anomaly was resolved, notify the parent GameplayPage
+      if (result.impact.anomalyResolved && this.onAnomalyResolved) {
+        this.onAnomalyResolved({
+          ...anomaly,
+          gameResult: result
+        });
+      }
+    }
+
+    handleMinigameAbort(data) {
+      const { anomaly } = data;
+      console.log(`⚠️ Minigame aborted for ${anomaly.type}`);
     }
 
     update(time, delta) {
@@ -123,8 +155,7 @@ export const UniverseSceneFactory = (props) => {
 
       this.anomalySystem.handleInteraction(
         this.player,
-        this.chunkSystem.loadedChunks,
-        this.inputSystem.fixKey,
+        this.chunkSystem.loadedChunks
       );
 
       // Update minimap (now sends data to React)

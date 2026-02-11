@@ -148,7 +148,7 @@ export class AnomalySystem {
     anomaly.interactionText?.destroy();
   }
 
-  handleInteraction(player, loadedChunks, fixKey) {
+  handleInteraction(player, loadedChunks) {
     let nearest = null;
     let minDist = Infinity;
 
@@ -181,10 +181,7 @@ export class AnomalySystem {
       }
     });
 
-    // Resolve nearest anomaly
-    if (nearest && Phaser.Input.Keyboard.JustDown(fixKey)) {
-      this.resolveAnomaly(nearest);
-    }
+    // F key handling moved to InputSystem for minigame triggering
   }
 
   resolveAnomaly(anomaly) {

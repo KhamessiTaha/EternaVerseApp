@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import { UniverseSceneFactory } from "./game/scenes/UniverseScene";
+import { QuantumStabilizerScene } from "./game/scenes/QuantumStabilizerScene";
 import { UniversePanel, StructuresPanel, LifePanel, MissionPanel, ControlsPanel } from "./game/ui/Panels";
 import { HUDPanel } from "./game/ui/HUDPanel";
 import { MinimapPanel } from "./game/ui/MinimapPanel";
@@ -86,7 +87,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
         height: "100%",
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
-      scene: SceneClass,
+      scene: [SceneClass, QuantumStabilizerScene]
     };
 
     if (!gameRef.current) {

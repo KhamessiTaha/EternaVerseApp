@@ -40,25 +40,25 @@ const GameplayPage = () => {
     fetchUniverse();
   }, [id]);
 
-  // Handle anomaly resolution from Phaser game
+  // Handle anomaly resolution from minigame
   const handleAnomalyResolved = async (anomaly) => {
     try {
       // Check if it's a backend anomaly (has proper UUID format from backend)
       // Backend anomaly IDs look like: "673ab123_1234567890_123456"
       // Procedural anomaly IDs look like: "chunkX:chunkY:index" (e.g., "0:0:0")
       const isBackendAnomaly = anomaly.id && !anomaly.id.includes(":");
-      
+
       console.log(`🎯 Resolving ${isBackendAnomaly ? 'BACKEND' : 'procedural'} anomaly: ${anomaly.type} (${anomaly.id})`);
-      
+
       if (isBackendAnomaly) {
         // Sync with backend for physics-based anomalies
         const token = localStorage.getItem("token");
-        
+
         const res = await axios.post(
           `${API_BASE}/${id}/resolve-anomaly`,
           { anomalyId: anomaly.id },
           {
-            headers: { 
+            headers: {
               Authorization: token,
               'Content-Type': 'application/json'
             },
@@ -74,7 +74,7 @@ const GameplayPage = () => {
       } else {
         // Procedural anomaly - update locally with small boost
         console.log(`✅ Procedural anomaly resolved locally`);
-        
+
         setUniverse(prev => ({
           ...prev,
           currentState: {
@@ -297,8 +297,8 @@ const GameplayPage = () => {
   }
 
   return (
-    <PhaserGame 
-      universe={universe} 
+    <PhaserGame
+      universe={universe}
       onAnomalyResolved={handleAnomalyResolved}
     />
   );
