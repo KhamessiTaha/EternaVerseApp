@@ -209,7 +209,7 @@ const GameplayPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="w-full h-full bg-black flex items-center justify-center">
         <div className="text-center max-w-md px-4">
           <div className="text-red-500 text-xl mb-4">⚠️ {error}</div>
           <div className="space-x-4">
@@ -233,7 +233,7 @@ const GameplayPage = () => {
 
   if (!universe) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="w-full h-full bg-black flex items-center justify-center">
         <div className="text-center">
           <div className="text-cyan-400 text-2xl mb-4 animate-pulse">
             🌌 Loading Universe...
@@ -248,7 +248,7 @@ const GameplayPage = () => {
 
   if (universe.status === 'ended') {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="w-full h-full bg-black flex items-center justify-center">
         <div className="text-center max-w-md px-4">
           <div className="text-red-400 text-3xl mb-4">🌑 Universe Ended</div>
           <div className="text-gray-300 mb-6">

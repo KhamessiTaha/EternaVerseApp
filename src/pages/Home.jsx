@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useContext, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { Sparkles, Zap, Globe, Star, ArrowRight, Play } from "lucide-react";
-import NavHeader from "../components/NavHeader";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -46,7 +45,6 @@ const Home = () => {
 
   return (
     <div className="relative min-h-screen bg-black text-white overflow-hidden">
-      <NavHeader />
       {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden">
         <motion.div 

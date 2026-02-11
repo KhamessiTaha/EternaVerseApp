@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getUserUniverses, deleteUniverse } from "../api/universeApi";
-import { 
-  AlertCircle, Plus, Loader2, Trash2, Rocket, RefreshCw, 
+import {
+  AlertCircle, Plus, Loader2, Trash2, Rocket, RefreshCw,
   Sparkles, Clock, Globe, Star, Activity, Users, Award
 } from "lucide-react";
-import NavHeader from "../components/NavHeader";
 
 // Constants
 const DIFFICULTY_COLORS = {
@@ -261,18 +260,15 @@ StatItem.displayName = 'StatItem';
 
 // Loading State Component
 const LoadingState = () => (
-  <>
-    <NavHeader />
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white p-8 pt-20 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="relative">
-          <Loader2 size={48} className="animate-spin text-indigo-500" />
-          <div className="absolute inset-0 blur-xl bg-indigo-500/30 animate-pulse" />
-        </div>
-        <span className="text-lg text-gray-300">Loading your universes...</span>
+  <div className="min-h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white p-8 flex items-center justify-center">
+    <div className="flex flex-col items-center gap-4">
+      <div className="relative">
+        <Loader2 size={48} className="animate-spin text-indigo-500" />
+        <div className="absolute inset-0 blur-xl bg-indigo-500/30 animate-pulse" />
       </div>
+      <span className="text-lg text-gray-300">Loading your universes...</span>
     </div>
-  </>
+  </div>
 );
 
 // Empty State Component
@@ -400,10 +396,8 @@ const Dashboard = () => {
   }
 
   return (
-    <>
-      <NavHeader />
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white p-6 sm:p-8 pt-20">
-        <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white p-6 sm:p-8">
+      <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <div>
@@ -502,7 +496,6 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
-    </>
   );
 };
 

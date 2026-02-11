@@ -4,7 +4,6 @@ import { AuthContext } from "../context/AuthContext";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Lock, Mail, AlertCircle, Loader2, Sparkles } from "lucide-react";
-import NavHeader from "../components/NavHeader";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -42,7 +41,6 @@ const Login = () => {
 
   return (
     <div className="relative min-h-screen bg-black text-white overflow-hidden flex items-center justify-center px-4">
-      <NavHeader />
       {/* Animated Background */}
       <div className="absolute inset-0">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse" />

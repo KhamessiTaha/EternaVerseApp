@@ -39,7 +39,7 @@ const NavHeader = () => {
   };
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-md shadow-lg border-b border-gray-700">
+    <header className="bg-gray-900/95 backdrop-blur-md shadow-lg border-b border-gray-700">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Left: Brand */}
@@ -165,7 +165,7 @@ const NavHeader = () => {
           )}
         </div>
       </div>
-    </div>
+    </header>
   );
 };
 

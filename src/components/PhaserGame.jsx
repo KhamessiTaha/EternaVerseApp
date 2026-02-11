@@ -60,14 +60,17 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
   }, []);
 
   useEffect(() => {
-    const SceneClass = UniverseSceneFactory({ 
-      universe, 
-      onAnomalyResolved, 
+    const SceneClass = UniverseSceneFactory({
+      universe,
+      onAnomalyResolved,
       setStats,
       onHUDUpdate: handleHUDUpdate,
       onMinimapUpdate: handleMinimapUpdate,
       onFullMapUpdate: handleFullMapUpdate
     });
+
+    const container = document.getElementById("phaser-container");
+    if (!container) return;
 
     const config = {
       type: Phaser.AUTO,
@@ -93,11 +96,17 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
     }
 
     const resizeHandler = () => {
-      gameRef.current?.scale.resize(window.innerWidth, window.innerHeight);
+      if (gameRef.current && container) {
+        gameRef.current.scale.resize(container.clientWidth, container.clientHeight);
+      }
     };
+
+    const resizeObserver = new ResizeObserver(resizeHandler);
+    resizeObserver.observe(container);
     window.addEventListener("resize", resizeHandler);
 
     return () => {
+      resizeObserver.disconnect();
       window.removeEventListener("resize", resizeHandler);
       if (gameRef.current) {
         try {
@@ -118,7 +127,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
   }, [universe?.anomalies, universe?.currentState]);
 
   return (
-    <div className="w-screen h-screen bg-black relative overflow-hidden">
+    <div className="w-full h-full bg-black relative overflow-hidden">
       {/* Status Panels - Top Left */}
       <div className="absolute top-4 left-4 z-10 text-white text-sm max-w-xs">
         <UniversePanel 

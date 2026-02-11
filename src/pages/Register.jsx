@@ -11,7 +11,6 @@ import {
   Sparkles,
   CheckCircle,
 } from "lucide-react";
-import NavHeader from "../components/NavHeader";
 
 // ✅ Vite environment variable
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -61,7 +60,6 @@ const Register = () => {
 
   return (
     <div className="relative min-h-screen bg-black text-white overflow-hidden flex items-center justify-center px-4">
-      <NavHeader />
 
       {/* Animated Background */}
       <div className="absolute inset-0">
