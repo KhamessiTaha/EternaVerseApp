@@ -20,6 +20,63 @@ export class InputSystem {
     this.rotationVelocity = 0;
     this.boostEnergy = 100;
     this.boostRechargeRate = 0.5;
+    
+    // Minigame state
+    this.isMinigameActive = false;
+    this.savedVelocity = { x: 0, y: 0 };
+    this.resolvingAnomalyId = null; // Track which anomaly is being resolved
+    
+    this.setupMinigameListeners();
+  }
+  
+  /**
+   * Setup listeners for minigame events
+   */
+  setupMinigameListeners() {
+    // Listen for minigame start
+    this.scene.events.on('minigame:start', () => {
+      this.pauseMovement();
+    });
+    
+    // Listen for minigame complete/abort
+    this.scene.events.on('minigame:complete', () => {
+      this.resumeMovement();
+    });
+    
+    this.scene.events.on('minigame:abort', () => {
+      this.resumeMovement();
+    });
+  }
+  
+  /**
+   * Stop spacecraft movement and save current velocity
+   */
+  pauseMovement() {
+    this.isMinigameActive = true;
+    const player = this.scene.player;
+    
+    if (player && player.body) {
+      // Save current velocity
+      this.savedVelocity = {
+        x: player.body.velocity.x,
+        y: player.body.velocity.y
+      };
+      
+      // Stop all movement
+      player.setVelocity(0, 0);
+      player.setAcceleration(0, 0);
+      
+      console.log('[InputSystem] Spacecraft paused - velocity zeroed');
+    }
+  }
+  
+  /**
+   * Resume spacecraft movement
+   */
+  resumeMovement() {
+    this.isMinigameActive = false;
+    this.resolvingAnomalyId = null; // Clear the resolving anomaly
+    console.log('[InputSystem] Movement control restored');
   }
 
   setupControls() {
@@ -48,12 +105,32 @@ export class InputSystem {
    * Handle F key press - trigger anomaly interaction
    */
   handleAnomalyInteraction() {
-    if (!this.scene.anomalySystem) return;
+    if (!this.scene.anomalySystem || this.isMinigameActive) return;
 
     const nearestAnomaly = this.findNearestAnomaly();
 
     if (nearestAnomaly) {
+      // Prevent duplicate resolution attempts
+      if (this.resolvingAnomalyId === nearestAnomaly.id) {
+        console.log('[Input] Anomaly resolution already in progress');
+        return;
+      }
+
+      // Verify the anomaly is still in the active backendAnomalies map
+      // (it might have been resolved between checks)
+      if (!this.scene.anomalySystem.backendAnomalies.has(nearestAnomaly.id)) {
+        console.log('[Input] Anomaly no longer available (already resolved)');
+        return;
+      }
+
       console.log(`[Input] Anomaly interaction: ${nearestAnomaly.type} at (${nearestAnomaly.location.x.toFixed(0)}, ${nearestAnomaly.location.y.toFixed(0)})`);
+      console.log(`[Input] Anomaly ID: ${nearestAnomaly.id}, Severity: ${nearestAnomaly.severity}`);
+
+      // Mark this anomaly as being resolved
+      this.resolvingAnomalyId = nearestAnomaly.id;
+
+      // Emit minigame start event (this will pause movement)
+      this.scene.events.emit('minigame:start', { anomaly: nearestAnomaly });
 
       // Map anomaly type to minigame scene
       const gameScene = this.mapAnomalyToGame(nearestAnomaly.type);
@@ -94,6 +171,12 @@ export class InputSystem {
     let nearestDistance = INTERACTION_RANGE;
 
     for (const anomaly of anomalies) {
+      // Validate anomaly has required properties
+      if (!anomaly.location || !anomaly.location.x || !anomaly.location.y) {
+        console.warn('[InputSystem] Anomaly missing location data:', anomaly);
+        continue;
+      }
+
       const distance = Phaser.Math.Distance.Between(
         player.x,
         player.y,
@@ -107,10 +190,24 @@ export class InputSystem {
       }
     }
 
+    if (nearest) {
+      console.log('[InputSystem] Found nearest anomaly:', {
+        id: nearest.id,
+        type: nearest.type,
+        severity: nearest.severity,
+        distance: nearestDistance.toFixed(0)
+      });
+    }
+
     return nearest;
   }
 
   handlePlayerMovement(player) {
+    // Skip all input handling if minigame is active
+    if (this.isMinigameActive) {
+      return;
+    }
+
     // --- SMOOTH ROTATION WITH ACCELERATION ---
     let rotationInput = 0;
     if (this.keys.left.isDown) rotationInput -= 1;

@@ -40,39 +40,98 @@ const GameplayPage = () => {
     fetchUniverse();
   }, [id]);
 
+  // Track anomalies being resolved to prevent duplicates
+  const resolvingAnomaliesRef = useRef(new Set());
+  const resolvedAnomaliesRef = useRef(new Set());
+
   // Handle anomaly resolution from minigame
   const handleAnomalyResolved = async (anomaly) => {
     try {
+      // Validate anomaly object has required fields
+      if (!anomaly || !anomaly.id) {
+        console.error('❌ Invalid anomaly object:', anomaly);
+        return;
+      }
+
+      // Check if we've already resolved this anomaly
+      if (resolvedAnomaliesRef.current.has(anomaly.id)) {
+        console.log(`✓ Anomaly ${anomaly.id} already resolved in this session`);
+        return;
+      }
+
+      // Check if we're already resolving this anomaly
+      if (resolvingAnomaliesRef.current.has(anomaly.id)) {
+        console.log(`⏳ Anomaly ${anomaly.id} is already being resolved, skipping duplicate request`);
+        return;
+      }
+
+      // Mark this anomaly as being resolved
+      resolvingAnomaliesRef.current.add(anomaly.id);
+
       // Check if it's a backend anomaly (has proper UUID format from backend)
       // Backend anomaly IDs look like: "673ab123_1234567890_123456"
       // Procedural anomaly IDs look like: "chunkX:chunkY:index" (e.g., "0:0:0")
       const isBackendAnomaly = anomaly.id && !anomaly.id.includes(":");
 
-      console.log(`🎯 Resolving ${isBackendAnomaly ? 'BACKEND' : 'procedural'} anomaly: ${anomaly.type} (${anomaly.id})`);
+      console.log(`🎯 Resolving ${isBackendAnomaly ? 'BACKEND' : 'procedural'} anomaly`);
+      console.log(`   ID: ${anomaly.id}`);
+      console.log(`   Type: ${anomaly.type}`);
+      console.log(`   Severity: ${anomaly.severity}`);
+      console.log(`   Game result: ${anomaly.gameResult?.status}, Score: ${anomaly.gameResult?.score}`);
 
       if (isBackendAnomaly) {
         // Sync with backend for physics-based anomalies
         const token = localStorage.getItem("token");
+        const payload = { anomalyId: anomaly.id };
 
-        const res = await axios.post(
-          `${API_BASE}/${id}/resolve-anomaly`,
-          { anomalyId: anomaly.id },
-          {
-            headers: {
-              Authorization: token,
-              'Content-Type': 'application/json'
-            },
+        console.log(`📤 Sending to backend: POST ${API_BASE}/${id}/resolve-anomaly`);
+        console.log(`   Payload:`, payload);
+        console.log(`   Token present:`, !!token);
+
+        try {
+          const res = await axios.post(
+            `${API_BASE}/${id}/resolve-anomaly`,
+            payload,
+            {
+              headers: {
+                Authorization: token,
+                'Content-Type': 'application/json'
+              },
+            }
+          );
+
+          console.log(`📥 Backend response:`, res.data);
+
+          if (res.data.ok) {
+            // Mark as resolved in this session to prevent double-resolution
+            resolvedAnomaliesRef.current.add(anomaly.id);
+            
+            setUniverse(res.data.universe);
+            console.log(`✅ Backend anomaly resolved!`);
+            console.log(`   Stability boost: +${(res.data.stabilityBoost * 100).toFixed(2)}%`);
+            console.log(`   New stability: ${(res.data.universe.currentState.stabilityIndex * 100).toFixed(1)}%`);
+          } else {
+            console.error("❌ Backend returned not ok:", res.data);
           }
-        );
-
-        if (res.data.ok) {
-          setUniverse(res.data.universe);
-          console.log(`✅ Backend anomaly resolved!`);
-          console.log(`   Stability boost: +${(res.data.stabilityBoost * 100).toFixed(2)}%`);
-          console.log(`   New stability: ${(res.data.universe.currentState.stabilityIndex * 100).toFixed(1)}%`);
+        } catch (axiosErr) {
+          console.error(`❌ Axios error:`, axiosErr);
+          console.error(`   Status: ${axiosErr.response?.status}`);
+          console.error(`   Data:`, axiosErr.response?.data);
+          
+          const errorMsg = axiosErr.response?.data?.error || axiosErr.message;
+          
+          // If anomaly is already resolved, mark it as such locally
+          if (errorMsg && errorMsg.includes('already resolved')) {
+            console.log(`✓ Anomaly was already resolved on backend`);
+            resolvedAnomaliesRef.current.add(anomaly.id);
+          } else {
+            console.error("❌ Failed to resolve backend anomaly:", errorMsg);
+            throw axiosErr;
+          }
         }
       } else {
         // Procedural anomaly - update locally with small boost
+        resolvedAnomaliesRef.current.add(anomaly.id);
         console.log(`✅ Procedural anomaly resolved locally`);
 
         setUniverse(prev => ({
@@ -88,7 +147,10 @@ const GameplayPage = () => {
         }));
       }
     } catch (err) {
-      console.error("❌ Failed to resolve anomaly:", err.response?.data?.error || err.message);
+      console.error("❌ Unhandled error in anomaly resolution:", err);
+    } finally {
+      // Only remove from currently-resolving set, not from resolved set
+      resolvingAnomaliesRef.current.delete(anomaly.id);
     }
   };
 

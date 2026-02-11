@@ -51,6 +51,8 @@ export class MiniGameScene extends Phaser.Scene {
       return;
     }
 
+    console.log(`[MiniGameScene] Completing game with result:`, result);
+
     // Emit result event that UniverseScene will listen for
     this.universeScene.events.emit('minigame:complete', {
       anomaly: this.anomaly,

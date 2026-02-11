@@ -119,14 +119,99 @@ export const UniverseSceneFactory = (props) => {
       console.log(`✅ Minigame completed: ${result.status}`);
       console.log(`   Score: ${result.score}`);
       console.log(`   Accuracy: ${result.accuracy}%`);
+      console.log(`   Anomaly object:`, anomaly);
       console.log(`   Impact: ${JSON.stringify(result.impact)}`);
 
-      // If anomaly was resolved, notify the parent GameplayPage
-      if (result.impact.anomalyResolved && this.onAnomalyResolved) {
-        this.onAnomalyResolved({
-          ...anomaly,
-          gameResult: result
+      // Validate anomaly object has required fields
+      if (!anomaly || typeof anomaly !== 'object') {
+        console.error('❌ Invalid anomaly object - not an object:', anomaly);
+        return;
+      }
+
+      if (!anomaly.id) {
+        console.error('❌ Invalid anomaly object - missing id field:', anomaly);
+        return;
+      }
+
+      // Only notify if the minigame was won (anomalyResolved = true)
+      if (result.impact.anomalyResolved) {
+        console.log(`✓ Game result was successful, calling anomaly resolution handler`);
+        
+        // Trigger destruction animation and visual effects
+        this.playAnomalyDestructionEffect(anomaly);
+        
+        if (this.onAnomalyResolved) {
+          const anomalyToResolve = {
+            id: anomaly.id,
+            type: anomaly.type,
+            location: anomaly.location,
+            severity: anomaly.severity,
+            gameResult: result
+          };
+          console.log(`✓ Passing anomaly to resolution handler:`, anomalyToResolve);
+          this.onAnomalyResolved(anomalyToResolve);
+        }
+      } else {
+        console.log(`⚠️ Game result was not successful (${result.status}) - no backend resolution attempted`);
+      }
+    }
+
+    playAnomalyDestructionEffect(anomaly) {
+      try {
+        // Get the visual anomaly from the system
+        const visualAnomaly = this.anomalySystem.backendAnomalies.get(anomaly.id);
+        
+        if (!visualAnomaly || !visualAnomaly.visual) {
+          console.warn('⚠️ Could not find visual anomaly for destruction effect:', anomaly.id);
+          return;
+        }
+
+        // Use location coordinates (guaranteed to exist)
+        const x = anomaly.location?.x || visualAnomaly.x;
+        const y = anomaly.location?.y || visualAnomaly.y;
+
+        if (typeof x !== 'number' || typeof y !== 'number') {
+          console.warn('⚠️ Invalid anomaly coordinates:', { x, y });
+          return;
+        }
+
+        console.log(`🎆 Playing anomaly destruction effect at (${x.toFixed(0)}, ${y.toFixed(0)})`);
+
+        // Camera shake effect
+        this.cameras.main.shake(300, 0.008);
+
+        // Create particle burst for destruction
+        const particleBurst = this.add.particles(x, y, "Player", {
+          speed: { min: 80, max: 200 },
+          scale: { start: 0.03, end: 0 },
+          lifespan: 1000,
+          quantity: 30,
+          angle: { min: 0, max: 360 },
+          blendMode: "ADD"
         });
+
+        // Remove particles after animation completes
+        this.time.delayedCall(1000, () => {
+          particleBurst.destroy();
+        });
+
+        // Destroy the visual anomaly
+        this.anomalySystem.destroyAnomalyVisual(visualAnomaly.visual);
+        
+        // Remove from backend anomalies map
+        this.anomalySystem.backendAnomalies.delete(anomaly.id);
+        this.anomalySystem.resolvedAnomalies.add(anomaly.id);
+
+        // Update stats
+        this.setStats?.((prev) => ({
+          ...prev,
+          resolved: (prev.resolved || 0) + 1,
+        }));
+
+        console.log(`✓ Anomaly destruction complete: ${anomaly.id}`);
+
+      } catch (err) {
+        console.error('❌ Error playing anomaly destruction effect:', err);
       }
     }
 

@@ -55,10 +55,16 @@ export class QuantumStabilizerScene extends MiniGameScene {
 
     this.gameStartTime = this.time.now;
 
-    // Calculate difficulty from anomaly severity
-    const baseFactor = 0.4; // Very slow base
-    const speedMultiplier = baseFactor * (this.anomaly?.severity || 0.5);
-    this.oscillationSpeed = speedMultiplier;
+    // Calculate oscillation speed based on anomaly severity
+    // Severity is typically 0.3-1.0, we want decent speed variation
+    const severity = this.anomaly?.severity || 0.5;
+    
+    // Validate severity is in correct range, clamp if not
+    const validSeverity = Math.max(0.3, Math.min(1.0, severity));
+    this.oscillationSpeed = 0.5 + (validSeverity * 1.5); // Speed ranges from 0.5 to 2.0 per frame
+
+    console.log(`[QuantumStabilizer] Anomaly data:`, this.anomaly);
+    console.log(`[QuantumStabilizer] Initialized with severity: ${validSeverity.toFixed(2)}, speed: ${this.oscillationSpeed.toFixed(2)}`);
 
     // Setup keyboard
     this.input.keyboard.on('keydown-SPACE', () => {
@@ -73,7 +79,7 @@ export class QuantumStabilizerScene extends MiniGameScene {
     }).setOrigin(0.5);
 
     // Severity display
-    this.add.text(width / 2, 85, `Anomaly Severity: ${(this.anomaly?.severity * 100).toFixed(0)}%`, {
+    this.add.text(width / 2, 85, `Anomaly Severity: ${(severity * 100).toFixed(0)}%`, {
       font: 'bold 16px Courier',
       fill: '#00ccff',
       align: 'center'
@@ -204,8 +210,8 @@ export class QuantumStabilizerScene extends MiniGameScene {
   }
 
   update(time, delta) {
-    // Update indicator position (oscillation)
-    this.indicatorPosition += this.oscillationSpeed;
+    // Update indicator position with direction
+    this.indicatorPosition += this.oscillationSpeed * this.oscillationDirection;
 
     // Bounce at edges
     if (this.indicatorPosition >= 100) {
@@ -214,13 +220,6 @@ export class QuantumStabilizerScene extends MiniGameScene {
     } else if (this.indicatorPosition <= 0) {
       this.indicatorPosition = 0;
       this.oscillationDirection = 1;
-    }
-
-    // Apply direction
-    if (this.oscillationDirection === 1) {
-      this.indicatorPosition += this.oscillationSpeed * 0.5;
-    } else {
-      this.indicatorPosition -= this.oscillationSpeed * 0.5;
     }
 
     // Update indicator visual position
