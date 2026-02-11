@@ -45,6 +45,8 @@ export class QuantumStabilizerScene extends MiniGameScene {
     this.successText = null;
     this.failureText = null;
     this.instructionText = null;
+    this.feedbackText = null; // Single feedback text object for reuse
+    this.feedbackTimer = null; // Track feedback timeout
   }
 
   create() {
@@ -275,22 +277,8 @@ export class QuantumStabilizerScene extends MiniGameScene {
     // Update display
     this.successText.setText(`${this.successHits} / 5`);
 
-    // Visual feedback - green flash
-    this.add.text(
-      this.cameras.main.width / 2,
-      this.cameras.main.height / 2 - 150,
-      `✓ HIT! ${Math.round(accuracy)}%`,
-      {
-        font: 'bold 28px Courier',
-        fill: '#00ff00'
-      }
-    ).setOrigin(0.5)
-      .setDepth(100);
-
-    // Remove feedback text after 500ms
-    this.time.delayedCall(500, () => {
-      // Fade out would be better but keeping simple
-    });
+    // Show feedback with reusable text object
+    this.showFeedback(`✓ HIT! ${Math.round(accuracy)}%`, '#00ff00');
   }
 
   registerMiss() {
@@ -305,22 +293,62 @@ export class QuantumStabilizerScene extends MiniGameScene {
     // Update display
     this.failureText.setText(`${this.failures} / 3`);
 
-    // Visual feedback - red flash
-    this.add.text(
+    // Show feedback with reusable text object
+    this.showFeedback('✗ MISS!', '#ff0000');
+  }
+
+  /**
+   * Show feedback text with auto-cleanup
+   * Reuses the same text object to prevent stacking
+   */
+  showFeedback(text, color) {
+    // Cancel existing feedback timer if one is running
+    if (this.feedbackTimer) {
+      this.time.removeEvent(this.feedbackTimer);
+      this.feedbackTimer = null;
+    }
+
+    // Destroy old feedback text if it exists
+    if (this.feedbackText) {
+      this.feedbackText.destroy();
+      this.feedbackText = null;
+    }
+
+    // Create new feedback text
+    this.feedbackText = this.add.text(
       this.cameras.main.width / 2,
       this.cameras.main.height / 2 - 150,
-      '✗ MISS!',
+      text,
       {
         font: 'bold 28px Courier',
-        fill: '#ff0000'
+        fill: color
       }
     ).setOrigin(0.5)
       .setDepth(100);
+
+    // Schedule removal after 500ms
+    this.feedbackTimer = this.time.delayedCall(500, () => {
+      if (this.feedbackText) {
+        this.feedbackText.destroy();
+        this.feedbackText = null;
+      }
+      this.feedbackTimer = null;
+    });
   }
 
   endGame(status) {
     // Disable input
     this.input.keyboard.off('keydown-SPACE');
+
+    // Clean up any pending feedback
+    if (this.feedbackTimer) {
+      this.time.removeEvent(this.feedbackTimer);
+      this.feedbackTimer = null;
+    }
+    if (this.feedbackText) {
+      this.feedbackText.destroy();
+      this.feedbackText = null;
+    }
 
     // Calculate result
     const elapsedTime = this.time.now - this.gameStartTime;
