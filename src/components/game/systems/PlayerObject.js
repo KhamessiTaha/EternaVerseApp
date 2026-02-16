@@ -65,6 +65,7 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
     this.engineTrailContainer.setDepth(2);
 
     this.lastTrailTime = 0;
+    this.activeParticles = [];
   }
 
   /**
@@ -182,11 +183,14 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
     const particle = this.scene.add.graphics();
     particle.setPosition(x, y);
     particle.setDepth(2);
-    
+
     // Draw particle
     particle.fillStyle(color, startAlpha);
     particle.fillCircle(0, 0, 2);
-    
+
+    // Track particle
+    this.activeParticles.push(particle);
+
     // Animate
     this.scene.tweens.add({
       targets: particle,
@@ -194,7 +198,15 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
       scale: { from: startScale, to: startScale * 0.1 },
       duration: duration,
       ease: `${easeType}.easeOut`,
-      onComplete: () => particle.destroy(),
+      onComplete: () => {
+        if (particle && !particle.isDestroyed) {
+          particle.destroy();
+          const index = this.activeParticles.indexOf(particle);
+          if (index > -1) {
+            this.activeParticles.splice(index, 1);
+          }
+        }
+      },
     });
   }
   
@@ -253,6 +265,14 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
    * Clean up
    */
   destroy() {
+    // Clean up remaining active particles
+    this.activeParticles.forEach(particle => {
+      if (particle && !particle.isDestroyed) {
+        particle.destroy();
+      }
+    });
+    this.activeParticles = [];
+
     if (this.engineTrailContainer) this.engineTrailContainer.destroy();
     super.destroy();
   }

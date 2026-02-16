@@ -133,7 +133,7 @@ export class AnomalySystem {
       id, x, y,
       type: typeObj.type,
       severity, radius,
-      entity, glow, light,
+      entity, glow, light, lightProxy,
       interactionText,
       inRange: false,
       resolved: false,
@@ -142,6 +142,16 @@ export class AnomalySystem {
   }
 
   destroyAnomalyVisual(anomaly) {
+    // Stop all tweens targeting this anomaly's graphics
+    if (anomaly.glow) {
+      this.scene.tweens.getTweensOf(anomaly.glow).forEach(tween => tween.stop());
+    }
+    if (anomaly.lightProxy) {
+      // Stop tweens targeting the light proxy
+      this.scene.tweens.getTweensOf(anomaly.lightProxy).forEach(tween => tween.stop());
+    }
+    
+    // Destroy graphics objects
     anomaly.entity?.destroy();
     anomaly.glow?.destroy();
     if (anomaly.light) this.scene.lights.removeLight(anomaly.light);

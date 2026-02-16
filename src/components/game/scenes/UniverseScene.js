@@ -364,5 +364,37 @@ export const UniverseSceneFactory = (props) => {
       this.anomalySystem.syncBackendAnomalies();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
     }
+
+    shutdown() {
+      // Stop all tweens
+      this.tweens.killAll();
+      
+      // Clean up chunk system and anomalies
+      if (this.chunkSystem) {
+        this.chunkSystem.loadedChunks.forEach((chunk) => {
+          this.chunkSystem.cleanupChunk(chunk);
+        });
+        this.chunkSystem.loadedChunks.clear();
+      }
+      
+      // Clean up backend anomalies
+      if (this.anomalySystem && this.anomalySystem.backendAnomalies) {
+        this.anomalySystem.backendAnomalies.forEach((anomaly) => {
+          if (anomaly.visual) {
+            this.anomalySystem.destroyAnomalyVisual(anomaly.visual);
+          }
+        });
+        this.anomalySystem.backendAnomalies.clear();
+      }
+      
+      // Remove lights
+      if (this.playerLight) this.lights.removeLight(this.playerLight);
+      if (this.boostLight) this.lights.removeLight(this.boostLight);
+      
+      // Off event listeners
+      this.scale.off('resize', this.handleResize, this);
+      this.events.off('minigame:complete');
+      this.events.off('minigame:abort');
+    }
   };
 };
