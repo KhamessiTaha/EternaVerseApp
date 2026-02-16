@@ -7,6 +7,7 @@ import { MinimapSystem } from "../systems/MinimapSystem";
 import { FullMapSystem } from "../systems/FullMapSystem";
 import { InputSystem } from "../systems/InputSystem";
 import { HUD } from "../systems/HUD";
+import { PlayerObject } from "../systems/PlayerObject";
 import { MINIMAP_SIZE } from "../constants";
 
 export const UniverseSceneFactory = (props) => {
@@ -64,23 +65,12 @@ export const UniverseSceneFactory = (props) => {
     }
 
     createPlayer() {
-      this.player = this.physics.add
-        .sprite(0, 0, "Player")
-        .setScale(0.05)
-        .setDamping(true)
-        .setDrag(0.97)
-        .setMaxVelocity(600)
-        .setAngularDrag(0.96);
-
-      this.player.body.setMass(1.2);
-      this.player.body.useDamping = true;
-      this.player.body.allowRotation = false;
+      this.player = new PlayerObject(this, 0, 0, "Player");
 
       this.playerState = {
         boosting: false,
         drifting: false,
         velocity: { x: 0, y: 0 },
-        thrustParticles: null,
         boostGlow: 0,
       };
 
@@ -220,9 +210,16 @@ export const UniverseSceneFactory = (props) => {
       console.log(`⚠️ Minigame aborted for ${anomaly.type}`);
     }
 
-    update(time, delta) {
+    update(time) {
       this.inputSystem.handlePlayerMovement(this.player);
       this.applyBanking();
+      
+      // Update player visuals and animations
+      this.player.updateVisuals({
+        boosting: this.player.isBoosting || false,
+      });
+      this.player.updateGraphics();
+      
       this.updatePlayerThrusters();
       this.updateBoostEffects();
 
@@ -259,7 +256,6 @@ export const UniverseSceneFactory = (props) => {
 
     applyBanking() {
       const vx = this.player.body.velocity.x;
-      const vy = this.player.body.velocity.y;
       
       const velocityBank = Phaser.Math.Clamp(vx / 500, -0.25, 0.25);
       const rotationBank = this.inputSystem.rotationVelocity * 2;
