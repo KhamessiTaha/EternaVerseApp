@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { LogOut, Home, LayoutDashboard, User, Sparkles } from "lucide-react";
@@ -7,6 +7,16 @@ const NavHeader = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Listen for token expiration event
+  useEffect(() => {
+    const handleTokenExpired = () => {
+      navigate("/login");
+    };
+
+    window.addEventListener("tokenExpired", handleTokenExpired);
+    return () => window.removeEventListener("tokenExpired", handleTokenExpired);
+  }, [navigate]);
 
   const navItems = [
     { path: "/", label: "Home", icon: Home, showAlways: true },

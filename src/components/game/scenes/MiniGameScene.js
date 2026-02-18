@@ -4,6 +4,7 @@
  * Mini-games are Phaser scenes that handle interactive gameplay.
  * Extend this class to create new mini-games.
  */
+import Phaser from 'phaser';
 
 export class MiniGameScene extends Phaser.Scene {
   constructor(sceneKey) {
