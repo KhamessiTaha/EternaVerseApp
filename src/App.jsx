@@ -28,7 +28,14 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
             <Route path="/register" element={!user ? <Register /> : <Navigate to="/login" />} />
-            <Route path="/big-bang" element={<BigBangPage />} />
+            <Route
+              path="/big-bang/:id"
+              element={
+                <ProtectedRoute>
+                  <BigBangPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Protected Routes */}
             <Route

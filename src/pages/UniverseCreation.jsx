@@ -59,8 +59,8 @@ const UniverseCreation = () => {
     setIsLoading(true);
 
     try {
-      await createUniverse(universeData);
-      navigate("/dashboard");
+      const universe = await createUniverse(universeData);
+      navigate(`/big-bang/${universe._id}`, { state: { universe } });
     } catch (error) {
       setError(error.response?.data?.message || "Failed to create universe. Please try again.");
     } finally {

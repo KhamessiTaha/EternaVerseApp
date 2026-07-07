@@ -3,14 +3,34 @@ import { useRef, useState, useMemo, useEffect } from "react";
 import { Points, PointMaterial, Text, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import { motion } from "framer-motion";
+import { FlashCut, FadeToColor } from "./ui/ScreenFlash";
+import { getCosmicPhaseLabel } from "./game/ui/statusHelpers";
 
-const BigBangSimulation = () => {
+const BigBangSimulation = ({ universe, onSkip, onComplete }) => {
   const [stage, setStage] = useState("quantum-fluctuations");
   const [paused, setPaused] = useState(false);
   const [autoPlay, setAutoPlay] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [resetAnimation, setResetAnimation] = useState(0);
   const [timeScale, setTimeScale] = useState(1);
+  const [showContinue, setShowContinue] = useState(false);
+  const [flashKey, setFlashKey] = useState(0);
+  const [isHandingOff, setIsHandingOff] = useState(false);
+  const isFirstStage = useRef(true);
+
+  const composition = useMemo(() => {
+    const c = universe?.constants || {};
+    const darkEnergy = c.darkEnergyDensity ?? 0.69;
+    const darkMatter = c.darkMatterDensity ?? 0.26;
+    const matter = c.matterDensity ?? 0.05;
+    const total = darkEnergy + darkMatter + matter || 1;
+    return {
+      darkEnergy: ((darkEnergy / total) * 100).toFixed(0),
+      darkMatter: ((darkMatter / total) * 100).toFixed(0),
+      matter: ((matter / total) * 100).toFixed(0),
+    };
+  }, [universe]);
 
   useEffect(() => {
     if (autoPlay) {
@@ -20,6 +40,24 @@ const BigBangSimulation = () => {
       return () => clearTimeout(timer);
     }
   }, [autoPlay]);
+
+  // Flash-cut on every stage change (a beat marking each cosmic epoch),
+  // skipping the very first mount since there's no "transition" yet.
+  useEffect(() => {
+    if (isFirstStage.current) {
+      isFirstStage.current = false;
+      return;
+    }
+    setFlashKey((k) => k + 1);
+  }, [stage]);
+
+  useEffect(() => {
+    if (stage !== "cmb-formation") return;
+    const timer = setTimeout(() => setShowContinue(true), 3000);
+    return () => clearTimeout(timer);
+  }, [stage]);
+
+  const handleEnterUniverse = () => setIsHandingOff(true);
 
   useEffect(() => {
     let timer;
@@ -86,47 +124,61 @@ const BigBangSimulation = () => {
   };
 
   return (
-    <div className="w-full h-screen bg-black relative">
+    <div className="w-full h-full bg-void relative overflow-hidden">
       {/* Top Bar */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-black bg-opacity-70 p-4 flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          <h2 className="text-xl font-bold text-white">{stageMapping[stage]}</h2>
+      <div className="absolute top-0 left-0 right-0 z-10 bg-void-raised/85 backdrop-blur-sm border-b border-line px-5 py-3.5 flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-accent">
+              {universe?.name || "Universe"} · Genesis
+            </div>
+            <h2 className="font-mono text-sm text-ink mt-0.5">{stageMapping[stage]}</h2>
+          </div>
           <button
             onClick={toggleInfo}
-            className="px-4 py-2 rounded bg-indigo-700 hover:bg-indigo-600 text-white text-sm transition-all duration-200"
+            className="px-3 py-1.5 border border-line-bright text-ink-dim hover:text-ink hover:border-accent font-mono text-xs transition-colors"
           >
             {showInfo ? "Hide Info" : "Show Info"}
           </button>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={togglePause}
-            className="px-4 py-2 rounded bg-indigo-700 hover:bg-indigo-600 text-white text-sm transition-all duration-200"
+            className="px-3 py-1.5 border border-line-bright text-ink-dim hover:text-ink hover:border-accent font-mono text-xs transition-colors"
           >
             {paused ? "Resume" : "Pause"}
           </button>
           <button
             onClick={toggleAutoPlay}
-            className="px-4 py-2 rounded bg-indigo-700 hover:bg-indigo-600 text-white text-sm transition-all duration-200"
+            className="px-3 py-1.5 border border-line-bright text-ink-dim hover:text-ink hover:border-accent font-mono text-xs transition-colors"
           >
             {autoPlay ? "Manual Control" : "Auto Play"}
           </button>
+          {onSkip && (
+            <button
+              onClick={onSkip}
+              disabled={isHandingOff}
+              className="px-3 py-1.5 bg-accent text-void hover:bg-accent/90 font-mono text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              Skip Intro
+            </button>
+          )}
         </div>
       </div>
 
       {/* Left Sidebar - Stage Navigation */}
       {!autoPlay && (
-        <div className="absolute top-16 left-0 z-10 bg-black bg-opacity-70 p-4 rounded-r-lg">
-          <h3 className="text-lg font-bold mb-2 text-white">Stage Navigation</h3>
-          <div className="flex flex-col space-y-2">
+        <div className="absolute top-16 left-0 z-10 bg-void-raised/85 backdrop-blur-sm border-r border-t border-b border-line p-4">
+          <h3 className="font-mono text-[10px] uppercase tracking-wider text-ink-faint mb-3">Stage Navigation</h3>
+          <div className="flex flex-col gap-1.5">
             {Object.keys(stageMapping).map((key) => (
               <button
                 key={key}
                 onClick={() => handleStageChange(key)}
-                className={`px-4 py-2 text-sm rounded-full transition-all duration-200 ${
+                className={`px-3 py-1.5 text-left font-mono text-xs border transition-colors ${
                   stage === key
-                    ? "bg-indigo-500 text-white hover:bg-indigo-600"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    ? "border-accent text-accent"
+                    : "border-line text-ink-dim hover:text-ink hover:border-line-bright"
                 }`}
               >
                 {key.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
@@ -134,44 +186,81 @@ const BigBangSimulation = () => {
             ))}
           </div>
         </div>
-      )} 
+      )}
 
       {/* Right Sidebar - Composition and Elemental Abundance */}
-      <div className="absolute top-16 right-0 z-10 bg-black bg-opacity-70 p-4 rounded-l-lg">
-        <h3 className="text-lg font-bold mb-2 text-white">Composition of the Universe</h3>
-        <div className="text-sm text-white">
-          <p>Dark Energy: 68%</p>
-          <p>Dark Matter: 27%</p>
-          <p>Ordinary Matter: 5%</p>
+      <div className="absolute top-16 right-0 z-10 bg-void-raised/85 backdrop-blur-sm border-l border-t border-b border-line p-4 min-w-[220px]">
+        <h3 className="font-mono text-[10px] uppercase tracking-wider text-accent mb-2.5">Composition</h3>
+        <div className="font-mono text-xs text-ink-dim space-y-1">
+          <div className="flex justify-between"><span>Dark Energy</span><span className="text-ink tabular-nums">{composition.darkEnergy}%</span></div>
+          <div className="flex justify-between"><span>Dark Matter</span><span className="text-ink tabular-nums">{composition.darkMatter}%</span></div>
+          <div className="flex justify-between"><span>Ordinary Matter</span><span className="text-ink tabular-nums">{composition.matter}%</span></div>
         </div>
         {stage === "nucleosynthesis" && (
           <>
-            <h3 className="text-lg font-bold mt-4 mb-2 text-white">Elemental Abundance</h3>
-            <div className="text-sm text-white">
-              <p>Hydrogen: 75%</p>
-              <p>Helium: 25%</p>
-              <p>Lithium: Trace</p>
+            <h3 className="font-mono text-[10px] uppercase tracking-wider text-accent mt-4 mb-2.5">Elemental Abundance</h3>
+            <div className="font-mono text-xs text-ink-dim space-y-1">
+              <div className="flex justify-between"><span>Hydrogen</span><span className="text-ink tabular-nums">75%</span></div>
+              <div className="flex justify-between"><span>Helium</span><span className="text-ink tabular-nums">25%</span></div>
+              <div className="flex justify-between"><span>Lithium</span><span className="text-ink tabular-nums">Trace</span></div>
             </div>
           </>
         )}
+        {universe?.seed && (
+          <div className="mt-4 pt-3 border-t border-line font-mono text-[10px] text-ink-faint">
+            SEED · {universe.seed}
+          </div>
+        )}
       </div>
+
+      {/* Continue CTA - appears once the CMB has formed. Previews the actual
+          cosmicPhase the universe will be in on arrival (same label source
+          as the in-game HUD) so the cut from cinematic to gameplay reads as
+          one continuous timeline instead of two disconnected systems. */}
+      {showContinue && onComplete && !isHandingOff && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-3"
+        >
+          <div className="text-center">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-ink-faint">Next Epoch</div>
+            <div className="font-mono text-sm text-accent mt-0.5">
+              {getCosmicPhaseLabel(universe?.currentState?.cosmicPhase || "dark_ages")}
+            </div>
+          </div>
+          <button
+            onClick={handleEnterUniverse}
+            className="px-8 py-3 bg-accent text-void font-mono text-sm font-semibold tracking-wide hover:bg-accent/90 transition-colors shadow-lg"
+          >
+            Enter Universe
+          </button>
+        </motion.div>
+      )}
+
+      {/* Stage-transition beat */}
+      {flashKey > 0 && <FlashCut key={flashKey} />}
+
+      {/* Scene handoff into gameplay - covers the screen, then fires onComplete */}
+      {isHandingOff && <FadeToColor color="#ffffff" duration={0.7} onComplete={onComplete} />}
 
       {/* Current Stage Info */}
       {showInfo && (
-        <div className="absolute bottom-4 left-4 z-10 bg-black bg-opacity-70 p-4 rounded-lg max-w-md">
-          <p className="text-sm text-white">{stageInfo[stage]}</p>
+        <div className="absolute bottom-4 left-4 z-10 bg-void-raised/85 backdrop-blur-sm border border-line p-4 max-w-md">
+          <p className="text-sm text-ink-dim leading-relaxed">{stageInfo[stage]}</p>
         </div>
       )}
 
       {/* Camera Controls Info */}
-      <div className="absolute bottom-4 right-4 z-10 bg-black bg-opacity-70 p-2 rounded text-xs text-white">
+      <div className="absolute bottom-4 right-4 z-10 bg-void-raised/85 backdrop-blur-sm border border-line px-3 py-2 font-mono text-[10px] text-ink-faint leading-relaxed">
         <p>Mouse drag: Rotate view</p>
         <p>Scroll: Zoom in/out</p>
         <p>Right-click drag: Pan</p>
       </div>
 
       {/* Canvas for Simulation */}
-      <Canvas camera={{ position: [0, 0, 35], fov: 60 }}>
+      <Canvas camera={{ position: [0, 0, 22], fov: 60 }}>
         <color attach="background" args={["#000000"]} />
         <ambientLight intensity={0.1} />
         <pointLight
@@ -192,13 +281,15 @@ const BigBangSimulation = () => {
           enableRotate={true}
           minDistance={5}
           maxDistance={500}
+          autoRotate={!paused}
+          autoRotateSpeed={0.35}
         />
         <EffectComposer>
           <Bloom
             intensity={1.5}
             kernelSize={3}
-            luminanceThreshold={0.4}
-            luminanceSmoothing={0.2}
+            luminanceThreshold={0.25}
+            luminanceSmoothing={0.25}
           />
         </EffectComposer>
       </Canvas>
@@ -219,6 +310,18 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
   const inflationRef = useRef();
   const particlesRef = useRef();
 
+  // R3F's useFrame delta is in seconds (not ms, unlike Phaser). None of the
+  // particle-system updates below were scaled by it - every stochastic
+  // spawn/fade chance and every per-frame position/color increment ran once
+  // per RENDERED FRAME regardless of how much time that frame actually took.
+  // With tens of thousands of particles being walked on the CPU every frame,
+  // any frame-time variance directly showed up as visible speed hitching.
+  // Normalizing against a 60fps reference makes the animation's perceived
+  // speed consistent regardless of frame rate/hitches.
+  const REF_DELTA = 1 / 60;
+  const rate = (perFrameValue, delta) => perFrameValue * (delta / REF_DELTA);
+  const growth = (perFrameFactor, delta) => Math.pow(perFrameFactor, delta / REF_DELTA);
+
   const temperatureToColor = (temperature) => {
     const t = (temperature - 2.7) / 0.1;
     const r = Math.min(1, Math.max(0, 1 - Math.abs(t - 0.5)));
@@ -234,7 +337,7 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
     const sizes = new Float32Array(cmbCount);
 
     for (let i = 0; i < cmbCount; i++) {
-      const r = Math.random() * 50;
+      const r = Math.random() * 28;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos((Math.random() * 2) - 1);
 
@@ -255,7 +358,7 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
     return { positions, colors, sizes };
   }, []);
 
-  const quantumCount = 200;
+  const quantumCount = 700;
   const quantumData = useMemo(() => {
     const positions = new Float32Array(quantumCount * 3);
     const sizes = new Float32Array(quantumCount);
@@ -351,6 +454,31 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
     return new THREE.CanvasTexture(canvas);
   }, []);
 
+  const backgroundStarCount = 2500;
+  const backgroundStars = useMemo(() => {
+    const positions = new Float32Array(backgroundStarCount * 3);
+    const colors = new Float32Array(backgroundStarCount * 3);
+
+    for (let i = 0; i < backgroundStarCount; i++) {
+      // Distributed in a shell well beyond the active simulation volume, so
+      // it always reads as distant backdrop rather than part of the action.
+      const r = 60 + Math.random() * 140;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = r * Math.cos(phi);
+
+      const warmth = Math.random();
+      colors[i * 3] = 0.7 + warmth * 0.3;
+      colors[i * 3 + 1] = 0.75 + warmth * 0.25;
+      colors[i * 3 + 2] = 0.85 + warmth * 0.15;
+    }
+
+    return { positions, colors };
+  }, []);
+
   useFrame((_, delta) => {
     if (paused) return;
 
@@ -359,10 +487,13 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
       const colors = quantumRef.current.geometry.attributes.color.array;
       const sizes = quantumRef.current.geometry.attributes.size.array;
 
+      const spawnChance = rate(0.1, delta);
+      const fadeChance = rate(0.15, delta);
+
       for (let i = 0; i < quantumCount; i++) {
         const idx = i * 3;
 
-        if (Math.random() < 0.1) {
+        if (Math.random() < spawnChance) {
           const r = Math.random() * 2;
           const theta = Math.random() * Math.PI * 2;
           const phi = Math.acos((Math.random() * 2) - 1);
@@ -376,7 +507,7 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
           colors[idx + 2] = 0.9 + Math.random() * 0.1;
 
           sizes[i] = 0.05 + Math.random() * 0.1;
-        } else if (Math.random() < 0.15) {
+        } else if (Math.random() < fadeChance) {
           positions[idx] = 0;
           positions[idx + 1] = 0;
           positions[idx + 2] = 0;
@@ -399,6 +530,10 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
       const colors = inflationRef.current.geometry.attributes.color.array;
 
       const expansionRate = stage === "inflation" ? 1.3 : 1.05;
+      const frameExpansion = growth(expansionRate, delta);
+      const spawnChance = rate(0.4, delta);
+      const colorStep = rate(0.01, delta);
+      const sizeStep = rate(0.001, delta);
 
       for (let i = 0; i < inflationCount; i++) {
         const idx = i * 3;
@@ -407,7 +542,7 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
         const z = positions[idx + 2];
 
         if (stage === "inflation") {
-          if (x === 0 && y === 0 && z === 0 && Math.random() < 0.4) {
+          if (x === 0 && y === 0 && z === 0 && Math.random() < spawnChance) {
             const r = 0.1;
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos((Math.random() * 2) - 1);
@@ -416,20 +551,20 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
             positions[idx + 1] = r * Math.sin(phi) * Math.sin(theta);
             positions[idx + 2] = r * Math.cos(phi);
           } else if (x !== 0 || y !== 0 || z !== 0) {
-            positions[idx] *= expansionRate;
-            positions[idx + 1] *= expansionRate;
-            positions[idx + 2] *= expansionRate;
+            positions[idx] *= frameExpansion;
+            positions[idx + 1] *= frameExpansion;
+            positions[idx + 2] *= frameExpansion;
           }
         } else if (stage === "reheating") {
           if (x !== 0 || y !== 0 || z !== 0) {
-            positions[idx] *= expansionRate;
-            positions[idx + 1] *= expansionRate;
-            positions[idx + 2] *= expansionRate;
+            positions[idx] *= frameExpansion;
+            positions[idx + 1] *= frameExpansion;
+            positions[idx + 2] *= frameExpansion;
 
-            colors[idx] = Math.min(1.0, colors[idx] + 0.01);
-            colors[idx + 1] = Math.min(1.0, colors[idx + 1] + 0.01);
+            colors[idx] = Math.min(1.0, colors[idx] + colorStep);
+            colors[idx + 1] = Math.min(1.0, colors[idx + 1] + colorStep);
 
-            sizes[i] = Math.min(0.15, sizes[i] + 0.001);
+            sizes[i] = Math.min(0.15, sizes[i] + sizeStep);
           }
         }
       }
@@ -453,6 +588,12 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
 
       const expansionRate =
         stage === "particle-formation" ? 1.01 : stage === "nucleosynthesis" ? 1.005 : 1.0001;
+      const frameExpansion = growth(expansionRate, delta);
+      const deltaRatio = delta / REF_DELTA;
+      const spawnChance = rate(0.2, delta);
+      const mergeChance = rate(0.0001, delta);
+      const formationColorStep = rate(0.001, delta);
+      const formationColorStepSlow = rate(0.0005, delta);
 
       for (let i = 0; i < particleCount; i++) {
         const idx = i * 3;
@@ -461,7 +602,7 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
         const z = positions[idx + 2];
         const particleType = particleData.types[i];
 
-        if ((x === 0 && y === 0 && z === 0) && Math.random() < 0.2) {
+        if ((x === 0 && y === 0 && z === 0) && Math.random() < spawnChance) {
           const r = Math.pow(Math.random(), 0.5) * 5;
           const theta = Math.random() * Math.PI * 2;
           const phi = Math.acos((Math.random() * 2) - 1);
@@ -493,18 +634,18 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
           particleData.velocities[idx + 1] = radialVy + tangentialVy;
           particleData.velocities[idx + 2] = radialVz + tangentialVz;
         } else if (x !== 0 || y !== 0 || z !== 0) {
-          positions[idx] *= expansionRate;
-          positions[idx + 1] *= expansionRate;
-          positions[idx + 2] *= expansionRate;
+          positions[idx] *= frameExpansion;
+          positions[idx + 1] *= frameExpansion;
+          positions[idx + 2] *= frameExpansion;
 
-          positions[idx] += particleData.velocities[idx];
-          positions[idx + 1] += particleData.velocities[idx + 1];
-          positions[idx + 2] += particleData.velocities[idx + 2];
+          positions[idx] += particleData.velocities[idx] * deltaRatio;
+          positions[idx + 1] += particleData.velocities[idx + 1] * deltaRatio;
+          positions[idx + 2] += particleData.velocities[idx + 2] * deltaRatio;
 
           if (stage === "particle-formation") {
-            colors[idx] = Math.min(0.95, colors[idx] + 0.001);
-            colors[idx + 1] = Math.min(0.95, colors[idx + 1] + 0.0005);
-            colors[idx + 2] = Math.max(0.7, colors[idx + 2] - 0.0005);
+            colors[idx] = Math.min(0.95, colors[idx] + formationColorStep);
+            colors[idx + 1] = Math.min(0.95, colors[idx + 1] + formationColorStepSlow);
+            colors[idx + 2] = Math.max(0.7, colors[idx + 2] - formationColorStepSlow);
           } else if (stage === "nucleosynthesis") {
             if (particleType === 0) {
               colors[idx] = 0.6 + Math.random() * 0.1;
@@ -521,7 +662,7 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
               sizes[i] = 0.08 + Math.random() * 0.04;
             }
 
-            if (Math.random() < 0.0001) {
+            if (Math.random() < mergeChance) {
               for (let j = 0; j < 10; j++) {
                 if (i + j < particleCount) {
                   const targetIdx = (i + j) * 3;
@@ -561,15 +702,29 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
 
   return (
     <group>
+      {/* Distant static starfield - always present so the void never reads as
+          flat empty black, and gives visual continuity across stage cuts */}
+      <Points positions={backgroundStars.positions} colors={backgroundStars.colors}>
+        <PointMaterial
+          size={0.7}
+          sizeAttenuation={true}
+          vertexColors
+          transparent
+          opacity={0.5}
+          alphaMap={particleTexture}
+          depthWrite={false}
+        />
+      </Points>
+
       {/* Quantum fluctuations */}
       {stage === "quantum-fluctuations" && (
         <Points ref={quantumRef} positions={quantumData.positions} sizes={quantumData.sizes} colors={quantumData.colors}>
           <PointMaterial
-            size={0.1}
+            size={0.65}
             sizeAttenuation={true}
             vertexColors
             transparent
-            opacity={0.7}
+            opacity={0.85}
             alphaMap={particleTexture}
             depthWrite={false}
           />
@@ -580,7 +735,7 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
       {(stage === "inflation" || stage === "reheating") && (
         <Points ref={inflationRef} positions={inflationData.positions} colors={inflationData.colors} sizes={inflationData.sizes}>
           <PointMaterial
-            size={0.08}
+            size={0.5}
             sizeAttenuation={true}
             vertexColors
             transparent
@@ -594,7 +749,7 @@ const Universe = ({ stage, paused, resetAnimation, timeScale }) => {
       {(stage === "particle-formation" || stage === "nucleosynthesis" || stage === "cmb-formation") && (
         <Points ref={particlesRef} positions={particleData.positions} colors={particleData.colors} sizes={particleData.sizes}>
           <PointMaterial
-            size={0.06}
+            size={0.38}
             sizeAttenuation={true}
             vertexColors
             transparent

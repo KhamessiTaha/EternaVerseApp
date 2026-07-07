@@ -1,15 +1,18 @@
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import PhaserGame from "../components/PhaserGame";
 import { getGradeForAccuracy } from "../components/game/utils";
 import { Button, Eyebrow } from "../components/ui/primitives";
+import { FadeFromColor } from "../components/ui/ScreenFlash";
 
 
 const API_BASE = `${import.meta.env.VITE_API_URL}/universe`;
 
 const GameplayPage = () => {
   const { id } = useParams();
+  const location = useLocation();
+  const fromBigBang = location.state?.fromBigBang;
   const [universe, setUniverse] = useState(null);
   const [error, setError] = useState(null);
   const [lastSimulation, setLastSimulation] = useState(Date.now());
@@ -350,11 +353,14 @@ const GameplayPage = () => {
   }
 
   return (
-    <PhaserGame
-      universe={universe}
-      onAnomalyResolved={handleAnomalyResolved}
-      onPlayerPositionUpdate={handlePlayerPositionUpdate}
-    />
+    <>
+      <PhaserGame
+        universe={universe}
+        onAnomalyResolved={handleAnomalyResolved}
+        onPlayerPositionUpdate={handlePlayerPositionUpdate}
+      />
+      {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
+    </>
   );
 };
 

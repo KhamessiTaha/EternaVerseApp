@@ -26,6 +26,20 @@ export const createUniverse = async (universeData) => {
   }
 };
 
+// Get a single universe by id
+export const getUniverse = async (universeId) => {
+  try {
+    const res = await axios.get(`${API_URL}/${universeId}`, getAuthHeaders());
+    return res.data.universe;
+  } catch (error) {
+    console.error(
+      "Error fetching universe:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Get all universes
 export const getUserUniverses = async () => {
   try {
