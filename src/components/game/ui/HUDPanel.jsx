@@ -3,9 +3,15 @@ const BOOST_SEGMENTS = 10;
 export const HUDPanel = ({ hudData }) => {
   if (!hudData) return null;
 
-  const { velocity, position, boostEnergy, isBoosting } = hudData;
+  const { velocity, position, boostEnergy, isBoosting, boostLocked } = hudData;
 
-  const boostColor = isBoosting ? 'bg-accent' : boostEnergy < 30 ? 'bg-critical' : boostEnergy < 60 ? 'bg-warn' : 'bg-good';
+  const boostColor = boostLocked
+    ? 'bg-critical'
+    : isBoosting
+    ? 'bg-accent'
+    : boostEnergy < 30
+    ? 'bg-warn'
+    : 'bg-good';
   const filledSegments = Math.round((boostEnergy / 100) * BOOST_SEGMENTS);
 
   return (
@@ -27,10 +33,12 @@ export const HUDPanel = ({ hudData }) => {
       <div className="w-px h-4 bg-line" />
 
       <div className="flex items-center gap-2">
-        <span className="text-[9px] uppercase tracking-wider text-ink-faint">Boost</span>
+        <span className={`text-[9px] uppercase tracking-wider ${boostLocked ? 'text-critical animate-pulse' : 'text-ink-faint'}`}>
+          {boostLocked ? 'Locked' : 'Boost'}
+        </span>
         <div className="flex gap-[2px]">
           {Array.from({ length: BOOST_SEGMENTS }).map((_, i) => (
-            <div key={i} className={`w-1.5 h-2.5 ${i < filledSegments ? boostColor : 'bg-line'}`} />
+            <div key={i} className={`w-1.5 h-2.5 ${i < filledSegments ? boostColor : 'bg-line'} ${boostLocked ? 'animate-pulse' : ''}`} />
           ))}
         </div>
       </div>

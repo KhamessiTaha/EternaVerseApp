@@ -15,12 +15,15 @@ export class InputSystem {
       BRAKE: 180,
       STRAFE_FORCE: 150,
       BOOST_MULTIPLIER: 1.8,
-      BOOST_COST: 0.3, // per frame
+      BOOST_COST: 0.35, // per reference frame (~4.8s to fully drain)
+      MAX_SPEED: 600, // must match PlayerObject's body.setMaxVelocity
+      BOOST_LOCKOUT_THRESHOLD: 20, // once fully drained, boost is locked out until energy recovers to this
     };
-    
+
     this.rotationVelocity = 0;
     this.boostEnergy = 100;
-    this.boostRechargeRate = 0.5;
+    this.boostRechargeRate = 0.18; // per reference frame (~9.3s to fully recharge) - slower than drain so boost is a real tradeoff, not a free toggle
+    this.boostLocked = false; // true from the moment energy hits 0 until it climbs back to BOOST_LOCKOUT_THRESHOLD
     
     // Minigame state
     this.isMinigameActive = false;
@@ -117,14 +120,15 @@ export class InputSystem {
         return;
       }
 
-      // Verify the anomaly is still in the active backendAnomalies map
-      // (it might have been resolved between checks)
-      if (!this.scene.anomalySystem.backendAnomalies.has(nearestAnomaly.id)) {
+      // Verify the anomaly is still available (it might have been resolved
+      // between checks) - only backend anomalies have a fast map lookup;
+      // procedural ones were already filtered to unresolved in the scan above
+      if (nearestAnomaly.isBackend && !this.scene.anomalySystem.backendAnomalies.has(nearestAnomaly.id)) {
         console.log('[Input] Anomaly no longer available (already resolved)');
         return;
       }
 
-      console.log(`[Input] Anomaly interaction: ${nearestAnomaly.type} at (${nearestAnomaly.location.x.toFixed(0)}, ${nearestAnomaly.location.y.toFixed(0)})`);
+      console.log(`[Input] Anomaly interaction: ${nearestAnomaly.type} (${nearestAnomaly.category}) at (${nearestAnomaly.location.x.toFixed(0)}, ${nearestAnomaly.location.y.toFixed(0)})`);
       console.log(`[Input] Anomaly ID: ${nearestAnomaly.id}, Severity: ${nearestAnomaly.severity}`);
 
       // Mark this anomaly as being resolved
@@ -133,8 +137,8 @@ export class InputSystem {
       // Emit minigame start event (this will pause movement)
       this.scene.events.emit('minigame:start', { anomaly: nearestAnomaly });
 
-      // Map anomaly type to minigame scene
-      const gameScene = this.mapAnomalyToGame(nearestAnomaly.type);
+      // Map anomaly category to minigame scene
+      const gameScene = this.mapAnomalyToGame(nearestAnomaly.category);
 
       // Start minigame scene (this pauses the current scene)
       this.scene.scene.launch(gameScene, { anomaly: nearestAnomaly });
@@ -144,57 +148,79 @@ export class InputSystem {
   }
 
   /**
-   * Map anomaly type to minigame scene key
+   * Map anomaly category to minigame scene key. Any unrecognized/future
+   * category falls back to the generic timing game.
    */
-  mapAnomalyToGame(anomalyType) {
+  mapAnomalyToGame(category) {
     const mapping = {
-      'quantum_fluctuation': 'QuantumStabilizerScene',
-      'temporal_distortion': 'QuantumStabilizerScene',
-      'gravity_anomaly': 'QuantumStabilizerScene',
-      'cosmic_radiation_burst': 'QuantumStabilizerScene',
-      'dark_matter_spike': 'QuantumStabilizerScene',
-      'exotic_particle_cascade': 'QuantumStabilizerScene'
+      gravitational: 'GravityWellScene',
+      stellar: 'CascadeReactionScene',
+      quantum: 'WaveformCollapseScene',
+      cosmological: 'ExpansionContainmentScene',
+      structural: 'StructuralRealignmentScene',
+      electromagnetic: 'PolarityBalanceScene',
     };
-    return mapping[anomalyType] || 'QuantumStabilizerScene';
+    return mapping[category] || 'QuantumStabilizerScene';
   }
 
   /**
-   * Find the nearest anomaly within interaction range
+   * Find the nearest interactable anomaly within range, across BOTH backend
+   * anomalies (this.scene.anomalySystem.backendAnomalies) and procedural
+   * anomalies (living inside loaded chunks) - normalized to a common shape
+   * so the rest of the interaction/minigame pipeline doesn't need to care
+   * which source an anomaly came from.
    */
   findNearestAnomaly() {
     const INTERACTION_RANGE = 300; // World units
-    const anomalies = Array.from(this.scene.anomalySystem.backendAnomalies.values());
-
-    if (anomalies.length === 0) return null;
-
     const player = this.scene.player;
     let nearest = null;
     let nearestDistance = INTERACTION_RANGE;
 
-    for (const anomaly of anomalies) {
-      // Validate anomaly has required properties
-      if (!anomaly.location || !anomaly.location.x || !anomaly.location.y) {
-        console.warn('[InputSystem] Anomaly missing location data:', anomaly);
+    for (const anomaly of this.scene.anomalySystem.backendAnomalies.values()) {
+      if (!anomaly.location || typeof anomaly.location.x !== 'number' || typeof anomaly.location.y !== 'number') {
         continue;
       }
 
-      const distance = Phaser.Math.Distance.Between(
-        player.x,
-        player.y,
-        anomaly.location.x,
-        anomaly.location.y
-      );
-
+      const distance = Phaser.Math.Distance.Between(player.x, player.y, anomaly.location.x, anomaly.location.y);
       if (distance < nearestDistance) {
         nearestDistance = distance;
-        nearest = anomaly;
+        nearest = {
+          id: anomaly.id,
+          type: anomaly.type,
+          category: anomaly.category,
+          severity: anomaly.severity,
+          location: { x: anomaly.location.x, y: anomaly.location.y },
+          isBackend: true,
+        };
       }
+    }
+
+    if (this.scene.chunkSystem?.loadedChunks) {
+      this.scene.chunkSystem.loadedChunks.forEach((chunk) => {
+        chunk.anomalies.forEach((anomaly) => {
+          if (anomaly.resolved) return;
+
+          const distance = Phaser.Math.Distance.Between(player.x, player.y, anomaly.x, anomaly.y);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = {
+              id: anomaly.id,
+              type: anomaly.type,
+              category: anomaly.category,
+              severity: anomaly.severity,
+              location: { x: anomaly.x, y: anomaly.y },
+              isBackend: false,
+            };
+          }
+        });
+      });
     }
 
     if (nearest) {
       console.log('[InputSystem] Found nearest anomaly:', {
         id: nearest.id,
         type: nearest.type,
+        category: nearest.category,
         severity: nearest.severity,
         distance: nearestDistance.toFixed(0)
       });
@@ -232,8 +258,10 @@ export class InputSystem {
     const angle = player.rotation - Math.PI / 2;
     const perpAngle = angle + Math.PI / 2; // For strafing
     
-    // Check for boost
-    const isBoosting = this.keys.boost.isDown && this.boostEnergy > 0;
+    // Check for boost - locked out entirely once fully drained, until energy
+    // recovers past BOOST_LOCKOUT_THRESHOLD (prevents chain-tapping boost
+    // the instant a sliver of energy trickles back in)
+    const isBoosting = this.keys.boost.isDown && this.boostEnergy > 0 && !this.boostLocked;
     const thrustMultiplier = isBoosting ? this.params.BOOST_MULTIPLIER : 1;
 
     let isThrusting = false;
@@ -284,9 +312,26 @@ export class InputSystem {
       this.boostEnergy = Math.min(100, this.boostEnergy + scaleByDelta(this.boostRechargeRate, delta));
     }
 
+    // Trigger lockout the moment energy bottoms out; release it only once
+    // energy has climbed back past the threshold
+    if (this.boostEnergy <= 0) {
+      this.boostLocked = true;
+    } else if (this.boostLocked && this.boostEnergy >= this.params.BOOST_LOCKOUT_THRESHOLD) {
+      this.boostLocked = false;
+    }
+
     // Store state for HUD
     player.boostEnergy = this.boostEnergy;
+    player.boostLocked = this.boostLocked;
     player.isBoosting = isBoosting && isThrusting;
+
+    // Clamp resultant speed - Arcade Physics' setMaxVelocity caps each axis
+    // independently, not the vector length, so combining forward thrust with
+    // strafe (diagonal movement) could otherwise exceed the intended top
+    // speed by up to ~41% (sqrt(2)x on a perfect diagonal).
+    if (player.body.velocity.length() > this.params.MAX_SPEED) {
+      player.body.velocity.setLength(this.params.MAX_SPEED);
+    }
   }
 
   getBoostEnergy() {

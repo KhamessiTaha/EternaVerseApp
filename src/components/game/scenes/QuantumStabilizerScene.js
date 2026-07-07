@@ -1,19 +1,15 @@
 /**
- * Quantum Stabilizer Mini-Game Scene
+ * Stabilizer Mini-Game (generic fallback)
  *
- * A precision timing game where players must hit a moving indicator
- * within a target zone.
- *
- * Gameplay:
- * - Indicator oscillates left-right on a horizontal track
- * - Target zone is fixed at a random location
- * - Press SPACE to attempt hit when indicator is in zone
- * - Win: 5 successful hits before 3 failures
- * - Speed scales with anomaly severity
+ * A precision timing game where players must hit a moving indicator within
+ * a target zone. Used for anomaly categories that don't have a dedicated
+ * minigame yet (cosmological, structural, electromagnetic) - see
+ * InputSystem.mapAnomalyToGame for the category routing.
  */
-
 import Phaser from 'phaser';
-import MiniGameScene from './MiniGameScene.js';
+import MiniGameScene, { MG_COLORS } from './MiniGameScene.js';
+
+const THEME_COLOR = MG_COLORS.accent;
 
 export class QuantumStabilizerScene extends MiniGameScene {
   constructor() {
@@ -23,30 +19,16 @@ export class QuantumStabilizerScene extends MiniGameScene {
   init(data) {
     super.init(data);
 
-    // Game state
     this.indicatorPosition = 0;
-    this.oscillationSpeed = 0;
     this.oscillationDirection = 1;
     this.targetZoneStart = 35;
     this.targetZoneWidth = 30;
 
-    // Counters
     this.successHits = 0;
     this.failures = 0;
     this.totalAttempts = 0;
-
-    // Timing
-    this.gameStartTime = 0;
     this.hits = [];
-
-    // UI references
-    this.trackGraphics = null;
-    this.indicatorGraphics = null;
-    this.successText = null;
-    this.failureText = null;
-    this.instructionText = null;
-    this.feedbackText = null; // Single feedback text object for reuse
-    this.feedbackTimer = null; // Track feedback timeout
+    this.gameOver = false;
   }
 
   create() {
@@ -55,167 +37,60 @@ export class QuantumStabilizerScene extends MiniGameScene {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
 
-    this.gameStartTime = this.time.now;
+    const severity = this.anomaly?.severity || 2;
+    const validSeverity = Math.max(0.3, Math.min(1.0, severity / 3));
+    this.oscillationSpeed = 0.5 + validSeverity * 1.5;
 
-    // Calculate oscillation speed based on anomaly severity
-    // Severity is typically 0.3-1.0, we want decent speed variation
-    const severity = this.anomaly?.severity || 0.5;
-    
-    // Validate severity is in correct range, clamp if not
-    const validSeverity = Math.max(0.3, Math.min(1.0, severity));
-    this.oscillationSpeed = 0.5 + (validSeverity * 1.5); // Speed ranges from 0.5 to 2.0 per frame
-
-    console.log(`[QuantumStabilizer] Anomaly data:`, this.anomaly);
-    console.log(`[QuantumStabilizer] Initialized with severity: ${validSeverity.toFixed(2)}, speed: ${this.oscillationSpeed.toFixed(2)}`);
-
-    // Setup keyboard
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.attemptHit();
-    });
-
-    // Title
-    this.add.text(width / 2, 40, 'QUANTUM STABILIZER', {
-      font: 'bold 36px Courier',
-      fill: '#00ffff',
-      align: 'center'
-    }).setOrigin(0.5);
-
-    // Severity display
-    this.add.text(width / 2, 85, `Anomaly Severity: ${(severity * 100).toFixed(0)}%`, {
-      font: 'bold 16px Courier',
-      fill: '#00ccff',
-      align: 'center'
-    }).setOrigin(0.5);
-
-    // Game instructions
-    this.instructionText = this.add.text(width / 2, 130, 'Press SPACE when indicator enters target zone', {
-      font: '14px Courier',
-      fill: '#cccccc',
-      align: 'center'
-    }).setOrigin(0.5);
-
-    // Track setup
-    const trackY = height / 2;
-    const trackWidth = width - 80;
-    const trackHeight = 60;
-    const trackX = 40;
-
-    // Background track
-    const track = this.add.rectangle(
-      trackX + trackWidth / 2,
-      trackY,
-      trackWidth,
-      trackHeight,
-      0x1a1a1a
-    );
-    track.setStrokeStyle(2, 0x00ffff);
-
-    // Target zone highlight
-    const zoneX = trackX + (trackWidth * this.targetZoneStart / 100);
-    const zoneWidth = trackWidth * this.targetZoneWidth / 100;
-
-    this.add.rectangle(
-      zoneX + zoneWidth / 2,
-      trackY,
-      zoneWidth,
-      trackHeight,
-      0x00aa00,
-      0.2
+    this.createHeader(
+      'FIELD STABILIZER',
+      THEME_COLOR,
+      `Severity ${severity} · Press SPACE when the indicator enters the target zone`
     );
 
-    // Zone border
-    this.add.rectangle(
-      zoneX + zoneWidth / 2,
-      trackY,
-      zoneWidth,
-      trackHeight,
-      0xcccccc,
-      0
-    ).setStrokeStyle(2, 0x00ff00);
+    this.input.keyboard.on('keydown-SPACE', () => this.attemptHit());
 
-    // Text "TARGET ZONE"
-    this.add.text(
-      zoneX + zoneWidth / 2,
-      trackY + 40,
-      'TARGET',
-      {
-        font: 'bold 12px Courier',
-        fill: '#00ff00',
-        align: 'center'
-      }
-    ).setOrigin(0.5);
+    const trackY = height / 2 + 10;
+    const trackWidth = width - 120;
+    const trackHeight = 50;
+    const trackX = 60;
 
-    // Indicator circle
-    this.indicatorCircle = this.add.circle(
-      trackX + 10,
-      trackY,
-      15,
-      0x00ffff
-    );
+    this.add.rectangle(trackX + trackWidth / 2, trackY, trackWidth, trackHeight, MG_COLORS.voidRaised)
+      .setStrokeStyle(1, MG_COLORS.line);
 
-    // Glow effect for indicator
-    this.add.circle(
-      trackX + 10,
-      trackY,
-      20,
-      0x00ffff,
-      0.1
-    );
+    const zoneX = trackX + (trackWidth * this.targetZoneStart) / 100;
+    const zoneWidth = (trackWidth * this.targetZoneWidth) / 100;
 
-    // Store track info for hit detection
-    this.trackInfo = {
-      x: trackX,
-      y: trackY,
-      width: trackWidth,
-      height: trackHeight,
-      zoneStart: zoneX,
-      zoneWidth: zoneWidth
-    };
+    this.add.rectangle(zoneX + zoneWidth / 2, trackY, zoneWidth, trackHeight, MG_COLORS.good, 0.15)
+      .setStrokeStyle(1, MG_COLORS.good, 0.7);
 
-    // Stats display
-    const statsX = 40;
-    const statsY = height - 120;
-
-    this.add.text(statsX, statsY, 'HITS:', {
-      font: 'bold 14px Courier',
-      fill: '#00ff00'
-    });
-
-    this.successText = this.add.text(statsX + 60, statsY, '0 / 5', {
-      font: 'bold 14px Courier',
-      fill: '#00ff00'
-    });
-
-    this.add.text(statsX, statsY + 40, 'FAILURES:', {
-      font: 'bold 14px Courier',
-      fill: '#ff0000'
-    });
-
-    this.failureText = this.add.text(statsX + 100, statsY + 40, '0 / 3', {
-      font: 'bold 14px Courier',
-      fill: '#ff0000'
-    });
-
-    // Timer
-    this.timerText = this.add.text(width - 40, statsY, '0.0s', {
-      font: 'bold 14px Courier',
-      fill: '#ffff00',
-      align: 'right'
-    }).setOrigin(1, 0);
-
-    // Help text
-    this.add.text(width / 2, height - 20, 'Press ESC to abort game', {
-      font: '12px Courier',
-      fill: '#666666',
-      align: 'center'
+    this.add.text(zoneX + zoneWidth / 2, trackY + trackHeight / 2 + 16, 'TARGET', {
+      fontFamily: '"IBM Plex Mono", monospace',
+      fontSize: '10px',
+      color: '#4fd1a5',
     }).setOrigin(0.5);
+
+    this.indicatorGlow = this.add.circle(trackX + 8, trackY, 16, THEME_COLOR, 0.2).setBlendMode(Phaser.BlendModes.ADD);
+    this.indicatorCircle = this.add.circle(trackX + 8, trackY, 9, THEME_COLOR);
+
+    this.trackInfo = { x: trackX, y: trackY, width: trackWidth, zoneStart: zoneX, zoneWidth };
+
+    this.successText = this.add.text(trackX, height - 130, 'HITS 0 / 5', {
+      fontFamily: '"IBM Plex Mono", monospace',
+      fontSize: '13px',
+      color: '#4fd1a5',
+    });
+
+    this.failureText = this.add.text(trackX, height - 105, 'FAILURES 0 / 3', {
+      fontFamily: '"IBM Plex Mono", monospace',
+      fontSize: '13px',
+      color: '#e0524a',
+    });
   }
 
-  update(time, delta) {
-    // Update indicator position with direction
-    this.indicatorPosition += this.oscillationSpeed * this.oscillationDirection;
+  update() {
+    if (this.gameOver) return;
 
-    // Bounce at edges
+    this.indicatorPosition += this.oscillationSpeed * this.oscillationDirection;
     if (this.indicatorPosition >= 100) {
       this.indicatorPosition = 100;
       this.oscillationDirection = -1;
@@ -224,222 +99,76 @@ export class QuantumStabilizerScene extends MiniGameScene {
       this.oscillationDirection = 1;
     }
 
-    // Update indicator visual position
-    const newX = this.trackInfo.x + (this.trackInfo.width * this.indicatorPosition / 100);
+    const newX = this.trackInfo.x + (this.trackInfo.width * this.indicatorPosition) / 100;
     this.indicatorCircle.setX(newX);
-
-    // Update timer
-    const elapsedTime = (time - this.gameStartTime) / 1000;
-    this.timerText.setText(`${elapsedTime.toFixed(1)}s`);
-
-    // Check win/lose conditions
-    if (this.successHits >= 5) {
-      this.endGame('success');
-    } else if (this.failures >= 3) {
-      this.endGame('failed');
-    }
+    this.indicatorGlow.setX(newX);
   }
 
   attemptHit() {
+    if (this.gameOver) return;
     this.totalAttempts++;
 
-    // Check if indicator is in target zone
-    const indicatorX = this.trackInfo.x + (this.trackInfo.width * this.indicatorPosition / 100);
+    const indicatorX = this.trackInfo.x + (this.trackInfo.width * this.indicatorPosition) / 100;
     const zoneStart = this.trackInfo.zoneStart;
     const zoneEnd = this.trackInfo.zoneStart + this.trackInfo.zoneWidth;
-
     const isHit = indicatorX >= zoneStart && indicatorX <= zoneEnd;
 
-    if (isHit) {
-      this.registerHit();
-    } else {
-      this.registerMiss();
-    }
+    if (isHit) this.registerHit(indicatorX);
+    else this.registerMiss();
   }
 
-  registerHit() {
+  registerHit(indicatorX) {
     this.successHits++;
 
-    // Calculate accuracy (0-100%, where 100 is perfect center)
     const zoneCenter = this.trackInfo.zoneStart + this.trackInfo.zoneWidth / 2;
-    const indicatorX = this.trackInfo.x + (this.trackInfo.width * this.indicatorPosition / 100);
     const distanceFromCenter = Math.abs(indicatorX - zoneCenter);
     const maxDistance = this.trackInfo.zoneWidth / 2;
-    const accuracy = Math.max(0, 100 - (distanceFromCenter / maxDistance) * 100);
+    const accuracy = Math.max(0, 1 - distanceFromCenter / maxDistance);
 
-    this.hits.push({
-      attempt: this.totalAttempts,
-      success: true,
-      position: this.indicatorPosition,
-      accuracy: Math.round(accuracy)
-    });
+    this.hits.push({ success: true, accuracy });
+    this.successText.setText(`HITS ${this.successHits} / 5`);
+    this.showFeedback(`HIT ${Math.round(accuracy * 100)}%`, MG_COLORS.good);
 
-    // Update display
-    this.successText.setText(`${this.successHits} / 5`);
-
-    // Show feedback with reusable text object
-    this.showFeedback(`✓ HIT! ${Math.round(accuracy)}%`, '#00ff00');
+    if (this.successHits >= 5) this.endGame(true);
   }
 
   registerMiss() {
     this.failures++;
+    this.hits.push({ success: false, accuracy: 0 });
+    this.failureText.setText(`FAILURES ${this.failures} / 3`);
+    this.showFeedback('MISS', MG_COLORS.critical);
+    this.cameras.main.shake(100, 0.004);
 
-    this.hits.push({
-      attempt: this.totalAttempts,
-      success: false,
-      position: this.indicatorPosition
-    });
-
-    // Update display
-    this.failureText.setText(`${this.failures} / 3`);
-
-    // Show feedback with reusable text object
-    this.showFeedback('✗ MISS!', '#ff0000');
+    if (this.failures >= 3) this.endGame(false);
   }
 
-  /**
-   * Show feedback text with auto-cleanup
-   * Reuses the same text object to prevent stacking
-   */
-  showFeedback(text, color) {
-    // Cancel existing feedback timer if one is running
-    if (this.feedbackTimer) {
-      this.time.removeEvent(this.feedbackTimer);
-      this.feedbackTimer = null;
-    }
-
-    // Destroy old feedback text if it exists
-    if (this.feedbackText) {
-      this.feedbackText.destroy();
-      this.feedbackText = null;
-    }
-
-    // Create new feedback text
-    this.feedbackText = this.add.text(
-      this.cameras.main.width / 2,
-      this.cameras.main.height / 2 - 150,
-      text,
-      {
-        font: 'bold 28px Courier',
-        fill: color
-      }
-    ).setOrigin(0.5)
-      .setDepth(100);
-
-    // Schedule removal after 500ms
-    this.feedbackTimer = this.time.delayedCall(500, () => {
-      if (this.feedbackText) {
-        this.feedbackText.destroy();
-        this.feedbackText = null;
-      }
-      this.feedbackTimer = null;
-    });
-  }
-
-  endGame(status) {
-    // Disable input
+  endGame(success) {
+    if (this.gameOver) return;
+    this.gameOver = true;
+    this.input.keyboard.off('keydown-ESC');
     this.input.keyboard.off('keydown-SPACE');
 
-    // Clean up any pending feedback
-    if (this.feedbackTimer) {
-      this.time.removeEvent(this.feedbackTimer);
-      this.feedbackTimer = null;
-    }
-    if (this.feedbackText) {
-      this.feedbackText.destroy();
-      this.feedbackText = null;
-    }
+    const successfulHits = this.hits.filter((h) => h.success);
+    const avgAccuracy = successfulHits.length > 0
+      ? successfulHits.reduce((sum, h) => sum + h.accuracy, 0) / successfulHits.length
+      : 0;
+    const accuracy = Math.round(Phaser.Math.Clamp(avgAccuracy * 100, 0, 100));
+    const score = Math.max(0, Math.round(this.successHits * 100 + accuracy * 5 - this.failures * 80));
 
-    // Calculate result
-    const elapsedTime = this.time.now - this.gameStartTime;
-    const avgAccuracy = this.hits
-      .filter(h => h.success)
-      .reduce((sum, h) => sum + (h.accuracy || 0), 0) / Math.max(1, this.successHits);
-
-    // Calculate score
-    const hitBonus = this.successHits * 100;
-    const accuracyBonus = avgAccuracy * 10;
-    const failurePenalty = this.failures * 50;
-    const score = Math.max(0, hitBonus + accuracyBonus - failurePenalty);
-
-    const result = {
-      status,
-      successHits: this.successHits,
-      failures: this.failures,
-      totalAttempts: this.totalAttempts,
-      accuracy: Math.round(avgAccuracy),
-      score: Math.round(score),
-      timeTaken: Math.round(elapsedTime),
-      hits: this.hits,
-      impact: {
-        anomalyResolved: status === 'success',
-        stabilityBoost: status === 'success' ? (0.05 + (avgAccuracy / 100) * 0.08) : -0.03,
-        scoreBoost: status === 'success' ? score : 0,
-        message: status === 'success'
-          ? `✓ Perfect stabilization! +${((avgAccuracy / 100) * 8).toFixed(1)}% stability`
-          : `✗ Failed to stabilize - anomaly remains unstable`
-      }
-    };
-
-    // Show result screen
-    this.showResultScreen(result);
-  }
-
-  showResultScreen(result) {
-    const width = this.cameras.main.width;
-    const height = this.cameras.main.height;
-
-    // Semi-transparent overlay
-    this.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0, 0);
-
-    // Result title
-    const titleColor = result.status === 'success' ? '#00ff00' : '#ff0000';
-    const titleText = result.status === 'success' ? 'GAME WON!' : 'GAME OVER';
-
-    this.add.text(width / 2, height / 2 - 100, titleText, {
-      font: 'bold 48px Courier',
-      fill: titleColor,
-      align: 'center'
-    }).setOrigin(0.5);
-
-    // Stats
-    const statsY = height / 2;
-    const lineHeight = 35;
-
-    this.add.text(width / 2, statsY, `Hits: ${result.successHits} / 5`, {
-      font: 'bold 20px Courier',
-      fill: '#00ff00',
-      align: 'center'
-    }).setOrigin(0.5);
-
-    this.add.text(width / 2, statsY + lineHeight, `Failures: ${result.failures} / 3`, {
-      font: 'bold 20px Courier',
-      fill: '#ff0000',
-      align: 'center'
-    }).setOrigin(0.5);
-
-    this.add.text(width / 2, statsY + lineHeight * 2, `Accuracy: ${result.accuracy}%`, {
-      font: 'bold 20px Courier',
-      fill: '#ffff00',
-      align: 'center'
-    }).setOrigin(0.5);
-
-    this.add.text(width / 2, statsY + lineHeight * 3, `Score: ${result.score}`, {
-      font: 'bold 20px Courier',
-      fill: '#00ffff',
-      align: 'center'
-    }).setOrigin(0.5);
-
-    // Message
-    this.add.text(width / 2, statsY + lineHeight * 5, result.impact.message, {
-      font: '16px Courier',
-      fill: '#cccccc',
-      align: 'center'
-    }).setOrigin(0.5);
-
-    // Auto-complete after 3 seconds
-    this.time.delayedCall(3000, () => {
-      this.completeGame(result);
+    this.finishGame({
+      status: success ? 'success' : 'failed',
+      accuracy,
+      score,
+      themeColor: THEME_COLOR,
+      statLines: [
+        { label: 'Hits', value: `${this.successHits} / 5` },
+        { label: 'Failures', value: `${this.failures} / 3` },
+        { label: 'Accuracy', value: `${accuracy}%` },
+        { label: 'Score', value: score },
+      ],
+      flavorText: success
+        ? 'Field harmonics locked - anomaly signature neutralized.'
+        : 'Field failed to lock - anomaly signature persists.',
     });
   }
 }

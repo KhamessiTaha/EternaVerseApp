@@ -86,7 +86,7 @@ export const UniverseSceneFactory = (props) => {
       
       this.boostLight = this.lights.addLight(0, 0, 180)
         .setIntensity(0)
-        .setColor(0x4488ff);
+        .setColor(0x4fb8d4);
     }
 
     registerEvents() {
@@ -148,17 +148,21 @@ export const UniverseSceneFactory = (props) => {
 
     playAnomalyDestructionEffect(anomaly) {
       try {
-        // Get the visual anomaly from the system
-        const visualAnomaly = this.anomalySystem.backendAnomalies.get(anomaly.id);
-        
-        if (!visualAnomaly || !visualAnomaly.visual) {
+        // Backend anomalies are wrapped ({...data, visual}) in a Map keyed
+        // by id; procedural anomalies live directly inside their chunk's
+        // anomalies[] array and ARE the visual object.
+        const visual = anomaly.isBackend
+          ? this.anomalySystem.backendAnomalies.get(anomaly.id)?.visual
+          : this.anomalySystem.findProceduralAnomaly(anomaly.id, this.chunkSystem.loadedChunks);
+
+        if (!visual) {
           console.warn('⚠️ Could not find visual anomaly for destruction effect:', anomaly.id);
           return;
         }
 
         // Use location coordinates (guaranteed to exist)
-        const x = anomaly.location?.x || visualAnomaly.x;
-        const y = anomaly.location?.y || visualAnomaly.y;
+        const x = anomaly.location?.x || visual.x;
+        const y = anomaly.location?.y || visual.y;
 
         if (typeof x !== 'number' || typeof y !== 'number') {
           console.warn('⚠️ Invalid anomaly coordinates:', { x, y });
@@ -186,10 +190,13 @@ export const UniverseSceneFactory = (props) => {
         });
 
         // Destroy the visual anomaly
-        this.anomalySystem.destroyAnomalyVisual(visualAnomaly.visual);
-        
-        // Remove from backend anomalies map
-        this.anomalySystem.backendAnomalies.delete(anomaly.id);
+        this.anomalySystem.destroyAnomalyVisual(visual);
+
+        if (anomaly.isBackend) {
+          this.anomalySystem.backendAnomalies.delete(anomaly.id);
+        } else {
+          visual.resolved = true;
+        }
         this.anomalySystem.resolvedAnomalies.add(anomaly.id);
 
         // Update stats
@@ -255,9 +262,17 @@ export const UniverseSceneFactory = (props) => {
     }
 
     applyBanking(delta) {
-      const vx = this.player.body.velocity.x;
+      // Bank based on how much the ship is drifting sideways relative to its
+      // OWN facing, not raw world-space X velocity - using world-space vx
+      // meant flying diagonally (which naturally has a nonzero world vx even
+      // with zero rotation input) produced a phantom tilt unrelated to
+      // actual turning or strafing.
+      const { x: vx, y: vy } = this.player.body.velocity;
+      const forwardAngle = this.player.rotation - Math.PI / 2;
+      const rightAngle = forwardAngle + Math.PI / 2;
+      const lateralVelocity = vx * Math.cos(rightAngle) + vy * Math.sin(rightAngle);
 
-      const velocityBank = Phaser.Math.Clamp(vx / 500, -0.25, 0.25);
+      const velocityBank = Phaser.Math.Clamp(lateralVelocity / 500, -0.25, 0.25);
       const rotationBank = this.inputSystem.rotationVelocity * 2;
       const totalBank = velocityBank + rotationBank;
 

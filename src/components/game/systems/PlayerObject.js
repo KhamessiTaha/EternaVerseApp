@@ -99,11 +99,12 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
     const velocityFactor = Math.min(velocity / 600, 1);
     const particleCount = Math.floor(2 + velocityFactor * 4) * boostMultiplier;
     
-    // Colors
+    // Colors - normal thrust matches the HUD's amber accent (starlight),
+    // boost shifts to a cool cyan "overdrive" tone distinct from any UI status color
     const isBoosting = inputData.boosting;
-    const coreColor = isBoosting ? 0x88ddff : 0xffaa44;
-    const midColor = isBoosting ? 0x4488ff : 0xff8800;
-    const outerColor = isBoosting ? 0x0044aa : 0xaa4400;
+    const coreColor = isBoosting ? 0x9fe6f0 : 0xf5cf7a;
+    const midColor = isBoosting ? 0x4fb8d4 : 0xdfa73f;
+    const outerColor = isBoosting ? 0x225f75 : 0x8a5f22;
     
     // Trail spawns from back of ship
     // Ship default orientation is PI/2 (facing up)

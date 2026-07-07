@@ -42,7 +42,8 @@ export class HUD {
       velocity: this.lastVelocity,
       position: { x: this.lastX, y: this.lastY },
       boostEnergy: this.lastBoostEnergy,
-      isBoosting: this.scene.player?.isBoosting || false
+      isBoosting: this.scene.player?.isBoosting || false,
+      boostLocked: this.scene.player?.boostLocked || false
     };
   }
 

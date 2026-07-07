@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import { UniverseSceneFactory } from "./game/scenes/UniverseScene";
 import { QuantumStabilizerScene } from "./game/scenes/QuantumStabilizerScene";
+import { GravityWellScene } from "./game/scenes/GravityWellScene";
+import { CascadeReactionScene } from "./game/scenes/CascadeReactionScene";
+import { WaveformCollapseScene } from "./game/scenes/WaveformCollapseScene";
+import { ExpansionContainmentScene } from "./game/scenes/ExpansionContainmentScene";
+import { StructuralRealignmentScene } from "./game/scenes/StructuralRealignmentScene";
+import { PolarityBalanceScene } from "./game/scenes/PolarityBalanceScene";
 import { PrimaryInstrument, Console, ControlsHint } from "./game/ui/Panels";
 import { HUDPanel } from "./game/ui/HUDPanel";
 import { MinimapPanel } from "./game/ui/MinimapPanel";
@@ -78,7 +84,16 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         height: "100%",
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
-      scene: [SceneClass, QuantumStabilizerScene]
+      scene: [
+        SceneClass,
+        QuantumStabilizerScene,
+        GravityWellScene,
+        CascadeReactionScene,
+        WaveformCollapseScene,
+        ExpansionContainmentScene,
+        StructuralRealignmentScene,
+        PolarityBalanceScene,
+      ]
     };
 
     if (!gameRef.current) {
