@@ -2,6 +2,7 @@ import { useParams } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import PhaserGame from "../components/PhaserGame";
+import { getGradeForAccuracy } from "../components/game/utils";
 
 
 const API_BASE = `${import.meta.env.VITE_API_URL}/universe`;
@@ -87,7 +88,7 @@ const GameplayPage = () => {
       if (isBackendAnomaly) {
         // Sync with backend for physics-based anomalies
         const token = localStorage.getItem("token");
-        const payload = { anomalyId: anomaly.id };
+        const payload = { anomalyId: anomaly.id, accuracy: anomaly.gameResult?.accuracy };
 
         console.log(`📤 Sending to backend: POST ${API_BASE}/${id}/resolve-anomaly`);
         console.log(`   Payload:`, payload);
@@ -135,15 +136,19 @@ const GameplayPage = () => {
           }
         }
       } else {
-        // Procedural anomaly - update locally with small boost
+        // Procedural anomaly - update locally, scaled by minigame performance
+        // (same grade-tier multiplier the backend applies to real anomalies)
         resolvedAnomaliesRef.current.add(anomaly.id);
         console.log(`✅ Procedural anomaly resolved locally`);
+
+        const multiplier = getGradeForAccuracy(anomaly.gameResult?.accuracy ?? 70).stabilityMultiplier;
+        const boost = 0.005 * multiplier;
 
         setUniverse(prev => ({
           ...prev,
           currentState: {
             ...prev.currentState,
-            stabilityIndex: Math.min(1, (prev.currentState.stabilityIndex || 1) + 0.005)
+            stabilityIndex: Math.min(1, (prev.currentState.stabilityIndex || 1) + boost)
           },
           metrics: {
             ...prev.metrics,

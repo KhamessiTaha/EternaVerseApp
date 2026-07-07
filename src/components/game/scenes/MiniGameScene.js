@@ -7,6 +7,7 @@
  * so individual games only need to implement their core mechanic.
  */
 import Phaser from 'phaser';
+import { getGradeForAccuracy } from '../utils';
 
 // Shared observatory palette - keep in sync with tailwind.config.js tokens
 export const MG_COLORS = {
@@ -23,13 +24,16 @@ export const MG_COLORS = {
   critical: 0xe0524a,
 };
 
-const GRADE_TIERS = [
-  { min: 95, grade: 'S', color: MG_COLORS.accent, stabilityMultiplier: 1.3 },
-  { min: 85, grade: 'A', color: MG_COLORS.good, stabilityMultiplier: 1.15 },
-  { min: 70, grade: 'B', color: 0x4ec9e0, stabilityMultiplier: 1.0 },
-  { min: 50, grade: 'C', color: MG_COLORS.warn, stabilityMultiplier: 0.85 },
-  { min: 0, grade: 'F', color: MG_COLORS.critical, stabilityMultiplier: 0 },
-];
+// Presentation-only: accuracy -> multiplier lives in game/utils.js (the
+// shared source of truth also used by GameplayPage/backend); this just maps
+// each grade letter to a display color.
+const GRADE_DISPLAY_COLOR = {
+  S: MG_COLORS.accent,
+  A: MG_COLORS.good,
+  B: 0x4ec9e0,
+  C: MG_COLORS.warn,
+  F: MG_COLORS.critical,
+};
 
 const hexColor = (num) => `#${num.toString(16).padStart(6, '0')}`;
 
@@ -68,10 +72,12 @@ export class MiniGameScene extends Phaser.Scene {
   }
 
   /**
-   * Grade a 0-100 accuracy/performance score into an S-F tier.
+   * Grade a 0-100 accuracy/performance score into an S-F tier (thresholds
+   * and stabilityMultiplier come from the shared GRADE_TIERS in game/utils.js).
    */
   getGrade(accuracy) {
-    return GRADE_TIERS.find((t) => accuracy >= t.min) || GRADE_TIERS[GRADE_TIERS.length - 1];
+    const tier = getGradeForAccuracy(accuracy);
+    return { ...tier, color: GRADE_DISPLAY_COLOR[tier.grade] };
   }
 
   /**
@@ -161,7 +167,7 @@ export class MiniGameScene extends Phaser.Scene {
    * from grade + status, then hands off to the base MiniGame lifecycle.
    */
   finishGame(result) {
-    const grade = result.status === 'success' ? this.getGrade(result.accuracy) : GRADE_TIERS[GRADE_TIERS.length - 1];
+    const grade = result.status === 'success' ? this.getGrade(result.accuracy) : this.getGrade(0);
 
     const baseBoost = 0.05 + (result.accuracy / 100) * 0.08;
     const stabilityBoost = result.status === 'success' ? baseBoost * grade.stabilityMultiplier : -0.03;

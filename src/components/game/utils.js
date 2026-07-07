@@ -32,3 +32,18 @@ export const decayByDelta = (currentValue, perFrameDecayFactor, delta) =>
 // For Phaser.Math.Linear(current, target, t) calls where t was tuned per-frame.
 export const lerpFactorByDelta = (perFrameLerpFactor, delta) =>
   1 - Math.pow(1 - perFrameLerpFactor, delta / REF_FRAME_MS);
+
+// Minigame performance grading - single source of truth for accuracy -> grade
+// -> reward-multiplier, shared by MiniGameScene (display) and GameplayPage
+// (what actually gets sent to the backend / applied to procedural anomalies)
+// so a grade always means the same reward regardless of where it's computed.
+export const GRADE_TIERS = [
+  { min: 95, grade: 'S', stabilityMultiplier: 1.3 },
+  { min: 85, grade: 'A', stabilityMultiplier: 1.15 },
+  { min: 70, grade: 'B', stabilityMultiplier: 1.0 },
+  { min: 50, grade: 'C', stabilityMultiplier: 0.85 },
+  { min: 0, grade: 'F', stabilityMultiplier: 0 },
+];
+
+export const getGradeForAccuracy = (accuracy) =>
+  GRADE_TIERS.find((t) => accuracy >= t.min) || GRADE_TIERS[GRADE_TIERS.length - 1];
