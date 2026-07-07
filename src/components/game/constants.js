@@ -1,6 +1,6 @@
 export const CHUNK_SIZE = 1000;
 export const UNIVERSE_SIZE = 100000;
-export const MINIMAP_SIZE = 150;
+export const MINIMAP_SIZE = 96;
 export const ANOMALIES_PER_CHUNK = 2;
 export const ANOMALY_SPAWN_CHANCE = 0.3;
 export const CHUNK_UNLOAD_RADIUS = 3;

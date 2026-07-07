@@ -12,6 +12,11 @@ const GameplayPage = () => {
   const [error, setError] = useState(null);
   const [lastSimulation, setLastSimulation] = useState(Date.now());
   const simulationInProgress = useRef(false);
+  const playerPositionRef = useRef({ x: 0, y: 0 });
+
+  const handlePlayerPositionUpdate = (position) => {
+    playerPositionRef.current = position;
+  };
 
   // Initial universe fetch
   useEffect(() => {
@@ -171,7 +176,7 @@ const GameplayPage = () => {
         
         const res = await axios.post(
           `${API_BASE}/${id}/simulate`,
-          { steps: 1 },
+          { playerPosition: playerPositionRef.current },
           {
             headers: { 
               Authorization: token,
@@ -362,6 +367,7 @@ const GameplayPage = () => {
     <PhaserGame
       universe={universe}
       onAnomalyResolved={handleAnomalyResolved}
+      onPlayerPositionUpdate={handlePlayerPositionUpdate}
     />
   );
 };

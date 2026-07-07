@@ -17,7 +17,7 @@ export class MinimapSystem {
         },
         loadedChunks: this.formatLoadedChunks(loadedChunks),
         anomalies: this.formatAnomalies(loadedChunks, backendAnomalies),
-        size: 200
+        size: 96
       });
     }
   }

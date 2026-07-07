@@ -1,22 +1,36 @@
-export const getStabilityStatus = (universe) => {
-  const stability = universe?.currentState?.stabilityIndex || 1;
-  if (stability > 0.8) return { text: 'Excellent', color: 'text-green-400', icon: '✓' };
-  if (stability > 0.6) return { text: 'Good', color: 'text-lime-400', icon: '○' };
-  if (stability > 0.4) return { text: 'Fair', color: 'text-yellow-400', icon: '△' };
-  if (stability > 0.2) return { text: 'Poor', color: 'text-orange-400', icon: '!' };
-  return { text: 'Critical', color: 'text-red-400', icon: '⚠' };
+export const getStabilityColorKey = (universe) => {
+  const stability = universe?.currentState?.stabilityIndex ?? 1;
+  if (stability > 0.6) return 'accent';
+  if (stability > 0.3) return 'warn';
+  return 'critical';
 };
 
-export const getCosmicPhase = (universe) => {
-  const phase = universe?.currentState?.cosmicPhase || 'unknown';
+export const getStabilityLabel = (universe) => {
+  const stability = universe?.currentState?.stabilityIndex ?? 1;
+  if (stability > 0.8) return 'Excellent';
+  if (stability > 0.6) return 'Good';
+  if (stability > 0.4) return 'Fair';
+  if (stability > 0.2) return 'Poor';
+  return 'Critical';
+};
+
+export const getCosmicPhaseLabel = (phase) => {
   const phases = {
-    dark_ages: { text: 'Dark Ages', icon: '🌑' },
-    reionization: { text: 'Reionization', icon: '🌓' },
-    galaxy_formation: { text: 'Galaxy Formation', icon: '🌌' },
-    stellar_peak: { text: 'Stellar Peak', icon: '⭐' },
-    gradual_decline: { text: 'Gradual Decline', icon: '🌅' },
-    twilight_era: { text: 'Twilight Era', icon: '🌆' },
-    degenerate_era: { text: 'Degenerate Era', icon: '🌃' }
+    dark_ages: 'Dark Ages',
+    reionization: 'Reionization',
+    galaxy_formation: 'Galaxy Formation',
+    stellar_peak: 'Stellar Peak',
+    gradual_decline: 'Gradual Decline',
+    twilight_era: 'Twilight Era',
+    degenerate_era: 'Degenerate Era',
   };
-  return phases[phase] || { text: phase, icon: '❓' };
+  return phases[phase] || phase || 'Unknown';
+};
+
+export const formatTrend = (trend) => {
+  if (!trend || Math.abs(trend) < 0.01) return '→ stable';
+  if (trend > 0.05) return '↑ improving rapidly';
+  if (trend > 0.01) return '↑ improving';
+  if (trend > -0.05) return '↓ declining';
+  return '↓ declining rapidly';
 };

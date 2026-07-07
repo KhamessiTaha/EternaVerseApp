@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import { UniverseSceneFactory } from "./game/scenes/UniverseScene";
 import { QuantumStabilizerScene } from "./game/scenes/QuantumStabilizerScene";
-import { UniversePanel, StructuresPanel, LifePanel, MissionPanel, ControlsPanel } from "./game/ui/Panels";
+import { PrimaryInstrument, Console, ControlsHint } from "./game/ui/Panels";
 import { HUDPanel } from "./game/ui/HUDPanel";
 import { MinimapPanel } from "./game/ui/MinimapPanel";
 import { FullMapPanel } from "./game/ui/FullMapPanel";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate }) => {
   const gameRef = useRef(null);
   const sceneRef = useRef(null);
   const [stats, setStats] = useState({ resolved: 0, discovered: 0 });
@@ -15,22 +15,13 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
   const [minimapData, setMinimapData] = useState(null);
   const [fullMapData, setFullMapData] = useState(null);
   const [isFullMapOpen, setIsFullMapOpen] = useState(false);
-  const [expandedPanels, setExpandedPanels] = useState({
-    hud: true,
-    universe: true,
-    structures: true,
-    life: true,
-    mission: true,
-    controls: true
-  });
-
-  const togglePanel = (panel) => {
-    setExpandedPanels(prev => ({ ...prev, [panel]: !prev[panel] }));
-  };
 
   // HUD update callback
   const handleHUDUpdate = (data) => {
     setHudData(data);
+    if (data?.position) {
+      onPlayerPositionUpdate?.(data.position);
+    }
   };
 
   // Minimap update callback
@@ -128,62 +119,34 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate }) => {
   }, [universe?.anomalies, universe?.currentState]);
 
   return (
-    <div className="w-full h-full bg-black relative overflow-hidden">
-      {/* Status Panels - Top Left */}
-      <div className="absolute top-4 left-4 z-10 text-white text-sm max-w-xs">
-        <UniversePanel 
-          universe={universe} 
-          expanded={expandedPanels.universe} 
-          onToggle={() => togglePanel('universe')} 
-        />
-        
-        <StructuresPanel 
-          universe={universe} 
-          expanded={expandedPanels.structures} 
-          onToggle={() => togglePanel('structures')} 
-        />
-        
-        <LifePanel 
-          universe={universe} 
-          expanded={expandedPanels.life} 
-          onToggle={() => togglePanel('life')} 
-        />
-        
-        <MissionPanel 
-          stats={stats} 
-          universe={universe} 
-          expanded={expandedPanels.mission} 
-          onToggle={() => togglePanel('mission')} 
-        />
+    <div className="w-full h-full bg-void relative overflow-hidden">
+      {/* Primary instrument - top left */}
+      <div className="absolute top-5 left-5 z-10">
+        <PrimaryInstrument universe={universe} />
       </div>
 
-      {/* Minimap - Top Right */}
-      <div className="absolute top-4 right-4 z-10">
-        <MinimapPanel 
-          minimapData={minimapData}
-          onMapToggle={handleMapToggle}
-        />
+      {/* Radar - top right */}
+      <div className="absolute top-5 right-5 z-10">
+        <MinimapPanel minimapData={minimapData} onMapToggle={handleMapToggle} />
       </div>
 
-      {/* HUD Panel - Bottom Center (Dashboard) */}
-      <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 z-10 text-white">
-        <HUDPanel 
-          hudData={hudData}
-          expanded={expandedPanels.hud} 
-          onToggle={() => togglePanel('hud')} 
-        />
+      {/* Console - below radar, right */}
+      <div className="absolute top-[172px] right-5 z-10">
+        <Console universe={universe} stats={stats} />
       </div>
 
-      {/* Controls Panel - Bottom Right */}
-      <div className="absolute bottom-4 right-4 z-10 text-white">
-        <ControlsPanel 
-          expanded={expandedPanels.controls} 
-          onToggle={() => togglePanel('controls')} 
-        />
+      {/* Telemetry bar - bottom center */}
+      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10">
+        <HUDPanel hudData={hudData} />
+      </div>
+
+      {/* Controls hint - bottom right */}
+      <div className="absolute bottom-5 right-5 z-10">
+        <ControlsHint />
       </div>
 
       {/* Full Map Overlay */}
-      <FullMapPanel 
+      <FullMapPanel
         isOpen={isFullMapOpen}
         onClose={handleMapToggle}
         fullMapData={fullMapData}

@@ -2,5 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    @apply bg-void text-ink font-sans;
+  }
+}
+
 
 

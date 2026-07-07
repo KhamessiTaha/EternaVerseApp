@@ -7,7 +7,6 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import UniverseCreation from "./pages/UniverseCreation";
-import SimulationDashboard from "./pages/SimulationDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import BigBangPage from "./pages/BigBangPage";
 import GameplayPage from "./pages/GameplayPage";
@@ -53,14 +52,6 @@ function App() {
               element={
                 <ProtectedRoute>
                   <UniverseCreation />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/simulation-dashboard/:id"
-              element={
-                <ProtectedRoute>
-                  <SimulationDashboard />
                 </ProtectedRoute>
               }
             />

@@ -1,140 +1,141 @@
 import { useEffect, useRef } from 'react';
 
+const VOID_RAISED = '#0c0f1c';
+const LINE = '#1e2540';
+const ACCENT = '#dfa73f';
+const WARN = '#e0824a';
+const GOOD = '#4fd1a5';
+const INK_FAINT = '#565a72';
+
 export const MinimapPanel = ({ minimapData, onMapToggle }) => {
   const canvasRef = useRef(null);
-  
+
   useEffect(() => {
     if (!minimapData || !canvasRef.current) return;
-    
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     const { player, currentChunk, loadedChunks, anomalies, size = 200 } = minimapData;
-    
-    // Clear canvas
-    ctx.fillStyle = '#000000';
+    const radius = size / 2;
+
+    ctx.clearRect(0, 0, size, size);
+
+    // Clip to circle so everything below reads as a scope, not a square
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(radius, radius, radius - 1, 0, Math.PI * 2);
+    ctx.clip();
+
+    ctx.fillStyle = VOID_RAISED;
     ctx.fillRect(0, 0, size, size);
-    
+
     const CHUNK_SIZE = 2000;
-    const scale = size / (CHUNK_SIZE * 3); // Show 3x3 chunks
-    const centerX = size / 2;
-    const centerY = size / 2;
-    
-    // Draw loaded chunks
+    const scale = size / (CHUNK_SIZE * 3);
+    const centerX = radius;
+    const centerY = radius;
+
     if (loadedChunks) {
-      Object.values(loadedChunks).forEach(chunk => {
+      Object.values(loadedChunks).forEach((chunk) => {
         const chunkOffsetX = (chunk.chunkX - currentChunk.chunkX) * CHUNK_SIZE;
         const chunkOffsetY = (chunk.chunkY - currentChunk.chunkY) * CHUNK_SIZE;
-        
         const x = centerX + chunkOffsetX * scale;
         const y = centerY + chunkOffsetY * scale;
         const w = CHUNK_SIZE * scale;
-        
-        // Draw chunk outline
-        ctx.strokeStyle = '#1a3a3a';
+
+        ctx.strokeStyle = LINE;
         ctx.lineWidth = 1;
         ctx.strokeRect(x, y, w, w);
-        
-        // Draw stars in chunk
+
         if (chunk.stars) {
-          chunk.stars.forEach(star => {
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = '#e9e7f2';
+          chunk.stars.forEach((star) => {
             const starX = x + (star.x % CHUNK_SIZE) * scale;
             const starY = y + (star.y % CHUNK_SIZE) * scale;
-            
-            ctx.fillStyle = star.color || '#ffffff';
-            ctx.globalAlpha = 0.6;
             ctx.fillRect(starX, starY, 1, 1);
           });
           ctx.globalAlpha = 1;
         }
       });
     }
-    
-    // Draw anomalies
+
     if (anomalies) {
-      anomalies.forEach(anomaly => {
-        const anomalyOffsetX = anomaly.x - player.x;
-        const anomalyOffsetY = anomaly.y - player.y;
-        
-        const ax = centerX + anomalyOffsetX * scale;
-        const ay = centerY + anomalyOffsetY * scale;
-        
-        // Check if anomaly is in view
-        if (ax >= 0 && ax <= size && ay >= 0 && ay <= size) {
-          ctx.fillStyle = anomaly.isBackend ? '#ffff00' : '#ff6600';
+      anomalies.forEach((anomaly) => {
+        const ax = centerX + (anomaly.x - player.x) * scale;
+        const ay = centerY + (anomaly.y - player.y) * scale;
+        if (ax < 0 || ax > size || ay < 0 || ay > size) return;
+
+        ctx.fillStyle = anomaly.isBackend ? WARN : INK_FAINT;
+        ctx.beginPath();
+        ctx.arc(ax, ay, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (anomaly.isBackend) {
+          ctx.strokeStyle = WARN;
+          ctx.lineWidth = 1;
+          ctx.globalAlpha = 0.5;
           ctx.beginPath();
-          ctx.arc(ax, ay, 3, 0, Math.PI * 2);
-          ctx.fill();
-          
-          // Glow effect for backend anomalies
-          if (anomaly.isBackend) {
-            ctx.strokeStyle = '#ffff00';
-            ctx.lineWidth = 2;
-            ctx.globalAlpha = 0.5;
-            ctx.beginPath();
-            ctx.arc(ax, ay, 5, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.globalAlpha = 1;
-          }
+          ctx.arc(ax, ay, 4.5, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
         }
       });
     }
-    
-    // Draw player
+
+    // Radial sweep grid lines
+    ctx.strokeStyle = LINE;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(centerX, radius * 0.15);
+    ctx.lineTo(centerX, radius * 1.85);
+    ctx.moveTo(radius * 0.15, centerY);
+    ctx.lineTo(radius * 1.85, centerY);
+    ctx.stroke();
+
     if (player) {
       ctx.save();
       ctx.translate(centerX, centerY);
       ctx.rotate(player.rotation || 0);
-      
-      // Player ship triangle
-      ctx.fillStyle = '#00ff00';
+      ctx.fillStyle = GOOD;
       ctx.beginPath();
-      ctx.moveTo(0, -6);
-      ctx.lineTo(-4, 4);
-      ctx.lineTo(4, 4);
+      ctx.moveTo(0, -5);
+      ctx.lineTo(-3.5, 3.5);
+      ctx.lineTo(3.5, 3.5);
       ctx.closePath();
       ctx.fill();
-      
       ctx.restore();
     }
-    
-    // Draw border
-    ctx.strokeStyle = '#00ffff';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, size, size);
-    
+
+    ctx.restore();
+
+    ctx.strokeStyle = '#2c3560';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(radius, radius, radius - 1, 0, Math.PI * 2);
+    ctx.stroke();
   }, [minimapData]);
-  
+
   if (!minimapData) return null;
-  
-  const size = minimapData.size || 200;
-  
+
+  const size = minimapData.size || 96;
+  const activeBackend = (minimapData.anomalies || []).filter((a) => a.isBackend).length;
+
   return (
-    <div className="bg-black/90 rounded-lg border-2 border-cyan-500/60 shadow-lg shadow-cyan-500/30 p-2 backdrop-blur-sm">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-cyan-400 font-bold text-xs tracking-wider">🗺️ RADAR</span>
-        <button
-          onClick={onMapToggle}
-          className="text-[10px] text-yellow-400 hover:text-yellow-300 transition-colors px-2 py-1 bg-black/50 rounded border border-yellow-600/30 hover:border-yellow-400/50"
-        >
-          M = FULL MAP
-        </button>
+    <div className="pointer-events-auto flex flex-col items-center">
+      <div className="relative">
+        <canvas ref={canvasRef} width={size} height={size} className="rounded-full" />
+        {activeBackend > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-warn text-void text-[9px] font-mono font-semibold flex items-center justify-center">
+            {activeBackend}
+          </span>
+        )}
       </div>
-      <canvas 
-        ref={canvasRef}
-        width={size}
-        height={size}
-        className="w-full h-auto"
-      />
-      <div className="mt-2 text-[9px] text-gray-400 space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 bg-yellow-400 rounded-full border border-yellow-600"></span>
-          <span>Backend Anomaly</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 bg-orange-500 rounded-full"></span>
-          <span>Procedural Anomaly</span>
-        </div>
-      </div>
+      <button
+        onClick={onMapToggle}
+        className="mt-2 text-[9px] tracking-wider uppercase text-ink-faint hover:text-accent transition-colors font-mono"
+      >
+        Scope · [M] Full Map
+      </button>
     </div>
   );
 };
