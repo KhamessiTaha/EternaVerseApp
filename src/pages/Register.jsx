@@ -1,18 +1,9 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import {
-  User,
-  Mail,
-  Lock,
-  AlertCircle,
-  Loader2,
-  Sparkles,
-  CheckCircle,
-} from "lucide-react";
+import { User, Mail, Lock, AlertCircle, Loader2, CheckCircle } from "lucide-react";
+import { Button, Panel, Field, Eyebrow, Alert } from "../components/ui/primitives";
 
-// ✅ Vite environment variable
 const API_BASE = import.meta.env.VITE_API_URL;
 
 const Register = () => {
@@ -26,11 +17,10 @@ const Register = () => {
 
   const passwordStrength = () => {
     const length = password.length;
-    if (length === 0) return { strength: 0, label: "", color: "bg-gray-700" };
-    if (length < 6) return { strength: 33, label: "Weak", color: "bg-red-500" };
-    if (length < 10)
-      return { strength: 66, label: "Medium", color: "bg-yellow-500" };
-    return { strength: 100, label: "Strong", color: "bg-green-500" };
+    if (length === 0) return { strength: 0, label: "", color: "bg-line" };
+    if (length < 6) return { strength: 33, label: "Weak", color: "bg-critical", textColor: "text-critical" };
+    if (length < 10) return { strength: 66, label: "Medium", color: "bg-warn", textColor: "text-warn" };
+    return { strength: 100, label: "Strong", color: "bg-good", textColor: "text-good" };
   };
 
   const handleRegister = async (e) => {
@@ -39,18 +29,10 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      await axios.post(`${API_BASE}/auth/register`, {
-        username,
-        email,
-        password,
-      });
-
+      await axios.post(`${API_BASE}/auth/register`, { username, email, password });
       navigate("/login");
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Registration failed. Please try again."
-      );
+      setError(err.response?.data?.message || "Registration failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -59,157 +41,89 @@ const Register = () => {
   const strength = passwordStrength();
 
   return (
-    <div className="relative min-h-screen bg-black text-white overflow-hidden flex items-center justify-center px-4">
-
-      {/* Animated Background */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-green-500/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="relative w-full max-w-md"
-      >
-        <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800 rounded-2xl shadow-2xl p-8">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl mb-4"
-            >
-              <Sparkles className="w-8 h-8" />
-            </motion.div>
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-              Create Account
-            </h2>
-            <p className="text-gray-400 mt-2">
-              Begin your journey as a cosmic architect
-            </p>
+    <div className="min-h-screen bg-void text-ink flex items-center justify-center px-4">
+      <div className="relative w-full max-w-md">
+        <Panel className="p-8">
+          <div className="mb-8">
+            <Eyebrow>Registration</Eyebrow>
+            <h2 className="font-sans text-2xl font-semibold text-ink mt-2">Create account</h2>
+            <p className="text-ink-dim text-sm mt-1">Begin your journey as a cosmic architect</p>
           </div>
 
-          {/* Error */}
           {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg flex gap-2"
-            >
-              <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
-              <p className="text-sm text-red-400">{error}</p>
-            </motion.div>
+            <div className="mb-6">
+              <Alert variant="critical">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <p>{error}</p>
+              </Alert>
+            </div>
           )}
 
-          {/* Form */}
           <form onSubmit={handleRegister} className="space-y-5">
-            {/* Username */}
-            <div>
-              <label className="block text-sm text-gray-300 mb-2">
-                Username
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  className="w-full pl-11 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
+            <Field
+              label="Username"
+              icon={User}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm text-gray-300 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="email"
-                  className="w-full pl-11 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
+            <Field
+              label="Email Address"
+              icon={Mail}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
 
-            {/* Password */}
             <div>
-              <label className="block text-sm text-gray-300 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="password"
-                  className="w-full pl-11 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
+              <Field
+                label="Password"
+                icon={Lock}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
 
               {password && (
-                <div className="mt-2">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-400">Password Strength</span>
-                    <span
-                      className={
-                        strength.strength === 100
-                          ? "text-green-400"
-                          : strength.strength === 66
-                          ? "text-yellow-400"
-                          : "text-red-400"
-                      }
-                    >
-                      {strength.label}
-                    </span>
+                <div className="mt-2.5">
+                  <div className="flex justify-between text-[11px] font-mono mb-1.5">
+                    <span className="text-ink-faint uppercase tracking-wider">Password Strength</span>
+                    <span className={strength.textColor}>{strength.label}</span>
                   </div>
-                  <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${strength.strength}%` }}
-                      className={`h-full ${strength.color}`}
+                  <div className="h-[3px] bg-line overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${strength.color}`}
+                      style={{ width: `${strength.strength}%` }}
                     />
                   </div>
                 </div>
               )}
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg font-semibold flex items-center justify-center gap-2"
-            >
+            <Button type="submit" disabled={isLoading} className="w-full">
               {isLoading ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   Creating Account...
                 </>
               ) : (
                 <>
-                  <CheckCircle className="w-5 h-5" />
+                  <CheckCircle className="w-4 h-4" />
                   Create Account
                 </>
               )}
-            </button>
+            </Button>
           </form>
 
-          <button
-            onClick={() => navigate("/login")}
-            className="w-full mt-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg font-semibold"
-          >
+          <Button variant="secondary" className="w-full mt-6" onClick={() => navigate("/login")}>
             Sign In
-          </button>
-        </div>
-      </motion.div>
+          </Button>
+        </Panel>
+      </div>
     </div>
   );
 };

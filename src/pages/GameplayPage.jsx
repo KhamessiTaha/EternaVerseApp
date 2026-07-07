@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import PhaserGame from "../components/PhaserGame";
 import { getGradeForAccuracy } from "../components/game/utils";
+import { Button, Eyebrow } from "../components/ui/primitives";
 
 
 const API_BASE = `${import.meta.env.VITE_API_URL}/universe`;
@@ -281,22 +282,14 @@ const GameplayPage = () => {
 
   if (error) {
     return (
-      <div className="w-full h-full bg-black flex items-center justify-center">
+      <div className="w-full h-full bg-void flex items-center justify-center">
         <div className="text-center max-w-md px-4">
-          <div className="text-red-500 text-xl mb-4">⚠️ {error}</div>
-          <div className="space-x-4">
-            <button 
-              onClick={() => window.location.reload()}
-              className="px-6 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition"
-            >
-              Retry
-            </button>
-            <button 
-              onClick={() => window.location.href = '/dashboard'}
-              className="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded transition"
-            >
+          <div className="text-critical text-lg font-mono mb-6">{error}</div>
+          <div className="flex justify-center gap-3">
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+            <Button variant="secondary" onClick={() => window.location.href = '/dashboard'}>
               Dashboard
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -305,13 +298,13 @@ const GameplayPage = () => {
 
   if (!universe) {
     return (
-      <div className="w-full h-full bg-black flex items-center justify-center">
+      <div className="w-full h-full bg-void flex items-center justify-center">
         <div className="text-center">
-          <div className="text-cyan-400 text-2xl mb-4 animate-pulse">
-            🌌 Loading Universe...
+          <div className="text-accent text-lg font-mono tracking-wide mb-3 animate-pulse">
+            LOADING UNIVERSE
           </div>
-          <div className="text-gray-400 text-sm">
-            Initializing cosmic simulation
+          <div className="text-ink-faint text-sm font-mono">
+            Initializing cosmic simulation...
           </div>
         </div>
       </div>
@@ -320,49 +313,37 @@ const GameplayPage = () => {
 
   if (universe.status === 'ended') {
     return (
-      <div className="w-full h-full bg-black flex items-center justify-center">
+      <div className="w-full h-full bg-void flex items-center justify-center">
         <div className="text-center max-w-md px-4">
-          <div className="text-red-400 text-3xl mb-4">🌑 Universe Ended</div>
-          <div className="text-gray-300 mb-6">
-            End Condition: <span className="text-yellow-400 capitalize">
-              {universe.endCondition?.replace(/-/g, ' ') || 'Unknown'}
-            </span>
+          <Eyebrow className="justify-center flex mb-3 text-critical">Universe Ended</Eyebrow>
+          <div className="text-ink-dim mb-8 font-mono text-sm capitalize">
+            {universe.endCondition?.replace(/-/g, ' ') || 'Unknown end condition'}
           </div>
-          <div className="space-y-3 mb-6">
-            <div className="text-sm text-gray-400">
-              Final Age: <span className="text-cyan-400">
-                {(universe.currentState?.age / 1e9).toFixed(2)} Gyr
+          <div className="space-y-2.5 mb-8 font-mono text-sm text-left border border-line bg-void-raised p-5">
+            <div className="flex justify-between">
+              <span className="text-ink-faint">Final Age</span>
+              <span className="text-ink tabular-nums">{(universe.currentState?.age / 1e9).toFixed(2)} Gyr</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-ink-faint">Galaxies</span>
+              <span className="text-ink tabular-nums">{universe.currentState?.galaxyCount?.toLocaleString() || 0}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-ink-faint">Stars</span>
+              <span className="text-ink tabular-nums">
+                {universe.currentState?.starCount ? (universe.currentState.starCount / 1e9).toFixed(2) + ' Billion' : '0'}
               </span>
             </div>
-            <div className="text-sm text-gray-400">
-              Galaxies: <span className="text-yellow-400">
-                {universe.currentState?.galaxyCount?.toLocaleString() || 0}
-              </span>
+            <div className="flex justify-between">
+              <span className="text-ink-faint">Player Interventions</span>
+              <span className="text-good tabular-nums">{universe.metrics?.playerInterventions || 0}</span>
             </div>
-            <div className="text-sm text-gray-400">
-              Stars: <span className="text-blue-400">
-                {universe.currentState?.starCount 
-                  ? (universe.currentState.starCount / 1e9).toFixed(2) + ' Billion'
-                  : '0'}
-              </span>
-            </div>
-            <div className="text-sm text-gray-400">
-              Player Interventions: <span className="text-green-400">
-                {universe.metrics?.playerInterventions || 0}
-              </span>
-            </div>
-            <div className="text-sm text-gray-400">
-              Anomalies Resolved: <span className="text-purple-400">
-                {universe.anomalies?.filter(a => a.resolved).length || 0}
-              </span>
+            <div className="flex justify-between">
+              <span className="text-ink-faint">Anomalies Resolved</span>
+              <span className="text-accent tabular-nums">{universe.anomalies?.filter(a => a.resolved).length || 0}</span>
             </div>
           </div>
-          <button 
-            onClick={() => window.location.href = '/dashboard'}
-            className="px-6 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition"
-          >
-            Return to Dashboard
-          </button>
+          <Button onClick={() => window.location.href = '/dashboard'}>Return to Dashboard</Button>
         </div>
       </div>
     );

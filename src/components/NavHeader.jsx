@@ -1,14 +1,14 @@
 import { useContext, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
-import { LogOut, Home, LayoutDashboard, User, Sparkles } from "lucide-react";
+import { LogOut, Home, LayoutDashboard, User } from "lucide-react";
+import { Button } from "./ui/primitives";
 
 const NavHeader = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Listen for token expiration event
   useEffect(() => {
     const handleTokenExpired = () => {
       navigate("/login");
@@ -20,28 +20,10 @@ const NavHeader = () => {
 
   const navItems = [
     { path: "/", label: "Home", icon: Home, showAlways: true },
-    {
-      path: "/dashboard",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-      showWhenLoggedIn: true,
-    },
+    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, showWhenLoggedIn: true },
   ];
 
-  const handleNavigation = (path) => {
-    navigate(path);
-  };
-
-  const isActive = (path) => {
-    if (path === "/") {
-      return location.pathname === "/";
-    }
-    return location.pathname.startsWith(path);
-  };
-
-  const handleLogin = () => {
-    navigate("/login");
-  };
+  const isActive = (path) => (path === "/" ? location.pathname === "/" : location.pathname.startsWith(path));
 
   const handleLogout = () => {
     logout();
@@ -49,25 +31,19 @@ const NavHeader = () => {
   };
 
   return (
-    <header className="bg-gray-900/95 backdrop-blur-md shadow-lg border-b border-gray-700">
+    <header className="bg-void-raised/90 backdrop-blur-md border-b border-line">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Left: Brand */}
           <div
             onClick={() => navigate("/")}
-            className="flex items-center gap-2 cursor-pointer group"
+            className="flex items-center gap-2.5 cursor-pointer group"
           >
-            <img
-              src="/vite.svg"
-              alt="EternaVerse Logo"
-              className="w-8 h-8 group-hover:scale-110 transition-transform"
-            />
-            <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent group-hover:opacity-80 transition-opacity">
-              EternaVerse
+            <span className="w-2 h-2 bg-accent group-hover:bg-ink transition-colors" />
+            <span className="font-mono text-[15px] tracking-[0.08em] text-ink font-medium">
+              ETERNAVERSE
             </span>
           </div>
 
-          {/* Center: Navigation */}
           <div className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
               if (!item.showAlways && !user) return null;
@@ -79,67 +55,49 @@ const NavHeader = () => {
               return (
                 <button
                   key={item.path}
-                  onClick={() => handleNavigation(item.path)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  onClick={() => navigate(item.path)}
+                  className={`flex items-center gap-2 px-4 py-2 font-mono text-[13px] tracking-wide border-b-2 transition-colors ${
                     active
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30"
-                      : "text-gray-300 hover:text-white hover:bg-white/10"
+                      ? "text-accent border-accent"
+                      : "text-ink-dim border-transparent hover:text-ink"
                   }`}
                 >
-                  <Icon size={18} />
+                  <Icon size={15} />
                   <span>{item.label}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Right: User Section */}
           <div className="flex items-center gap-3">
             {user ? (
               <>
-                {/* User Profile */}
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-                    <User size={14} className="text-white" />
-                  </div>
-                  <div className="text-sm">
-                    <p className="text-gray-400 text-xs">Connected as</p>
-                    <p className="text-white font-medium">{user.username}</p>
+                <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 border border-line">
+                  <User size={14} className="text-ink-faint" />
+                  <div className="text-xs font-mono">
+                    <span className="text-ink-faint">connected as </span>
+                    <span className="text-ink">{user.username}</span>
                   </div>
                 </div>
 
-                {/* Logout Button */}
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-lg font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <LogOut size={18} />
+                <Button variant="danger" onClick={handleLogout} className="px-4 py-2">
+                  <LogOut size={15} />
                   <span className="hidden sm:inline">Logout</span>
-                </button>
+                </Button>
               </>
             ) : (
               <>
-                {/* Register Button */}
-                <button
-                  onClick={() => navigate("/register")}
-                  className="hidden sm:block px-4 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg font-medium transition-all"
-                >
+                <Button variant="ghost" className="hidden sm:inline-flex px-4 py-2" onClick={() => navigate("/register")}>
                   Register
-                </button>
-
-                {/* Login Button */}
-                <button
-                  onClick={handleLogin}
-                  className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-semibold transition-all shadow-lg shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98]"
-                >
+                </Button>
+                <Button className="px-5 py-2" onClick={() => navigate("/login")}>
                   Login
-                </button>
+                </Button>
               </>
             )}
           </div>
         </div>
 
-        {/* Mobile Navigation */}
         <div className="md:hidden flex gap-2 pb-3">
           {navItems.map((item) => {
             if (!item.showAlways && !user) return null;
@@ -151,14 +109,12 @@ const NavHeader = () => {
             return (
               <button
                 key={item.path}
-                onClick={() => handleNavigation(item.path)}
-                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
-                  active
-                    ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30"
-                    : "text-gray-300 hover:text-white bg-white/5 hover:bg-white/10"
+                onClick={() => navigate(item.path)}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 font-mono text-xs border transition-colors ${
+                  active ? "text-accent border-accent/40" : "text-ink-dim border-line"
                 }`}
               >
-                <Icon size={16} />
+                <Icon size={15} />
                 <span>{item.label}</span>
               </button>
             );
@@ -167,9 +123,9 @@ const NavHeader = () => {
           {!user && (
             <button
               onClick={() => navigate("/register")}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all text-sm"
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-ink-dim border border-line font-mono text-xs"
             >
-              <User size={16} />
+              <User size={15} />
               <span>Register</span>
             </button>
           )}
