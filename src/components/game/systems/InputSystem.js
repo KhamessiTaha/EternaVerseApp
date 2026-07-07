@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { scaleByDelta, decayByDelta } from "../utils";
 
 export class InputSystem {
   constructor(scene) {
@@ -202,7 +203,7 @@ export class InputSystem {
     return nearest;
   }
 
-  handlePlayerMovement(player) {
+  handlePlayerMovement(player, delta = 16.667) {
     // Skip all input handling if minigame is active
     if (this.isMinigameActive) {
       return;
@@ -214,7 +215,7 @@ export class InputSystem {
     if (this.keys.right.isDown) rotationInput += 1;
 
     if (rotationInput !== 0) {
-      this.rotationVelocity += rotationInput * this.params.ROTATION_ACCEL;
+      this.rotationVelocity += rotationInput * scaleByDelta(this.params.ROTATION_ACCEL, delta);
       this.rotationVelocity = Phaser.Math.Clamp(
         this.rotationVelocity,
         -this.params.MAX_ROTATION_VEL,
@@ -222,7 +223,7 @@ export class InputSystem {
       );
     } else {
       // Smooth deceleration
-      this.rotationVelocity *= 0.9;
+      this.rotationVelocity = decayByDelta(this.rotationVelocity, 0.9, delta);
     }
 
     player.rotation += this.rotationVelocity;
@@ -278,9 +279,9 @@ export class InputSystem {
 
     // --- BOOST ENERGY MANAGEMENT ---
     if (isBoosting && isThrusting) {
-      this.boostEnergy = Math.max(0, this.boostEnergy - this.params.BOOST_COST);
+      this.boostEnergy = Math.max(0, this.boostEnergy - scaleByDelta(this.params.BOOST_COST, delta));
     } else if (this.boostEnergy < 100) {
-      this.boostEnergy = Math.min(100, this.boostEnergy + this.boostRechargeRate);
+      this.boostEnergy = Math.min(100, this.boostEnergy + scaleByDelta(this.boostRechargeRate, delta));
     }
 
     // Store state for HUD

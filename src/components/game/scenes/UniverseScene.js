@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
-import { getChunkCoords } from "../utils";
+import { getChunkCoords, lerpFactorByDelta } from "../utils";
 import { ChunkSystem } from "../systems/ChunkSystem";
 import { AnomalySystem } from "../systems/AnomalySystem";
 import { MinimapSystem } from "../systems/MinimapSystem";
@@ -210,18 +210,18 @@ export const UniverseSceneFactory = (props) => {
       console.log(`⚠️ Minigame aborted for ${anomaly.type}`);
     }
 
-    update(time) {
-      this.inputSystem.handlePlayerMovement(this.player);
-      this.applyBanking();
-      
+    update(time, delta) {
+      this.inputSystem.handlePlayerMovement(this.player, delta);
+      this.applyBanking(delta);
+
       // Update player visuals and animations
       this.player.updateVisuals({
         boosting: this.player.isBoosting || false,
       });
       this.player.updateGraphics();
-      
-      this.updatePlayerThrusters();
-      this.updateBoostEffects();
+
+      this.updatePlayerThrusters(delta);
+      this.updateBoostEffects(delta);
 
       this.playerLight.setPosition(this.player.x, this.player.y);
       this.boostLight.setPosition(this.player.x, this.player.y);
@@ -254,17 +254,17 @@ export const UniverseSceneFactory = (props) => {
       this.updateCameraShake();
     }
 
-    applyBanking() {
+    applyBanking(delta) {
       const vx = this.player.body.velocity.x;
-      
+
       const velocityBank = Phaser.Math.Clamp(vx / 500, -0.25, 0.25);
       const rotationBank = this.inputSystem.rotationVelocity * 2;
       const totalBank = velocityBank + rotationBank;
-      
-      this.player.rotation += totalBank * 0.015;
+
+      this.player.rotation += totalBank * lerpFactorByDelta(0.015, delta);
     }
 
-    updatePlayerThrusters() {
+    updatePlayerThrusters(delta) {
       const speed = this.player.body.velocity.length();
       const isBoosting = this.player.isBoosting;
 
@@ -273,42 +273,42 @@ export const UniverseSceneFactory = (props) => {
       const boostScale = isBoosting ? 0.062 : speedScale;
 
       this.player.setScale(
-        Phaser.Math.Linear(this.player.scaleX, boostScale, 0.15),
+        Phaser.Math.Linear(this.player.scaleX, boostScale, lerpFactorByDelta(0.15, delta)),
       );
 
       if (isBoosting) {
         this.cameraShakeIntensity = Phaser.Math.Linear(
           this.cameraShakeIntensity,
           0.0008,
-          0.2
+          lerpFactorByDelta(0.2, delta)
         );
       } else {
         this.cameraShakeIntensity = Phaser.Math.Linear(
           this.cameraShakeIntensity,
           0,
-          0.1
+          lerpFactorByDelta(0.1, delta)
         );
       }
     }
 
-    updateBoostEffects() {
+    updateBoostEffects(delta) {
       const isBoosting = this.player.isBoosting;
       const targetGlow = isBoosting ? 1.5 : 0;
-      
+
       this.playerState.boostGlow = Phaser.Math.Linear(
         this.playerState.boostGlow,
         targetGlow,
-        0.2
+        lerpFactorByDelta(0.2, delta)
       );
-      
+
       this.boostLight.setIntensity(this.playerState.boostGlow);
-      
+
       const mainLightIntensity = isBoosting ? 3.0 : 2.5;
       this.playerLight.setIntensity(
         Phaser.Math.Linear(
           this.playerLight.intensity,
           mainLightIntensity,
-          0.1
+          lerpFactorByDelta(0.1, delta)
         )
       );
     }
