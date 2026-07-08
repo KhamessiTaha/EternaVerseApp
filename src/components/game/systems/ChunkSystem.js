@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import seedrandom from 'seedrandom';
 import { CHUNK_SIZE, ANOMALY_SPAWN_CHANCE, ANOMALIES_PER_CHUNK, ANOMALY_TYPES } from '../constants';
 import { getChunkKey } from '../utils';
+import { generateChunkObjects } from '../world/objectGenerator.js';
 
 export class ChunkSystem {
   constructor(scene, anomalySystem) {
@@ -15,7 +16,6 @@ export class ChunkSystem {
     const newChunks = new Map();
     const radius = this.activeChunkRadius;
 
-    // Load nearby chunks
     for (let dx = -radius; dx <= radius; dx++) {
       for (let dy = -radius; dy <= radius; dy++) {
         const chunkX = centerX + dx;
@@ -41,14 +41,16 @@ export class ChunkSystem {
   }
 
   generateChunk(chunkX, chunkY) {
-    const chunk = { galaxies: [], anomalies: [] };
-    const chunkSeed = (this.scene.universe.seed ?? "seed") + getChunkKey(chunkX, chunkY);
+    const chunk = { objects: [], anomalies: [] };
+    const seed = this.scene.universe.seed ?? "seed";
+
+    for (const descriptor of generateChunkObjects(seed, chunkX, chunkY)) {
+      chunk.objects.push(this.renderObject(descriptor));
+    }
+
+    // Procedural anomalies (unchanged behavior)
+    const chunkSeed = seed + getChunkKey(chunkX, chunkY);
     const rng = seedrandom(chunkSeed);
-
-    // Generate galaxies
-    this.generateGalaxies(chunk, chunkX, chunkY, rng);
-
-    // Generate procedural anomalies
     if (rng() < ANOMALY_SPAWN_CHANCE) {
       this.generateProceduralAnomalies(chunk, chunkX, chunkY, rng);
     }
@@ -56,37 +58,54 @@ export class ChunkSystem {
     return chunk;
   }
 
-  generateGalaxies(chunk, chunkX, chunkY, rng) {
-    const galaxyCount = 8 + Math.floor(rng() * 12);
-    
-    for (let i = 0; i < galaxyCount; i++) {
-      const x = chunkX * CHUNK_SIZE + rng() * CHUNK_SIZE;
-      const y = chunkY * CHUNK_SIZE + rng() * CHUNK_SIZE;
-      const size = rng() * 25 + 4;
-      const hue = Math.floor(rng() * 360);
-      const wheel = Phaser.Display.Color.HSVColorWheel();
-      const color = wheel[hue % wheel.length];
+  renderObject(descriptor) {
+    const isNebula = descriptor.category === "nebula";
+    const isPhenomenon = descriptor.category === "phenomenon";
 
-      const g = this.scene.add.graphics({ x, y })
-        .fillStyle(Phaser.Display.Color.GetColor(color.r, color.g, color.b), 0.8)
-        .fillCircle(0, 0, size)
-        .setDepth(-1);
+    const image = this.scene.add.image(
+      descriptor.x, descriptor.y,
+      this.scene.textureFactory.keyFor(descriptor)
+    )
+      .setScale(descriptor.scale)
+      .setRotation(descriptor.rotation)
+      .setAlpha(descriptor.alpha)
+      .setDepth(isNebula ? -3 : -1);
 
-      if (size > 20) {
-        this.scene.lights.addLight(
-          x, y, size * 6, 
-          Phaser.Display.Color.GetColor(color.r, color.g, color.b), 
-          0.2
-        );
-      }
-
-      chunk.galaxies.push(g);
+    if (isNebula || descriptor.objectClass === "quasar") {
+      image.setBlendMode(Phaser.BlendModes.ADD);
     }
+
+    if (descriptor.objectClass === "quasar") {
+      this.scene.tweens.add({
+        targets: image,
+        alpha: { from: 0.75, to: 1 },
+        scaleX: { from: descriptor.scale * 0.96, to: descriptor.scale * 1.06 },
+        scaleY: { from: descriptor.scale * 0.96, to: descriptor.scale * 1.06 },
+        duration: 1400, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+      });
+    }
+
+    // Point lights for the larger structures only (perf budget).
+    // NOTE: the old implementation leaked these lights on chunk unload -
+    // they are now tracked per-object and removed in cleanupChunk.
+    let light = null;
+    if (isPhenomenon || (descriptor.category === "galaxy" && descriptor.scale > 0.65)) {
+      const color = descriptor.objectClass === "quasar" ? 0x9fe6f0 : 0xffe2b0;
+      light = this.scene.lights.addLight(descriptor.x, descriptor.y, 140 * descriptor.scale + 60, color, 0.35);
+    }
+
+    const entry = { descriptor, image, light };
+
+    if (this.scene.scanSystem?.isScanned(descriptor.id)) {
+      this.scene.scanSystem.attachCatalogedMarker(entry);
+    }
+
+    return entry;
   }
 
   generateProceduralAnomalies(chunk, chunkX, chunkY, rng) {
     const anomalyCount = Math.floor(rng() * ANOMALIES_PER_CHUNK) + 1;
-    
+
     for (let i = 0; i < anomalyCount; i++) {
       const type = ANOMALY_TYPES[Math.floor(rng() * ANOMALY_TYPES.length)];
       const severity = Math.floor(rng() * 3) + 1;
@@ -101,16 +120,21 @@ export class ChunkSystem {
 
       if (!this.anomalySystem.discoveredAnomalies.has(anomalyId)) {
         this.anomalySystem.discoveredAnomalies.add(anomalyId);
-        this.scene.setStats?.((prev) => ({ 
-          ...prev, 
-          discovered: (prev.discovered || 0) + 1 
+        this.scene.setStats?.((prev) => ({
+          ...prev,
+          discovered: (prev.discovered || 0) + 1
         }));
       }
     }
   }
 
   cleanupChunk(chunk) {
-    chunk.galaxies.forEach(g => g.destroy());
+    for (const entry of chunk.objects) {
+      this.scene.tweens.killTweensOf(entry.image);
+      entry.image.destroy();
+      if (entry.light) this.scene.lights.removeLight(entry.light);
+      entry.marker?.destroy();
+    }
     chunk.anomalies.forEach(a => this.anomalySystem.destroyAnomalyVisual(a));
   }
 }

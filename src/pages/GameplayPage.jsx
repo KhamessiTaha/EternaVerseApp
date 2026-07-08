@@ -7,6 +7,7 @@ import {
   simulateUniverse,
   resolveAnomaly,
   cleanupAnomalies,
+  submitDiscoveries,
 } from "../api/universeApi";
 import { Button, Eyebrow } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
@@ -20,6 +21,7 @@ const GameplayPage = () => {
   const [lastSimulation, setLastSimulation] = useState(Date.now());
   const simulationInProgress = useRef(false);
   const playerPositionRef = useRef({ x: 0, y: 0 });
+  const pendingDiscoveriesRef = useRef([]);
 
   const handlePlayerPositionUpdate = (position) => {
     playerPositionRef.current = position;
@@ -140,6 +142,37 @@ const GameplayPage = () => {
     }
   };
 
+  // Handle scan discoveries from the Phaser scene. The client-side
+  // `research` value is display-only; the server recomputes the award.
+  const handleDiscovery = async (discovery) => {
+    // Optimistic: codex + RP update immediately; server ack reconciles.
+    setUniverse((prev) => {
+      if (!prev) return prev;
+      if ((prev.discoveries || []).some((d) => d.id === discovery.id)) return prev;
+      return {
+        ...prev,
+        discoveries: [
+          ...(prev.discoveries || []),
+          { ...discovery, researchValue: discovery.research, discoveredAt: new Date().toISOString() },
+        ],
+        research: {
+          ...(prev.research || {}),
+          points: (prev.research?.points || 0) + (discovery.research || 0),
+        },
+      };
+    });
+
+    try {
+      const data = await submitDiscoveries(id, [discovery]);
+      if (data.ok && data.research) {
+        setUniverse((prev) => (prev ? { ...prev, research: data.research } : prev));
+      }
+    } catch {
+      // Server dedup makes retries safe; flush on the next simulate tick.
+      pendingDiscoveriesRef.current.push(discovery);
+    }
+  };
+
   // Background simulation (every 30 seconds)
   useEffect(() => {
     if (!universe || universe.status === 'ended') return;
@@ -151,6 +184,20 @@ const GameplayPage = () => {
       simulationInProgress.current = true;
 
       try {
+        // Flush any discoveries that failed to submit earlier (offline,
+        // transient 5xx). Server-side dedup makes re-sends harmless.
+        if (pendingDiscoveriesRef.current.length > 0) {
+          const pending = pendingDiscoveriesRef.current.splice(0, 20);
+          try {
+            const retryData = await submitDiscoveries(id, pending);
+            if (retryData.ok && retryData.research) {
+              setUniverse((prev) => (prev ? { ...prev, research: retryData.research } : prev));
+            }
+          } catch {
+            pendingDiscoveriesRef.current.unshift(...pending);
+          }
+        }
+
         console.log(`🔄 Running background simulation...`);
 
         const data = await simulateUniverse(id, playerPositionRef.current);
@@ -304,6 +351,7 @@ const GameplayPage = () => {
         universe={universe}
         onAnomalyResolved={handleAnomalyResolved}
         onPlayerPositionUpdate={handlePlayerPositionUpdate}
+        onDiscovery={handleDiscovery}
       />
       {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
     </>

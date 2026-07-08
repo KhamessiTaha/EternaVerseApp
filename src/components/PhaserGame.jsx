@@ -12,8 +12,10 @@ import { PrimaryInstrument, Console, ControlsHint } from "./game/ui/Panels";
 import { HUDPanel } from "./game/ui/HUDPanel";
 import { MinimapPanel } from "./game/ui/MinimapPanel";
 import { FullMapPanel } from "./game/ui/FullMapPanel";
+import { CodexPanel } from "./game/ui/CodexPanel";
+import { DiscoveryToast } from "./game/ui/DiscoveryToast";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery }) => {
   const gameRef = useRef(null);
   const sceneRef = useRef(null);
   const [stats, setStats] = useState({ resolved: 0, discovered: 0 });
@@ -21,6 +23,15 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [minimapData, setMinimapData] = useState(null);
   const [fullMapData, setFullMapData] = useState(null);
   const [isFullMapOpen, setIsFullMapOpen] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [isCodexOpen, setIsCodexOpen] = useState(false);
+
+  // Scan completions: show the toast locally, then hand the discovery up to
+  // GameplayPage for the backend submission / optimistic universe update.
+  const handleDiscoveryFromScene = (discovery) => {
+    setToast({ discovery, key: Date.now() });
+    onDiscovery?.(discovery);
+  };
 
   // HUD update callback
   const handleHUDUpdate = (data) => {
@@ -51,6 +62,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       if (e.key === 'm' || e.key === 'M') {
         handleMapToggle();
       }
+      if (e.key === 'c' || e.key === 'C') {
+        setIsCodexOpen(prev => !prev);
+      }
     };
     
     window.addEventListener('keydown', handleKeyPress);
@@ -64,7 +78,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       setStats,
       onHUDUpdate: handleHUDUpdate,
       onMinimapUpdate: handleMinimapUpdate,
-      onFullMapUpdate: handleFullMapUpdate
+      onFullMapUpdate: handleFullMapUpdate,
+      onDiscovery: handleDiscoveryFromScene
     });
 
     const container = document.getElementById("phaser-container");
@@ -131,7 +146,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
     if (sceneRef.current && universe) {
       sceneRef.current.updateFromUniverse(universe);
     }
-  }, [universe?.anomalies, universe?.currentState]);
+  }, [universe?.anomalies, universe?.currentState, universe?.discoveries]);
 
   return (
     <div className="w-full h-full bg-void relative overflow-hidden">
@@ -165,6 +180,14 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         isOpen={isFullMapOpen}
         onClose={handleMapToggle}
         fullMapData={fullMapData}
+      />
+
+      {/* Discovery toast + Codex overlay */}
+      <DiscoveryToast toast={toast} />
+      <CodexPanel
+        isOpen={isCodexOpen}
+        onClose={() => setIsCodexOpen(false)}
+        universe={universe}
       />
 
       <div id="phaser-container" className="w-full h-full" />

@@ -97,8 +97,9 @@ export const Console = ({ universe, stats }) => {
         </ConsoleSection>
       )}
 
-      {stats && (stats.discovered > 0 || activeBackendAnomalies > 0) && (
+      {stats && (stats.discovered > 0 || activeBackendAnomalies > 0 || (universe?.research?.points ?? 0) > 0) && (
         <ConsoleSection icon={icons.mission} title="Mission">
+          <StatLine label="Research" value={`${universe?.research?.points ?? 0} RP`} valueClass="text-accent" />
           <StatLine label="Discovered" value={stats.discovered} />
           <StatLine label="Resolved" value={stats.resolved} />
           <StatLine label="Backend Active" value={activeBackendAnomalies} valueClass="text-warn" />
@@ -111,6 +112,8 @@ export const Console = ({ universe, stats }) => {
 export const ControlsHint = () => (
   <div className="text-[10px] text-ink-faint text-right leading-loose font-mono pointer-events-auto select-none">
     <div><Key>F</Key>resolve anomaly</div>
+    <div><Key>V</Key>scan object</div>
+    <div><Key>C</Key>codex</div>
     <div><Key>M</Key>full map</div>
     <div><Key>SHIFT</Key>boost</div>
   </div>

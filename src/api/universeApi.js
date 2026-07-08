@@ -106,6 +106,25 @@ export const resolveAnomaly = async (universeId, anomalyId, accuracy) => {
   }
 };
 
+// Record scan discoveries (batch). Server dedups and computes research
+// value; duplicates in the response are normal after retries.
+export const submitDiscoveries = async (universeId, discoveries) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/discoveries`,
+      { discoveries },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error submitting discoveries:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Prune old resolved anomalies from the universe document
 export const cleanupAnomalies = async (universeId, keepRecentMinutes = 60) => {
   try {

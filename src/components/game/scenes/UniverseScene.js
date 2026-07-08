@@ -2,16 +2,18 @@ import Phaser from "phaser";
 import seedrandom from "seedrandom";
 import { getChunkCoords, lerpFactorByDelta } from "../utils";
 import { ChunkSystem } from "../systems/ChunkSystem";
+import { TextureFactory } from "../graphics/TextureFactory.js";
+import { BackgroundSystem } from "../systems/BackgroundSystem.js";
+import { ScanSystem } from "../systems/ScanSystem.js";
 import { AnomalySystem } from "../systems/AnomalySystem";
 import { MinimapSystem } from "../systems/MinimapSystem";
 import { FullMapSystem } from "../systems/FullMapSystem";
 import { InputSystem } from "../systems/InputSystem";
 import { HUD } from "../systems/HUD";
 import { PlayerObject } from "../systems/PlayerObject";
-import { MINIMAP_SIZE } from "../constants";
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -22,6 +24,7 @@ export const UniverseSceneFactory = (props) => {
       this.onHUDUpdate = onHUDUpdate;
       this.onMinimapUpdate = onMinimapUpdate;
       this.onFullMapUpdate = onFullMapUpdate;
+      this.onDiscovery = onDiscovery;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -36,6 +39,13 @@ export const UniverseSceneFactory = (props) => {
     }
 
     create() {
+      // Textures must exist before any chunk renders its objects.
+      this.textureFactory = new TextureFactory(this, this.universe.seed ?? "default");
+      this.textureFactory.generateAll();
+
+      this.backgroundSystem = new BackgroundSystem(this);
+      this.backgroundSystem.create();
+
       this.initSystems();
       this.createPlayer();
       this.initLighting();
@@ -55,6 +65,10 @@ export const UniverseSceneFactory = (props) => {
 
     initSystems() {
       this.anomalySystem = new AnomalySystem(this);
+      // ScanSystem must exist before ChunkSystem loads chunks: renderObject
+      // consults it to re-attach cataloged markers on chunk regeneration.
+      this.scanSystem = new ScanSystem(this);
+      this.scanSystem.seedScanned((this.universe.discoveries || []).map((d) => d.id));
       this.chunkSystem = new ChunkSystem(this, this.anomalySystem);
       this.minimapSystem = new MinimapSystem(this);
       this.fullMapSystem = new FullMapSystem(this);
@@ -100,6 +114,11 @@ export const UniverseSceneFactory = (props) => {
       // Listen for minigame abort
       this.events.on('minigame:abort', (data) => {
         this.handleMinigameAbort(data);
+      });
+
+      // Scan completions flow out to React (toast + backend submission)
+      this.events.on('scan:complete', ({ discovery }) => {
+        this.onDiscovery?.(discovery);
       });
     }
 
@@ -234,7 +253,9 @@ export const UniverseSceneFactory = (props) => {
       this.boostLight.setPosition(this.player.x, this.player.y);
 
       this.hud.update(this.player);
-      
+      this.backgroundSystem.update();
+      this.scanSystem.update(delta);
+
       // Send HUD data to React
       if (this.onHUDUpdate) {
         this.onHUDUpdate(this.hud.getData());
@@ -378,6 +399,7 @@ export const UniverseSceneFactory = (props) => {
       this.universe = newUniverse;
       this.anomalySystem.syncBackendAnomalies();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
+      this.scanSystem.seedScanned((newUniverse.discoveries || []).map((d) => d.id));
     }
 
     shutdown() {
@@ -402,6 +424,9 @@ export const UniverseSceneFactory = (props) => {
         this.anomalySystem.backendAnomalies.clear();
       }
       
+      this.backgroundSystem?.destroy();
+      this.scanSystem?.destroy();
+
       // Remove lights
       if (this.playerLight) this.lights.removeLight(this.playerLight);
       if (this.boostLight) this.lights.removeLight(this.boostLight);
@@ -410,6 +435,7 @@ export const UniverseSceneFactory = (props) => {
       this.scale.off('resize', this.handleResize, this);
       this.events.off('minigame:complete');
       this.events.off('minigame:abort');
+      this.events.off('scan:complete');
     }
   };
 };

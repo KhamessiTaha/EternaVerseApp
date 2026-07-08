@@ -94,6 +94,7 @@ export class InputSystem {
       boost: Phaser.Input.Keyboard.KeyCodes.SHIFT,
       map: Phaser.Input.Keyboard.KeyCodes.M,
       fix: Phaser.Input.Keyboard.KeyCodes.F,
+      scan: Phaser.Input.Keyboard.KeyCodes.V,
     });
 
     this.mapKey = this.keys.map;
@@ -102,6 +103,12 @@ export class InputSystem {
     // Setup F key listener for anomaly interaction
     this.scene.input.keyboard.on('keydown-F', () => {
       this.handleAnomalyInteraction();
+    });
+
+    // V key: scan the nearest unscanned cosmic object / anomaly
+    this.scene.input.keyboard.on('keydown-V', () => {
+      if (this.isMinigameActive) return;
+      this.scene.scanSystem?.tryStartScan();
     });
   }
 
