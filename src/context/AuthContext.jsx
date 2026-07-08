@@ -13,12 +13,15 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   }, []);
 
-  // Setup axios interceptor to handle token expiration (401/403) + added 400 for bad request which can also indicate token issues
+  // Setup axios interceptor to handle token expiration. Only 401/403 mean
+  // "session over" - the backend uses 400 for ordinary validation errors
+  // (e.g. resolving an already-resolved anomaly), which must never log the
+  // player out mid-game. Invalid tokens now come back as 401 from the API.
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response && (error.response.status === 400 || error.response.status === 401 || error.response.status === 403 )) {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
           // Token is expired or invalid - automatically logout
           logout();
           // Redirect to login by dispatching a custom event

@@ -67,3 +67,59 @@ export const deleteUniverse = async (universeId) => {
     throw error;
   }
 };
+
+// Advance the server simulation (universe ages by wall-clock time since the
+// last call). playerPosition drives where new anomalies spawn.
+export const simulateUniverse = async (universeId, playerPosition) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/simulate`,
+      { playerPosition },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error simulating universe:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
+// Resolve a backend anomaly; accuracy (0-100) is the minigame performance
+// grade that scales the reward server-side.
+export const resolveAnomaly = async (universeId, anomalyId, accuracy) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/resolve-anomaly`,
+      { anomalyId, accuracy },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error resolving anomaly:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
+// Prune old resolved anomalies from the universe document
+export const cleanupAnomalies = async (universeId, keepRecentMinutes = 60) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/cleanup-anomalies`,
+      { keepRecentMinutes },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error cleaning up anomalies:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};

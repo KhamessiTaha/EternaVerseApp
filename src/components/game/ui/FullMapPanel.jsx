@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { CHUNK_SIZE } from '../constants';
 
 const VOID = '#070912';
 const LINE = '#1e2540';
@@ -24,7 +25,6 @@ export const FullMapPanel = ({ isOpen, onClose, fullMapData }) => {
     ctx.fillStyle = VOID;
     ctx.fillRect(0, 0, width, height);
 
-    const CHUNK_SIZE = 2000;
     const viewRadius = 5;
     const scale = Math.min(width, height) / (CHUNK_SIZE * (viewRadius * 2 + 1));
     const centerX = width / 2;

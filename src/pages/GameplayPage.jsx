@@ -1,13 +1,15 @@
 import { useParams, useLocation } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
-import axios from "axios";
 import PhaserGame from "../components/PhaserGame";
 import { getGradeForAccuracy } from "../components/game/utils";
+import {
+  getUniverse,
+  simulateUniverse,
+  resolveAnomaly,
+  cleanupAnomalies,
+} from "../api/universeApi";
 import { Button, Eyebrow } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
-
-
-const API_BASE = `${import.meta.env.VITE_API_URL}/universe`;
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -27,20 +29,12 @@ const GameplayPage = () => {
   useEffect(() => {
     const fetchUniverse = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await axios.get(`${API_BASE}/${id}`, {
-          headers: { Authorization: token },
-        });
-        
-        if (res.data.ok) {
-          setUniverse(res.data.universe);
-          console.log(`🌌 Universe loaded: ${res.data.universe.name}`);
-          console.log(`   Galaxies: ${res.data.universe.currentState.galaxyCount}`);
-          console.log(`   Stars: ${res.data.universe.currentState.starCount}`);
-          console.log(`   Backend Anomalies: ${res.data.universe.anomalies.length}`);
-        } else {
-          throw new Error(res.data.error || "Failed to fetch universe");
-        }
+        const uni = await getUniverse(id);
+        setUniverse(uni);
+        console.log(`🌌 Universe loaded: ${uni.name}`);
+        console.log(`   Galaxies: ${uni.currentState.galaxyCount}`);
+        console.log(`   Stars: ${uni.currentState.starCount}`);
+        console.log(`   Backend Anomalies: ${uni.anomalies.length}`);
       } catch (err) {
         console.error("Failed to fetch universe:", err);
         setError(err.response?.data?.error || "Failed to load universe");
@@ -91,52 +85,30 @@ const GameplayPage = () => {
 
       if (isBackendAnomaly) {
         // Sync with backend for physics-based anomalies
-        const token = localStorage.getItem("token");
-        const payload = { anomalyId: anomaly.id, accuracy: anomaly.gameResult?.accuracy };
-
-        console.log(`📤 Sending to backend: POST ${API_BASE}/${id}/resolve-anomaly`);
-        console.log(`   Payload:`, payload);
-        console.log(`   Token present:`, !!token);
-
         try {
-          const res = await axios.post(
-            `${API_BASE}/${id}/resolve-anomaly`,
-            payload,
-            {
-              headers: {
-                Authorization: token,
-                'Content-Type': 'application/json'
-              },
-            }
-          );
+          const data = await resolveAnomaly(id, anomaly.id, anomaly.gameResult?.accuracy);
 
-          console.log(`📥 Backend response:`, res.data);
-
-          if (res.data.ok) {
+          if (data.ok) {
             // Mark as resolved in this session to prevent double-resolution
             resolvedAnomaliesRef.current.add(anomaly.id);
-            
-            setUniverse(res.data.universe);
+
+            setUniverse(data.universe);
             console.log(`✅ Backend anomaly resolved!`);
-            console.log(`   Stability boost: +${(res.data.stabilityBoost * 100).toFixed(2)}%`);
-            console.log(`   New stability: ${(res.data.universe.currentState.stabilityIndex * 100).toFixed(1)}%`);
+            console.log(`   Stability boost: +${(data.stabilityBoost * 100).toFixed(2)}%`);
+            console.log(`   New stability: ${(data.universe.currentState.stabilityIndex * 100).toFixed(1)}%`);
           } else {
-            console.error("❌ Backend returned not ok:", res.data);
+            console.error("❌ Backend returned not ok:", data);
           }
-        } catch (axiosErr) {
-          console.error(`❌ Axios error:`, axiosErr);
-          console.error(`   Status: ${axiosErr.response?.status}`);
-          console.error(`   Data:`, axiosErr.response?.data);
-          
-          const errorMsg = axiosErr.response?.data?.error || axiosErr.message;
-          
+        } catch (apiErr) {
+          const errorMsg = apiErr.response?.data?.error || apiErr.message;
+
           // If anomaly is already resolved, mark it as such locally
           if (errorMsg && errorMsg.includes('already resolved')) {
             console.log(`✓ Anomaly was already resolved on backend`);
             resolvedAnomaliesRef.current.add(anomaly.id);
           } else {
             console.error("❌ Failed to resolve backend anomaly:", errorMsg);
-            throw axiosErr;
+            throw apiErr;
           }
         }
       } else {
@@ -179,26 +151,15 @@ const GameplayPage = () => {
       simulationInProgress.current = true;
 
       try {
-        const token = localStorage.getItem("token");
-        
         console.log(`🔄 Running background simulation...`);
-        
-        const res = await axios.post(
-          `${API_BASE}/${id}/simulate`,
-          { playerPosition: playerPositionRef.current },
-          {
-            headers: { 
-              Authorization: token,
-              'Content-Type': 'application/json'
-            },
-          }
-        );
 
-        if (res.data.ok) {
-          setUniverse(res.data.universe);
+        const data = await simulateUniverse(id, playerPositionRef.current);
+
+        if (data.ok) {
+          setUniverse(data.universe);
           setLastSimulation(Date.now());
 
-          const stats = res.data.stats;
+          const stats = data.stats;
           console.log(`✅ Simulation complete:`);
           console.log(`   Age: ${stats.ageGyr} Gyr (${stats.cosmicPhase})`);
           console.log(`   Galaxies: ${stats.galaxies}`);
@@ -206,15 +167,15 @@ const GameplayPage = () => {
           console.log(`   Stability: ${stats.stability}`);
           console.log(`   Backend Anomalies: ${stats.anomaliesActive}/${stats.anomaliesTotal}`);
 
-          if (res.data.createdAnomalies?.length > 0) {
-            console.log(`⚠️  Generated ${res.data.createdAnomalies.length} new backend anomalies:`);
-            res.data.createdAnomalies.forEach(a => {
+          if (data.createdAnomalies?.length > 0) {
+            console.log(`⚠️  Generated ${data.createdAnomalies.length} new backend anomalies:`);
+            data.createdAnomalies.forEach(a => {
               console.log(`     - ${a.type} (severity ${a.severity}) at (${a.location.x.toFixed(0)}, ${a.location.y.toFixed(0)})`);
             });
           }
 
-          if (res.data.hasEnded) {
-            console.warn(`🌑 Universe ended: ${res.data.endCondition} - ${res.data.endReason}`);
+          if (data.hasEnded) {
+            console.warn(`🌑 Universe ended: ${data.endCondition} - ${data.endReason}`);
           }
         }
       } catch (err) {
@@ -240,37 +201,22 @@ const GameplayPage = () => {
   useEffect(() => {
     if (!universe || universe.status === 'ended') return;
 
-    const cleanupAnomalies = async () => {
+    const runCleanup = async () => {
       try {
         const resolvedCount = universe.anomalies?.filter(a => a.resolved).length || 0;
-        
+
         // Only cleanup if we have more than 100 resolved anomalies
         if (resolvedCount > 100) {
           console.log(`🧹 Cleaning up ${resolvedCount} resolved anomalies...`);
-          
-          const token = localStorage.getItem("token");
-          const res = await axios.post(
-            `${API_BASE}/${id}/cleanup-anomalies`,
-            { keepRecentMinutes: 10 }, // Keep last 10 minutes
-            {
-              headers: { 
-                Authorization: token,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
 
-          if (res.data.ok) {
-            console.log(`✅ Cleaned ${res.data.removed} old anomalies (${res.data.remaining} remaining)`);
-            
+          const data = await cleanupAnomalies(id, 10); // Keep last 10 minutes
+
+          if (data.ok) {
+            console.log(`✅ Cleaned ${data.removed} old anomalies (${data.remaining} remaining)`);
+
             // Refresh universe data
-            const refreshRes = await axios.get(`${API_BASE}/${id}`, {
-              headers: { Authorization: token }
-            });
-            
-            if (refreshRes.data.ok) {
-              setUniverse(refreshRes.data.universe);
-            }
+            const uni = await getUniverse(id);
+            setUniverse(uni);
           }
         }
       } catch (err) {
@@ -278,7 +224,7 @@ const GameplayPage = () => {
       }
     };
 
-    const cleanupInterval = setInterval(cleanupAnomalies, 300000); // Every 5 minutes
+    const cleanupInterval = setInterval(runCleanup, 300000); // Every 5 minutes
 
     return () => clearInterval(cleanupInterval);
   }, [universe, id]);
