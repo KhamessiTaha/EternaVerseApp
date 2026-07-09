@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { CHUNK_SIZE } from '../constants';
 
 const VOID_RAISED = '#0c0f1c';
 const LINE = '#1e2540';
@@ -29,7 +30,6 @@ export const MinimapPanel = ({ minimapData, onMapToggle }) => {
     ctx.fillStyle = VOID_RAISED;
     ctx.fillRect(0, 0, size, size);
 
-    const CHUNK_SIZE = 2000;
     const scale = size / (CHUNK_SIZE * 3);
     const centerX = radius;
     const centerY = radius;
