@@ -16,6 +16,7 @@ import { CodexPanel } from "./game/ui/CodexPanel";
 import { DiscoveryToast } from "./game/ui/DiscoveryToast";
 import { OutfittingPanel } from "./game/ui/OutfittingPanel";
 import { SettingsPanel } from "./game/ui/SettingsPanel";
+import { ChroniclePanel } from "./game/ui/ChroniclePanel";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade }) => {
@@ -30,6 +31,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isCodexOpen, setIsCodexOpen] = useState(false);
   const [isOutfittingOpen, setIsOutfittingOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isChronicleOpen, setIsChronicleOpen] = useState(false);
 
   // Scan completions: show the toast locally, then hand the discovery up to
   // GameplayPage for the backend submission / optimistic universe update.
@@ -41,15 +43,15 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
   // Open/close blips for the overlay panels. Compared against previous state
   // so the mount itself (all closed) never fires a sound.
-  const prevPanelsRef = useRef({ map: false, codex: false, outfitting: false, settings: false });
+  const prevPanelsRef = useRef({ map: false, codex: false, outfitting: false, settings: false, chronicle: false });
   useEffect(() => {
     const prev = prevPanelsRef.current;
-    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen };
+    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen };
     Object.keys(next).forEach((k) => {
       if (next[k] !== prev[k]) playSfx(next[k] ? 'uiOpen' : 'uiClose');
     });
     prevPanelsRef.current = next;
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen]);
 
   // HUD update callback
   const handleHUDUpdate = (data) => {
@@ -88,18 +90,22 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       if (e.key === 'u' || e.key === 'U') {
         setIsOutfittingOpen(prev => !prev);
       }
+      if (e.key === 'l' || e.key === 'L') {
+        setIsChronicleOpen(prev => !prev);
+      }
       if (e.key === 'Escape') {
         if (sceneRef.current?.inputSystem?.isMinigameActive) return;
         if (isFullMapOpen) { setIsFullMapOpen(false); return; }
         if (isCodexOpen) { setIsCodexOpen(false); return; }
         if (isOutfittingOpen) { setIsOutfittingOpen(false); return; }
+        if (isChronicleOpen) { setIsChronicleOpen(false); return; }
         setIsSettingsOpen(prev => !prev);
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen]);
 
   useEffect(() => {
     const SceneClass = UniverseSceneFactory({
@@ -235,6 +241,11 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       <SettingsPanel
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+      <ChroniclePanel
+        isOpen={isChronicleOpen}
+        onClose={() => setIsChronicleOpen(false)}
+        universe={universe}
       />
 
       <div id="phaser-container" className="w-full h-full" />

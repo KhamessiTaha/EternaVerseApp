@@ -115,6 +115,7 @@ export const ControlsHint = () => (
     <div><Key>V</Key>scan object</div>
     <div><Key>C</Key>codex</div>
     <div><Key>U</Key>outfitting</div>
+    <div><Key>L</Key>chronicle</div>
     <div><Key>M</Key>full map</div>
     <div><Key>SHIFT</Key>boost</div>
     <div><Key>ESC</Key>settings</div>

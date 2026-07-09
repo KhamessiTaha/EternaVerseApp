@@ -125,6 +125,21 @@ export const submitDiscoveries = async (universeId, discoveries) => {
   }
 };
 
+// Get the ML predictor's risk forecast (stability, anomaly emergence,
+// end-condition risks, action priorities) for the Chronicle's threat panel.
+export const getPredictions = async (universeId) => {
+  try {
+    const res = await axios.get(`${API_URL}/${universeId}/predictions`, getAuthHeaders());
+    return res.data.predictions;
+  } catch (error) {
+    console.error(
+      "Error fetching predictions:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Purchase a ship upgrade with research points. The server validates cost,
 // level cap, and balance - the client only names the track.
 export const purchaseUpgrade = async (universeId, track) => {
