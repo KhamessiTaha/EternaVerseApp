@@ -13,8 +13,9 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
     this.body.setDamping(true);
     this.body.setDrag(0.97);
     // Generous per-axis cap only; actual top speed (including thruster
-    // upgrades) is the resultant-vector clamp in InputSystem.
-    this.body.setMaxVelocity(1000);
+    // upgrades AND the boosted speed cap) is the resultant-vector clamp in
+    // InputSystem. Must stay above max boosted+upgraded speed (~1116).
+    this.body.setMaxVelocity(1400);
     this.body.setAngularDrag(0.96);
     this.body.setMass(1.2);
     this.body.useDamping = true;

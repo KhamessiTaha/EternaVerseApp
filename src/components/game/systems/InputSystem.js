@@ -27,15 +27,16 @@ export class InputSystem {
       THRUST: 280,
       BRAKE: 180,
       STRAFE_FORCE: 150,
-      BOOST_MULTIPLIER: 1.8,
+      BOOST_MULTIPLIER: 2.0, // thrust (acceleration) multiplier while boosting
+      BOOST_SPEED_MULTIPLIER: 1.5, // top-speed multiplier while boosting - this is what makes boost FEEL like boost
       BOOST_COST: 0.35, // per reference frame (~4.8s to fully drain)
-      MAX_SPEED: 600, // must match PlayerObject's body.setMaxVelocity
+      MAX_SPEED: 600, // resultant-vector cap; PlayerObject's per-axis body cap sits above boosted+upgraded speeds
       BOOST_LOCKOUT_THRESHOLD: 20, // once fully drained, boost is locked out until energy recovers to this
     };
 
     this.rotationVelocity = 0;
     this.boostEnergy = 100;
-    this.boostRechargeRate = 0.18; // per reference frame (~9.3s to fully recharge) - slower than drain so boost is a real tradeoff, not a free toggle
+    this.boostRechargeRate = 0.09; // per reference frame (~18.5s to fully recharge) - boost is now much faster, so the refill penalty is steep to match
     this.boostLocked = false; // true from the moment energy hits 0 until it climbs back to BOOST_LOCKOUT_THRESHOLD
     
     // Minigame state
@@ -373,9 +374,13 @@ export class InputSystem {
     // strafe (diagonal movement) could otherwise exceed the intended top
     // speed by up to ~41% (sqrt(2)x on a perfect diagonal). This clamp is
     // the single speed authority (PlayerObject's body cap sits above it).
-    const maxSpeed = this.params.MAX_SPEED * mods.maxSpeed;
-    if (player.body.velocity.length() > maxSpeed) {
-      player.body.velocity.setLength(maxSpeed);
+    // Boosting raises the cap itself; when boost ends the excess bleeds off
+    // smoothly instead of snapping down to cruise speed in one frame.
+    const maxSpeed = this.params.MAX_SPEED * mods.maxSpeed *
+      (player.isBoosting ? this.params.BOOST_SPEED_MULTIPLIER : 1);
+    const speed = player.body.velocity.length();
+    if (speed > maxSpeed) {
+      player.body.velocity.setLength(Math.max(maxSpeed, decayByDelta(speed, 0.985, delta)));
     }
   }
 
