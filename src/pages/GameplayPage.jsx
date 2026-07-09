@@ -8,7 +8,9 @@ import {
   resolveAnomaly,
   cleanupAnomalies,
   submitDiscoveries,
+  purchaseUpgrade,
 } from "../api/universeApi";
+import { getShipModifiers } from "../components/game/content/upgradeCatalog";
 import { Button, Eyebrow } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
 
@@ -115,24 +117,27 @@ const GameplayPage = () => {
         }
       } else {
         // Procedural anomaly - update locally, scaled by minigame performance
-        // (same grade-tier multiplier the backend applies to real anomalies)
+        // and the Containment Rig upgrade (same multipliers the backend
+        // applies to real anomalies)
         resolvedAnomaliesRef.current.add(anomaly.id);
         console.log(`✅ Procedural anomaly resolved locally`);
 
         const multiplier = getGradeForAccuracy(anomaly.gameResult?.accuracy ?? 70).stabilityMultiplier;
-        const boost = 0.005 * multiplier;
 
-        setUniverse(prev => ({
-          ...prev,
-          currentState: {
-            ...prev.currentState,
-            stabilityIndex: Math.min(1, (prev.currentState.stabilityIndex || 1) + boost)
-          },
-          metrics: {
-            ...prev.metrics,
-            playerInterventions: (prev.metrics?.playerInterventions || 0) + 1
-          }
-        }));
+        setUniverse(prev => {
+          const boost = 0.005 * multiplier * getShipModifiers(prev.upgrades).containment;
+          return {
+            ...prev,
+            currentState: {
+              ...prev.currentState,
+              stabilityIndex: Math.min(1, (prev.currentState.stabilityIndex || 1) + boost)
+            },
+            metrics: {
+              ...prev.metrics,
+              playerInterventions: (prev.metrics?.playerInterventions || 0) + 1
+            }
+          };
+        });
       }
     } catch (err) {
       console.error("❌ Unhandled error in anomaly resolution:", err);
@@ -170,6 +175,22 @@ const GameplayPage = () => {
     } catch {
       // Server dedup makes retries safe; flush on the next simulate tick.
       pendingDiscoveriesRef.current.push(discovery);
+    }
+  };
+
+  // Purchase a ship upgrade. No optimistic update: the server owns cost and
+  // validation, and the response carries the new upgrades + research balance.
+  // Returns the response so OutfittingPanel can surface a failure reason.
+  const handlePurchaseUpgrade = async (track) => {
+    try {
+      const data = await purchaseUpgrade(id, track);
+      if (data.ok) {
+        setUniverse((prev) => (prev ? { ...prev, upgrades: data.upgrades, research: data.research } : prev));
+        console.log(`🔧 Upgrade installed: ${track}`, data.upgrades);
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.response?.data?.error || "Purchase failed - try again" };
     }
   };
 
@@ -352,6 +373,7 @@ const GameplayPage = () => {
         onAnomalyResolved={handleAnomalyResolved}
         onPlayerPositionUpdate={handlePlayerPositionUpdate}
         onDiscovery={handleDiscovery}
+        onPurchaseUpgrade={handlePurchaseUpgrade}
       />
       {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
     </>

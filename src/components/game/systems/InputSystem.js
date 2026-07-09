@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { scaleByDelta, decayByDelta } from "../utils";
+import { getShipModifiers } from "../content/upgradeCatalog.js";
 
 export class InputSystem {
   constructor(scene) {
@@ -242,6 +243,10 @@ export class InputSystem {
       return;
     }
 
+    // Ship-upgrade stat multipliers (Ion Thrusters / Boost Reactor). Read
+    // live from the scene's universe so a purchase applies immediately.
+    const mods = getShipModifiers(this.scene.universe?.upgrades);
+
     // --- SMOOTH ROTATION WITH ACCELERATION ---
     let rotationInput = 0;
     if (this.keys.left.isDown) rotationInput -= 1;
@@ -274,13 +279,13 @@ export class InputSystem {
     let isThrusting = false;
     let acceleration = new Phaser.Math.Vector2(0, 0);
 
-    // Forward/Backward thrust
+    // Forward/Backward thrust (thruster upgrades scale all translational forces)
     if (this.keys.thrust.isDown) {
-      const thrust = this.params.THRUST * thrustMultiplier;
+      const thrust = this.params.THRUST * mods.thrust * thrustMultiplier;
       this.scene.physics.velocityFromRotation(angle, thrust, acceleration);
       isThrusting = true;
     } else if (this.keys.brake.isDown) {
-      this.scene.physics.velocityFromRotation(angle, -this.params.BRAKE, acceleration);
+      this.scene.physics.velocityFromRotation(angle, -this.params.BRAKE * mods.thrust, acceleration);
       isThrusting = true;
     }
 
@@ -289,7 +294,7 @@ export class InputSystem {
       const strafeVec = new Phaser.Math.Vector2();
       this.scene.physics.velocityFromRotation(
         perpAngle - Math.PI,
-        this.params.STRAFE_FORCE,
+        this.params.STRAFE_FORCE * mods.thrust,
         strafeVec
       );
       acceleration.add(strafeVec);
@@ -298,7 +303,7 @@ export class InputSystem {
       const strafeVec = new Phaser.Math.Vector2();
       this.scene.physics.velocityFromRotation(
         perpAngle,
-        this.params.STRAFE_FORCE,
+        this.params.STRAFE_FORCE * mods.thrust,
         strafeVec
       );
       acceleration.add(strafeVec);
@@ -316,7 +321,7 @@ export class InputSystem {
     if (isBoosting && isThrusting) {
       this.boostEnergy = Math.max(0, this.boostEnergy - scaleByDelta(this.params.BOOST_COST, delta));
     } else if (this.boostEnergy < 100) {
-      this.boostEnergy = Math.min(100, this.boostEnergy + scaleByDelta(this.boostRechargeRate, delta));
+      this.boostEnergy = Math.min(100, this.boostEnergy + scaleByDelta(this.boostRechargeRate * mods.boostRecharge, delta));
     }
 
     // Trigger lockout the moment energy bottoms out; release it only once
@@ -335,9 +340,11 @@ export class InputSystem {
     // Clamp resultant speed - Arcade Physics' setMaxVelocity caps each axis
     // independently, not the vector length, so combining forward thrust with
     // strafe (diagonal movement) could otherwise exceed the intended top
-    // speed by up to ~41% (sqrt(2)x on a perfect diagonal).
-    if (player.body.velocity.length() > this.params.MAX_SPEED) {
-      player.body.velocity.setLength(this.params.MAX_SPEED);
+    // speed by up to ~41% (sqrt(2)x on a perfect diagonal). This clamp is
+    // the single speed authority (PlayerObject's body cap sits above it).
+    const maxSpeed = this.params.MAX_SPEED * mods.maxSpeed;
+    if (player.body.velocity.length() > maxSpeed) {
+      player.body.velocity.setLength(maxSpeed);
     }
   }
 

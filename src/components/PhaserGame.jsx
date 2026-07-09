@@ -14,8 +14,9 @@ import { MinimapPanel } from "./game/ui/MinimapPanel";
 import { FullMapPanel } from "./game/ui/FullMapPanel";
 import { CodexPanel } from "./game/ui/CodexPanel";
 import { DiscoveryToast } from "./game/ui/DiscoveryToast";
+import { OutfittingPanel } from "./game/ui/OutfittingPanel";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade }) => {
   const gameRef = useRef(null);
   const sceneRef = useRef(null);
   const [stats, setStats] = useState({ resolved: 0, discovered: 0 });
@@ -25,6 +26,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isFullMapOpen, setIsFullMapOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [isCodexOpen, setIsCodexOpen] = useState(false);
+  const [isOutfittingOpen, setIsOutfittingOpen] = useState(false);
 
   // Scan completions: show the toast locally, then hand the discovery up to
   // GameplayPage for the backend submission / optimistic universe update.
@@ -64,6 +66,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       }
       if (e.key === 'c' || e.key === 'C') {
         setIsCodexOpen(prev => !prev);
+      }
+      if (e.key === 'u' || e.key === 'U') {
+        setIsOutfittingOpen(prev => !prev);
       }
     };
     
@@ -146,7 +151,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
     if (sceneRef.current && universe) {
       sceneRef.current.updateFromUniverse(universe);
     }
-  }, [universe?.anomalies, universe?.currentState, universe?.discoveries]);
+    // upgrades must be a dep: InputSystem/ScanSystem read stat modifiers off
+    // the scene's universe reference, which only refreshes through this effect
+  }, [universe?.anomalies, universe?.currentState, universe?.discoveries, universe?.upgrades]);
 
   return (
     <div className="w-full h-full bg-void relative overflow-hidden">
@@ -182,12 +189,18 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         fullMapData={fullMapData}
       />
 
-      {/* Discovery toast + Codex overlay */}
+      {/* Discovery toast + Codex + Outfitting overlays */}
       <DiscoveryToast toast={toast} />
       <CodexPanel
         isOpen={isCodexOpen}
         onClose={() => setIsCodexOpen(false)}
         universe={universe}
+      />
+      <OutfittingPanel
+        isOpen={isOutfittingOpen}
+        onClose={() => setIsOutfittingOpen(false)}
+        universe={universe}
+        onPurchase={onPurchaseUpgrade}
       />
 
       <div id="phaser-container" className="w-full h-full" />

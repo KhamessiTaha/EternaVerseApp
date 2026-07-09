@@ -125,6 +125,25 @@ export const submitDiscoveries = async (universeId, discoveries) => {
   }
 };
 
+// Purchase a ship upgrade with research points. The server validates cost,
+// level cap, and balance - the client only names the track.
+export const purchaseUpgrade = async (universeId, track) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/upgrade`,
+      { track },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error purchasing upgrade:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Prune old resolved anomalies from the universe document
 export const cleanupAnomalies = async (universeId, keepRecentMinutes = 60) => {
   try {
