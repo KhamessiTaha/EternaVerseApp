@@ -274,16 +274,24 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
   /**
    * Clean up
    */
-  destroy() {
-    // Clean up remaining active particles
-    this.activeParticles.forEach(particle => {
-      if (particle && !particle.isDestroyed) {
-        particle.destroy();
-      }
-    });
+  destroy(fromScene) {
+    // Only destroy our satellite display objects when the ship is destroyed
+    // INDIVIDUALLY. When fromScene is true the whole scene is tearing down
+    // and Phaser's DisplayList is already iterating-and-destroying every
+    // object - destroying siblings here mutates that list mid-iteration and
+    // crashes DisplayList.shutdown ("Cannot read properties of undefined"),
+    // leaving the game half-dead on the next launch.
+    if (!fromScene) {
+      this.activeParticles.forEach(particle => {
+        if (particle && !particle.isDestroyed) {
+          particle.destroy();
+        }
+      });
+      if (this.engineTrailContainer) this.engineTrailContainer.destroy();
+    }
     this.activeParticles = [];
+    this.engineTrailContainer = null;
 
-    if (this.engineTrailContainer) this.engineTrailContainer.destroy();
-    super.destroy();
+    super.destroy(fromScene);
   }
 }

@@ -14,6 +14,8 @@ import { InputSystem } from "../systems/InputSystem";
 import { HUD } from "../systems/HUD";
 import { PlayerObject } from "../systems/PlayerObject";
 import { CivilizationSystem } from "../systems/CivilizationSystem";
+import { HazardSystem } from "../systems/HazardSystem";
+import { SalvageSystem } from "../systems/SalvageSystem";
 
 export const UniverseSceneFactory = (props) => {
   const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact } = props;
@@ -84,6 +86,8 @@ export const UniverseSceneFactory = (props) => {
       this.scanSystem.seedScanned((this.universe.discoveries || []).map((d) => d.id));
       this.chunkSystem = new ChunkSystem(this, this.anomalySystem);
       this.civilizationSystem = new CivilizationSystem(this);
+      this.hazardSystem = new HazardSystem(this);
+      this.salvageSystem = new SalvageSystem(this);
       this.minimapSystem = new MinimapSystem(this);
       this.fullMapSystem = new FullMapSystem(this);
       this.inputSystem = new InputSystem(this);
@@ -95,6 +99,9 @@ export const UniverseSceneFactory = (props) => {
 
     createPlayer() {
       this.player = new PlayerObject(this, 0, 0, "Player");
+      // Spawn grace: no anomaly forces or damage for the first few seconds,
+      // so arriving in a hostile neighborhood never means instant pinball
+      this.player.invulnerableUntil = this.time.now + 4000;
 
       this.playerState = {
         boosting: false,
@@ -254,8 +261,138 @@ export const UniverseSceneFactory = (props) => {
       console.log(`⚠️ Minigame aborted for ${anomaly.type}`);
     }
 
+    /**
+     * Hull reached zero (HazardSystem). Staged detonation - white-hot core
+     * flash, dual shockwave rings, spinning debris shards, light flare -
+     * then emergency recovery at the origin with an invulnerability window.
+     */
+    handleShipDestroyed() {
+      if (this.respawning) return;
+      this.respawning = true;
+
+      const x = this.player.x;
+      const y = this.player.y;
+
+      playSfx('explosion');
+      if (getSettings().cameraShake) {
+        this.cameras.main.shake(500, 0.022);
+      }
+      this.cameras.main.flash(220, 255, 120, 60);
+
+      this.player.setVisible(false);
+      this.player.body.moves = false;
+      this.player.setVelocity(0, 0);
+
+      // 1. White-hot core flash
+      const core = this.add.circle(x, y, 8, 0xffffff, 1)
+        .setDepth(1999)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: core, scale: 7, alpha: 0,
+        duration: 280, ease: 'Cubic.easeOut',
+        onComplete: () => core.destroy(),
+      });
+
+      // 2. Dual shockwave rings, staggered
+      [{ color: 0xf5cf7a, scale: 6, dur: 480, delay: 0 },
+       { color: 0xe0524a, scale: 10, dur: 720, delay: 130 }].forEach((cfg) => {
+        const ring = this.add.graphics({ x, y }).setDepth(1998);
+        ring.lineStyle(3, cfg.color, 0.9);
+        ring.strokeCircle(0, 0, 18);
+        this.tweens.add({
+          targets: ring, scaleX: cfg.scale, scaleY: cfg.scale, alpha: 0,
+          duration: cfg.dur, delay: cfg.delay, ease: 'Cubic.easeOut',
+          onComplete: () => ring.destroy(),
+        });
+      });
+
+      // 3. Spinning debris shards
+      const shardColors = [0xf5cf7a, 0xe0824a, 0x9497ad, 0xffffff];
+      for (let i = 0; i < 14; i++) {
+        const angle = (i / 14) * Math.PI * 2 + Math.random() * 0.5;
+        const dist = 90 + Math.random() * 160;
+        const shard = this.add.graphics({ x, y }).setDepth(1998);
+        shard.fillStyle(shardColors[i % shardColors.length], 1);
+        shard.fillRect(-3, -1.2, 6, 2.4);
+        shard.rotation = Math.random() * Math.PI;
+        this.tweens.add({
+          targets: shard,
+          x: x + Math.cos(angle) * dist,
+          y: y + Math.sin(angle) * dist,
+          rotation: shard.rotation + (Math.random() - 0.5) * 12,
+          alpha: 0,
+          scale: 0.3,
+          duration: 650 + Math.random() * 350,
+          ease: 'Cubic.easeOut',
+          onComplete: () => shard.destroy(),
+        });
+      }
+
+      // 4. Hot spark burst (additive, tight and fast)
+      const sparks = this.add.particles(x, y, "Player", {
+        speed: { min: 180, max: 420 },
+        scale: { start: 0.02, end: 0 },
+        lifespan: { min: 300, max: 700 },
+        quantity: 26,
+        angle: { min: 0, max: 360 },
+        blendMode: "ADD",
+        tint: [0xffe2b0, 0xe0824a, 0xffffff],
+      });
+      this.time.delayedCall(800, () => sparks.destroy());
+
+      // 5. Light flare that decays with the fireball
+      const flare = this.lights.addLight(x, y, 520, 0xffaa55, 3.5);
+      const flareProxy = { i: 3.5 };
+      this.tweens.add({
+        targets: flareProxy, i: 0, duration: 750, ease: 'Cubic.easeOut',
+        onUpdate: () => flare.setIntensity(flareProxy.i),
+        onComplete: () => this.lights.removeLight(flare),
+      });
+
+      // 6. Notice, then recovery
+      const notice = this.add.text(x, y - 70,
+        'VESSEL DESTROYED\nEMERGENCY RECOVERY INITIATED', {
+          fontFamily: '"IBM Plex Mono", monospace',
+          fontSize: '14px',
+          color: '#e0524a',
+          align: 'center',
+        }).setOrigin(0.5).setAlpha(0).setDepth(2000);
+      this.tweens.add({ targets: notice, alpha: 1, y: y - 84, duration: 350, delay: 250 });
+
+      this.time.delayedCall(1800, () => {
+        notice.destroy();
+        this.player.setPosition(0, 0);
+        this.player.heal(100);
+        this.player.setVisible(true);
+        this.player.body.moves = true;
+        this.player.invulnerableUntil = this.time.now + 4000;
+        this.respawning = false;
+
+        // Recovery ring imploding onto the ship + blink while invulnerable
+        const arrival = this.add.graphics({ x: 0, y: 0 }).setDepth(1998);
+        arrival.lineStyle(2, 0x4fd1a5, 0.9);
+        arrival.strokeCircle(0, 0, 90);
+        this.tweens.add({
+          targets: arrival, scaleX: 0.1, scaleY: 0.1, alpha: 0,
+          duration: 450, ease: 'Cubic.easeIn',
+          onComplete: () => arrival.destroy(),
+        });
+        this.tweens.add({
+          targets: this.player,
+          alpha: { from: 0.35, to: 1 },
+          duration: 250,
+          yoyo: true,
+          repeat: 7,
+          onComplete: () => this.player.setAlpha(1),
+        });
+      });
+    }
+
     update(time, delta) {
       this.inputSystem.handlePlayerMovement(this.player, delta);
+      // Anomaly forces stack on top of the acceleration input just set
+      this.hazardSystem.update(time);
+      this.salvageSystem.update();
       this.applyBanking(delta);
 
       // Update player visuals and animations

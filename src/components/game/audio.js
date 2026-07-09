@@ -142,6 +142,10 @@ const SFX = {
     tone({ freq: 659.25, dur: 0.16, vol: 0.16, at: 0.09 });
   },
   boostDepleted: () => tone({ freq: 240, end: 130, type: "square", dur: 0.22, vol: 0.12 }),
+  salvage: () => {
+    tone({ freq: 1050 + Math.random() * 150, type: "triangle", dur: 0.05, vol: 0.09 });
+    tone({ freq: 1568, type: "triangle", dur: 0.07, vol: 0.07, at: 0.05 });
+  },
 };
 
 /** Fire a named one-shot effect. Safe to call unconditionally. */

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ANOMALY_TYPE_MAP } from '../constants';
 import { getChunkCoords, getChunkKey } from '../utils';
 import { getSettings } from '../settings.js';
+import { dangerRadius } from './HazardSystem.js';
 
 export class AnomalySystem {
   constructor(scene) {
@@ -90,6 +91,11 @@ export class AnomalySystem {
     });
     entity.fillStyle(typeObj.color, coreAlpha);
     entity.fillCircle(0, 0, radius * 0.22);
+
+    // Danger ring: hull damage inside this radius (HazardSystem) - faint,
+    // but a player who's been burned once learns to read it
+    entity.lineStyle(1, 0xe0524a, isBackend ? 0.3 : 0.22);
+    entity.strokeCircle(0, 0, dangerRadius(severity));
 
     // Soft glow
     const glow = this.scene.add.graphics({ x, y })

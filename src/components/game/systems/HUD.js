@@ -43,7 +43,8 @@ export class HUD {
       position: { x: this.lastX, y: this.lastY },
       boostEnergy: this.lastBoostEnergy,
       isBoosting: this.scene.player?.isBoosting || false,
-      boostLocked: this.scene.player?.boostLocked || false
+      boostLocked: this.scene.player?.boostLocked || false,
+      hull: Math.round(this.scene.player?.state?.health ?? 100)
     };
   }
 
