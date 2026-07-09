@@ -6,6 +6,7 @@
 // still fails (e.g. raced against another tab).
 import { useState } from 'react';
 import { UPGRADE_TRACKS } from '../content/upgradeCatalog.js';
+import { playSfx } from '../audio.js';
 
 const LevelPips = ({ level, max }) => (
   <div className="flex gap-1">
@@ -30,7 +31,12 @@ export const OutfittingPanel = ({ isOpen, onClose, universe, onPurchase }) => {
     setError(null);
     try {
       const data = await onPurchase(track);
-      if (data && !data.ok) setError(data.error || 'Purchase failed');
+      if (data && !data.ok) {
+        playSfx('uiDenied');
+        setError(data.error || 'Purchase failed');
+      } else {
+        playSfx('install');
+      }
     } finally {
       setBusyTrack(null);
     }

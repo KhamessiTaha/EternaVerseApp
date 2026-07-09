@@ -16,6 +16,7 @@ import { CodexPanel } from "./game/ui/CodexPanel";
 import { DiscoveryToast } from "./game/ui/DiscoveryToast";
 import { OutfittingPanel } from "./game/ui/OutfittingPanel";
 import { SettingsPanel } from "./game/ui/SettingsPanel";
+import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade }) => {
   const gameRef = useRef(null);
@@ -33,9 +34,22 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   // Scan completions: show the toast locally, then hand the discovery up to
   // GameplayPage for the backend submission / optimistic universe update.
   const handleDiscoveryFromScene = (discovery) => {
+    playSfx('discovery', discovery.rarity);
     setToast({ discovery, key: Date.now() });
     onDiscovery?.(discovery);
   };
+
+  // Open/close blips for the overlay panels. Compared against previous state
+  // so the mount itself (all closed) never fires a sound.
+  const prevPanelsRef = useRef({ map: false, codex: false, outfitting: false, settings: false });
+  useEffect(() => {
+    const prev = prevPanelsRef.current;
+    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen };
+    Object.keys(next).forEach((k) => {
+      if (next[k] !== prev[k]) playSfx(next[k] ? 'uiOpen' : 'uiClose');
+    });
+    prevPanelsRef.current = next;
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen]);
 
   // HUD update callback
   const handleHUDUpdate = (data) => {
@@ -155,6 +169,11 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       }
       gameRef.current = null;
       sceneRef.current = null;
+      // The audio engine lives outside Phaser - destroying the game does not
+      // silence it, so the drone/hum must be stopped here or it would keep
+      // playing on the dashboard after leaving the universe.
+      stopEngine();
+      stopAmbient();
     };
   }, [universe?.seed, universe?.name]);
 

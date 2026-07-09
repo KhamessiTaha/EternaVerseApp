@@ -5,6 +5,7 @@
 // systems read the store per-frame (or subscribe, for key rebinding).
 import { useState } from 'react';
 import { getSettings, updateSettings, resetSettings } from '../settings.js';
+import { playSfx } from '../audio.js';
 
 const OptionButtons = ({ options, value, onSelect }) => (
   <div className="flex gap-1.5">
@@ -21,6 +22,24 @@ const OptionButtons = ({ options, value, onSelect }) => (
         {opt.label}
       </button>
     ))}
+  </div>
+);
+
+const VolumeSlider = ({ value, onChange }) => (
+  <div className="flex items-center gap-3">
+    <input
+      type="range"
+      min="0"
+      max="1"
+      step="0.05"
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      onPointerUp={() => playSfx('uiClick')}
+      className="w-36 accent-accent"
+    />
+    <span className="font-mono text-[12px] text-ink tabular-nums w-11 text-right">
+      {Math.round(value * 100)}%
+    </span>
   </div>
 );
 
@@ -107,6 +126,27 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
               { value: 'low', label: 'LOW' },
               { value: 'high', label: 'HIGH' },
             ]}
+          />
+        </SettingRow>
+
+        <SettingRow label="Master Volume" hint="Scales all game audio">
+          <VolumeSlider
+            value={settings.masterVolume}
+            onChange={(v) => change({ masterVolume: v })}
+          />
+        </SettingRow>
+
+        <SettingRow label="Effects Volume" hint="Scans, minigames, UI, engine hum">
+          <VolumeSlider
+            value={settings.sfxVolume}
+            onChange={(v) => change({ sfxVolume: v })}
+          />
+        </SettingRow>
+
+        <SettingRow label="Ambience Volume" hint="The deep-space drone">
+          <VolumeSlider
+            value={settings.ambientVolume}
+            onChange={(v) => change({ ambientVolume: v })}
           />
         </SettingRow>
 

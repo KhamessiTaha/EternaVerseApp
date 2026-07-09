@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import seedrandom from "seedrandom";
 import { getChunkCoords, lerpFactorByDelta } from "../utils";
 import { getSettings } from "../settings.js";
+import { startAmbient, stopAmbient, updateEngine, stopEngine, playSfx } from "../audio.js";
 import { ChunkSystem } from "../systems/ChunkSystem";
 import { TextureFactory } from "../graphics/TextureFactory.js";
 import { BackgroundSystem } from "../systems/BackgroundSystem.js";
@@ -62,6 +63,14 @@ export const UniverseSceneFactory = (props) => {
 
       this.renderFullMap();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
+
+      // Space drone (fades in on the first user gesture if audio is locked)
+      startAmbient();
+
+      // Phaser fires 'shutdown' as an EVENT - a method merely named
+      // shutdown() is never auto-called, so without this line none of the
+      // scene's cleanup ever ran.
+      this.events.once('shutdown', this.shutdown, this);
     }
 
     initSystems() {
@@ -191,10 +200,11 @@ export const UniverseSceneFactory = (props) => {
 
         console.log(`🎆 Playing anomaly destruction effect at (${x.toFixed(0)}, ${y.toFixed(0)})`);
 
-        // Camera shake effect
+        // Camera shake + detonation audio
         if (getSettings().cameraShake) {
           this.cameras.main.shake(300, 0.008);
         }
+        playSfx('explosion');
 
         // Create particle burst for destruction
         const particleBurst = this.add.particles(x, y, "Player", {
@@ -258,6 +268,9 @@ export const UniverseSceneFactory = (props) => {
       this.hud.update(this.player);
       this.backgroundSystem.update();
       this.scanSystem.update(delta);
+
+      // Velocity-reactive engine hum
+      updateEngine(this.player.body.velocity.length() / 600, this.player.isBoosting || false);
 
       // Send HUD data to React
       if (this.onHUDUpdate) {
@@ -430,6 +443,8 @@ export const UniverseSceneFactory = (props) => {
       this.backgroundSystem?.destroy();
       this.scanSystem?.destroy();
       this.inputSystem?.destroy();
+      stopEngine();
+      stopAmbient();
 
       // Remove lights
       if (this.playerLight) this.lights.removeLight(this.playerLight);

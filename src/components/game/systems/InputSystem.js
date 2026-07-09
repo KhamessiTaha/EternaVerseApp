@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { scaleByDelta, decayByDelta } from "../utils";
 import { getShipModifiers } from "../content/upgradeCatalog.js";
 import { getSettings, onSettingsChange } from "../settings.js";
+import { playSfx } from "../audio.js";
 
 // Movement key presets, selected via the settings menu. AZERTY (ZQSD) is the
 // game's original binding; QWERTY gives the standard WASD cluster.
@@ -356,6 +357,7 @@ export class InputSystem {
     // Trigger lockout the moment energy bottoms out; release it only once
     // energy has climbed back past the threshold
     if (this.boostEnergy <= 0) {
+      if (!this.boostLocked) playSfx('boostDepleted');
       this.boostLocked = true;
     } else if (this.boostLocked && this.boostEnergy >= this.params.BOOST_LOCKOUT_THRESHOLD) {
       this.boostLocked = false;

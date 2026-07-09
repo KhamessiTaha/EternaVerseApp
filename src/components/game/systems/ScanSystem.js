@@ -9,6 +9,7 @@ import Phaser from "phaser";
 import { SCAN_RANGE, SCAN_DURATION_MS, SCAN_CANCEL_RANGE, ANOMALY_TYPE_MAP } from "../constants";
 import { ANOMALY_SCAN_BASE } from "../world/researchValues.js";
 import { getShipModifiers } from "../content/upgradeCatalog.js";
+import { playSfx } from "../audio.js";
 
 export class ScanSystem {
   constructor(scene) {
@@ -90,6 +91,7 @@ export class ScanSystem {
     }
     if (!nearest) return;
 
+    playSfx('scanStart');
     this.active = {
       target: nearest,
       elapsed: 0,
@@ -106,6 +108,7 @@ export class ScanSystem {
     // Cancel range keeps the stock cancel/start ratio, scaled with the upgrade
     const cancelRange = SCAN_RANGE * mods.scanRange * (SCAN_CANCEL_RANGE / SCAN_RANGE);
     if (Phaser.Math.Distance.Between(player.x, player.y, target.x, target.y) > cancelRange) {
+      playSfx('scanCancel');
       this._cancel();
       return;
     }
@@ -131,6 +134,7 @@ export class ScanSystem {
     gfx.destroy();
     this.active = null;
 
+    playSfx('scanComplete');
     this.scannedIds.add(target.id);
 
     // Pulse effect
