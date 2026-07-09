@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { createUniverse } from "../api/universeApi";
 import { Sparkles, Activity, Zap, Info, Loader2, ArrowLeft, Shuffle } from "lucide-react";
 import { Button, Panel, Field, Eyebrow, Alert } from "../components/ui/primitives";
+import { useToast } from "../components/ui/ToastProvider";
 
 const DIFFICULTIES = [
   {
@@ -31,6 +32,7 @@ const DIFFICULTIES = [
 
 const UniverseCreation = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [universeData, setUniverseData] = useState({
@@ -60,6 +62,7 @@ const UniverseCreation = () => {
 
     try {
       const universe = await createUniverse(universeData);
+      toast(`Universe "${universe.name}" created - initiating genesis`, 'success');
       navigate(`/big-bang/${universe._id}`, { state: { universe } });
     } catch (error) {
       setError(error.response?.data?.message || "Failed to create universe. Please try again.");

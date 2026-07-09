@@ -6,6 +6,8 @@ import {
   Clock, Globe, Star, Activity, Users
 } from "lucide-react";
 import { Button, Panel, Eyebrow } from "../components/ui/primitives";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
+import { useToast } from "../components/ui/ToastProvider";
 
 const DIFFICULTY_COLOR = {
   Beginner: 'text-good border-good/30',
@@ -94,21 +96,11 @@ const StatLine = React.memo(({ icon: Icon, label, value }) => (
 ));
 StatLine.displayName = 'StatLine';
 
-const UniverseCard = React.memo(({ universe, onDelete, onView }) => {
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleDelete = useCallback(async (e) => {
+const UniverseCard = React.memo(({ universe, onRequestDelete, onView, isDeleting }) => {
+  const handleDelete = useCallback((e) => {
     e.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete "${universe.name}"? This action cannot be undone.`)) {
-      setIsDeleting(true);
-      try {
-        await onDelete(universe._id);
-      } catch (error) {
-        console.error("Delete failed:", error);
-        setIsDeleting(false);
-      }
-    }
-  }, [universe._id, universe.name, onDelete]);
+    onRequestDelete(universe);
+  }, [universe, onRequestDelete]);
 
   const statusConfig = STATUS_CONFIG[universe.status?.toLowerCase()] || STATUS_CONFIG.default;
   const stability = (universe.currentState?.stabilityIndex || 0) * 100;
@@ -214,6 +206,7 @@ const selectClass = "bg-void border border-line px-4 py-2.5 focus:outline-none f
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [universes, setUniverses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -221,6 +214,8 @@ const Dashboard = () => {
   const [filterDifficulty, setFilterDifficulty] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null); // universe awaiting confirmation
+  const [deletingId, setDeletingId] = useState(null);
 
   const fetchUniverses = useCallback(async () => {
     try {
@@ -246,16 +241,23 @@ const Dashboard = () => {
     setIsRefreshing(false);
   }, [fetchUniverses]);
 
-  const handleDelete = useCallback(async (id) => {
+  const confirmDelete = useCallback(async () => {
+    const target = pendingDelete;
+    if (!target) return;
+    setPendingDelete(null);
+    setDeletingId(target._id);
     try {
-      await deleteUniverse(id);
-      setUniverses(prev => prev.filter((u) => u._id !== id));
+      await deleteUniverse(target._id);
+      setUniverses(prev => prev.filter((u) => u._id !== target._id));
       setError(null);
+      toast(`Universe "${target.name}" deleted`, 'success');
     } catch (err) {
       console.error("Failed to delete universe:", err);
-      setError(err.response?.data?.message || "Failed to delete universe. Please try again.");
+      toast(err.response?.data?.message || "Failed to delete universe - try again", 'error');
+    } finally {
+      setDeletingId(null);
     }
-  }, []);
+  }, [pendingDelete, toast]);
 
   const handleViewUniverse = useCallback((id) => {
     navigate(`/gameplay/${id}`);
@@ -374,13 +376,24 @@ const Dashboard = () => {
               <UniverseCard
                 key={universe._id}
                 universe={universe}
-                onDelete={handleDelete}
+                onRequestDelete={setPendingDelete}
                 onView={() => handleViewUniverse(universe._id)}
+                isDeleting={deletingId === universe._id}
               />
             ))
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        danger
+        title={`Delete "${pendingDelete?.name}"?`}
+        message="The universe, its history, discoveries, and civilizations will be erased. This action cannot be undone."
+        confirmLabel="Delete Universe"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 };

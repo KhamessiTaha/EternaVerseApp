@@ -10,6 +10,7 @@ import UniverseCreation from "./pages/UniverseCreation";
 import ProtectedRoute from "./components/ProtectedRoute";
 import BigBangPage from "./pages/BigBangPage";
 import GameplayPage from "./pages/GameplayPage";
+import { ToastProvider } from "./components/ui/ToastProvider";
 import './index.css';
 import './App.css';
 
@@ -17,6 +18,7 @@ function App() {
   const { user } = useContext(AuthContext);
 
   return (
+    <ToastProvider>
     <Router>
       <div className="flex flex-col min-h-screen bg-void">
         {/* Global Navbar - Fixed height, doesn't flex */}
@@ -66,6 +68,7 @@ function App() {
         </main>
       </div>
     </Router>
+    </ToastProvider>
   );
 }
 
