@@ -125,6 +125,25 @@ export const submitDiscoveries = async (universeId, discoveries) => {
   }
 };
 
+// Claim a completed mission. The server validates completion against live
+// universe state and issues a replacement objective.
+export const claimMission = async (universeId, missionId) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/claim-mission`,
+      { missionId },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error claiming mission:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Admin dev/test actions. The server re-checks the admin flag against the
 // database on every call - these 404 for regular players.
 export const devAction = async (universeId, action, payload = {}) => {

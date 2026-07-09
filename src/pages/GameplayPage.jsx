@@ -11,6 +11,7 @@ import {
   purchaseUpgrade,
   contactCivilization,
   devAction,
+  claimMission,
 } from "../api/universeApi";
 import { getShipModifiers } from "../components/game/content/upgradeCatalog";
 import { Button, Eyebrow } from "../components/ui/primitives";
@@ -211,6 +212,20 @@ const GameplayPage = () => {
     }
   };
 
+  // Claim a completed mission - server validates completion and issues a
+  // replacement; the response carries the updated universe.
+  const handleClaimMission = async (missionId) => {
+    try {
+      const data = await claimMission(id, missionId);
+      if (data.ok && data.universe) {
+        setUniverse(data.universe);
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.response?.data?.error || "Claim failed - try again" };
+    }
+  };
+
   // Admin dev/test actions - server re-validates the admin flag per request
   const handleDevAction = async (action, payload) => {
     try {
@@ -406,6 +421,7 @@ const GameplayPage = () => {
         onPurchaseUpgrade={handlePurchaseUpgrade}
         onContactAction={handleContactAction}
         onDevAction={handleDevAction}
+        onClaimMission={handleClaimMission}
       />
       {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
     </>

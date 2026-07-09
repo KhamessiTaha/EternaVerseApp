@@ -20,9 +20,10 @@ import { SettingsPanel } from "./game/ui/SettingsPanel";
 import { ChroniclePanel } from "./game/ui/ChroniclePanel";
 import { FirstContactPanel } from "./game/ui/FirstContactPanel";
 import { DevPanel } from "./game/ui/DevPanel";
+import { MissionsPanel } from "./game/ui/MissionsPanel";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission }) => {
   const { user } = useContext(AuthContext);
   const isAdmin = !!user?.isAdmin;
   const gameRef = useRef(null);
@@ -39,6 +40,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isChronicleOpen, setIsChronicleOpen] = useState(false);
   const [contactCivId, setContactCivId] = useState(null);
   const [isDevOpen, setIsDevOpen] = useState(false);
+  const [isMissionsOpen, setIsMissionsOpen] = useState(false);
 
   // Scan completions: show the toast locally, then hand the discovery up to
   // GameplayPage for the backend submission / optimistic universe update.
@@ -53,12 +55,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const prevPanelsRef = useRef({ map: false, codex: false, outfitting: false, settings: false, chronicle: false, contact: false });
   useEffect(() => {
     const prev = prevPanelsRef.current;
-    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen, contact: !!contactCivId };
+    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen, contact: !!contactCivId, missions: isMissionsOpen };
     Object.keys(next).forEach((k) => {
       if (next[k] !== prev[k]) playSfx(next[k] ? 'uiOpen' : 'uiClose');
     });
     prevPanelsRef.current = next;
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen, contactCivId]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen, contactCivId, isMissionsOpen]);
 
   // HUD update callback
   const handleHUDUpdate = (data) => {
@@ -103,10 +105,14 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       if ((e.key === 'k' || e.key === 'K') && isAdmin) {
         setIsDevOpen(prev => !prev);
       }
+      if (e.key === 'o' || e.key === 'O') {
+        setIsMissionsOpen(prev => !prev);
+      }
       if (e.key === 'Escape') {
         if (sceneRef.current?.inputSystem?.isMinigameActive) return;
         if (isDevOpen) { setIsDevOpen(false); return; }
         if (contactCivId) { setContactCivId(null); return; }
+        if (isMissionsOpen) { setIsMissionsOpen(false); return; }
         if (isFullMapOpen) { setIsFullMapOpen(false); return; }
         if (isCodexOpen) { setIsCodexOpen(false); return; }
         if (isOutfittingOpen) { setIsOutfittingOpen(false); return; }
@@ -117,7 +123,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen]);
 
   useEffect(() => {
     const SceneClass = UniverseSceneFactory({
@@ -273,6 +279,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
           onDevAction={onDevAction}
         />
       )}
+      <MissionsPanel
+        isOpen={isMissionsOpen}
+        onClose={() => setIsMissionsOpen(false)}
+        universe={universe}
+        onClaim={onClaimMission}
+      />
 
       <div id="phaser-container" className="w-full h-full" />
     </div>
