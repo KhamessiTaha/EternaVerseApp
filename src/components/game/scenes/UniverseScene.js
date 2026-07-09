@@ -13,9 +13,10 @@ import { FullMapSystem } from "../systems/FullMapSystem";
 import { InputSystem } from "../systems/InputSystem";
 import { HUD } from "../systems/HUD";
 import { PlayerObject } from "../systems/PlayerObject";
+import { CivilizationSystem } from "../systems/CivilizationSystem";
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -27,6 +28,7 @@ export const UniverseSceneFactory = (props) => {
       this.onMinimapUpdate = onMinimapUpdate;
       this.onFullMapUpdate = onFullMapUpdate;
       this.onDiscovery = onDiscovery;
+      this.onCivContact = onCivContact;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -63,6 +65,7 @@ export const UniverseSceneFactory = (props) => {
 
       this.renderFullMap();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
+      this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
 
       // Space drone (fades in on the first user gesture if audio is locked)
       startAmbient();
@@ -80,12 +83,14 @@ export const UniverseSceneFactory = (props) => {
       this.scanSystem = new ScanSystem(this);
       this.scanSystem.seedScanned((this.universe.discoveries || []).map((d) => d.id));
       this.chunkSystem = new ChunkSystem(this, this.anomalySystem);
+      this.civilizationSystem = new CivilizationSystem(this);
       this.minimapSystem = new MinimapSystem(this);
       this.fullMapSystem = new FullMapSystem(this);
       this.inputSystem = new InputSystem(this);
       this.hud = new HUD(this);
 
       this.anomalySystem.syncBackendAnomalies();
+      this.civilizationSystem.sync();
     }
 
     createPlayer() {
@@ -283,6 +288,7 @@ export const UniverseSceneFactory = (props) => {
         this.player,
         this.chunkSystem.loadedChunks
       );
+      this.civilizationSystem.handleInteraction(this.player);
 
       // Update minimap (now sends data to React)
       this.minimapSystem.update(
@@ -290,6 +296,7 @@ export const UniverseSceneFactory = (props) => {
         this.currentChunk,
         this.chunkSystem.loadedChunks,
         this.anomalySystem.backendAnomalies,
+        this.civilizationSystem.getMapMarkers(),
       );
       
       // Update full map (send data to React)
@@ -385,6 +392,7 @@ export const UniverseSceneFactory = (props) => {
         this.anomalySystem.renderBackendAnomalies(
           this.chunkSystem.loadedChunks,
         );
+        this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
       }
     }
 
@@ -396,6 +404,7 @@ export const UniverseSceneFactory = (props) => {
         this.chunkSystem.loadedChunks,
         this.anomalySystem.backendAnomalies,
         this.anomalySystem.resolvedAnomalies,
+        this.civilizationSystem.getMapMarkers(),
       );
     }
 
@@ -416,6 +425,8 @@ export const UniverseSceneFactory = (props) => {
       this.anomalySystem.syncBackendAnomalies();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
       this.scanSystem.seedScanned((newUniverse.discoveries || []).map((d) => d.id));
+      this.civilizationSystem.sync();
+      this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
     }
 
     shutdown() {
@@ -443,6 +454,7 @@ export const UniverseSceneFactory = (props) => {
       this.backgroundSystem?.destroy();
       this.scanSystem?.destroy();
       this.inputSystem?.destroy();
+      this.civilizationSystem?.destroy();
       stopEngine();
       stopAmbient();
 

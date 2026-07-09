@@ -8,6 +8,14 @@ const WARN = '#e0824a';
 const GOOD = '#4fd1a5';
 const INK_FAINT = '#565a72';
 
+// Kardashev type -> beacon color (mirrors CivilizationSystem.CIV_TYPE_COLORS)
+const CIV_COLORS = {
+  Type0: '#9497ad',
+  Type1: '#4fd1a5',
+  Type2: '#dfa73f',
+  Type3: '#8b7bd8',
+};
+
 export const MinimapPanel = ({ minimapData, onMapToggle }) => {
   const canvasRef = useRef(null);
 
@@ -16,7 +24,7 @@ export const MinimapPanel = ({ minimapData, onMapToggle }) => {
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const { player, currentChunk, loadedChunks, anomalies, size = 200 } = minimapData;
+    const { player, currentChunk, loadedChunks, anomalies, civs, size = 200 } = minimapData;
     const radius = size / 2;
 
     ctx.clearRect(0, 0, size, size);
@@ -79,6 +87,24 @@ export const MinimapPanel = ({ minimapData, onMapToggle }) => {
           ctx.stroke();
           ctx.globalAlpha = 1;
         }
+      });
+    }
+
+    // Civilization beacons - diamonds, colored by Kardashev type
+    if (civs) {
+      civs.forEach((civ) => {
+        const cx = centerX + (civ.x - player.x) * scale;
+        const cy = centerY + (civ.y - player.y) * scale;
+        if (cx < 0 || cx > size || cy < 0 || cy > size) return;
+
+        ctx.fillStyle = CIV_COLORS[civ.type] || CIV_COLORS.Type0;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 3.5);
+        ctx.lineTo(cx + 3, cy);
+        ctx.lineTo(cx, cy + 3.5);
+        ctx.lineTo(cx - 3, cy);
+        ctx.closePath();
+        ctx.fill();
       });
     }
 

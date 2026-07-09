@@ -125,6 +125,26 @@ export const submitDiscoveries = async (universeId, discoveries) => {
   }
 };
 
+// First Contact action (observe / uplift / pacify). Costs, rewards, and the
+// uplift backfire roll are all server-side; the response carries the updated
+// universe plus an outcome message for the panel.
+export const contactCivilization = async (universeId, civId, action) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/contact-civilization`,
+      { civId, action },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error contacting civilization:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Get the ML predictor's risk forecast (stability, anomaly emergence,
 // end-condition risks, action priorities) for the Chronicle's threat panel.
 export const getPredictions = async (universeId) => {

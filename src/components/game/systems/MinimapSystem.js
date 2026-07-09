@@ -3,7 +3,7 @@ export class MinimapSystem {
     this.scene = scene;
   }
 
-  update(player, currentChunk, loadedChunks, backendAnomalies) {
+  update(player, currentChunk, loadedChunks, backendAnomalies, civMarkers = []) {
     if (this.scene.onMinimapUpdate) {
       this.scene.onMinimapUpdate({
         player: {
@@ -17,6 +17,7 @@ export class MinimapSystem {
         },
         loadedChunks: this.formatLoadedChunks(loadedChunks),
         anomalies: this.formatAnomalies(loadedChunks, backendAnomalies),
+        civs: civMarkers,
         size: 96
       });
     }

@@ -9,6 +9,7 @@ import {
   cleanupAnomalies,
   submitDiscoveries,
   purchaseUpgrade,
+  contactCivilization,
 } from "../api/universeApi";
 import { getShipModifiers } from "../components/game/content/upgradeCatalog";
 import { Button, Eyebrow } from "../components/ui/primitives";
@@ -194,6 +195,21 @@ const GameplayPage = () => {
     }
   };
 
+  // First Contact action - server owns all effects/costs/rolls; the response
+  // carries the updated universe. Returns the payload so the panel can show
+  // the outcome message.
+  const handleContactAction = async (civId, action) => {
+    try {
+      const data = await contactCivilization(id, civId, action);
+      if (data.ok && data.universe) {
+        setUniverse(data.universe);
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.response?.data?.error || "Contact failed - try again" };
+    }
+  };
+
   // Background simulation (every 30 seconds)
   useEffect(() => {
     if (!universe || universe.status === 'ended') return;
@@ -374,6 +390,7 @@ const GameplayPage = () => {
         onPlayerPositionUpdate={handlePlayerPositionUpdate}
         onDiscovery={handleDiscovery}
         onPurchaseUpgrade={handlePurchaseUpgrade}
+        onContactAction={handleContactAction}
       />
       {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
     </>

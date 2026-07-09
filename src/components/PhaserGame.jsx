@@ -17,9 +17,10 @@ import { DiscoveryToast } from "./game/ui/DiscoveryToast";
 import { OutfittingPanel } from "./game/ui/OutfittingPanel";
 import { SettingsPanel } from "./game/ui/SettingsPanel";
 import { ChroniclePanel } from "./game/ui/ChroniclePanel";
+import { FirstContactPanel } from "./game/ui/FirstContactPanel";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction }) => {
   const gameRef = useRef(null);
   const sceneRef = useRef(null);
   const [stats, setStats] = useState({ resolved: 0, discovered: 0 });
@@ -32,6 +33,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isOutfittingOpen, setIsOutfittingOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChronicleOpen, setIsChronicleOpen] = useState(false);
+  const [contactCivId, setContactCivId] = useState(null);
 
   // Scan completions: show the toast locally, then hand the discovery up to
   // GameplayPage for the backend submission / optimistic universe update.
@@ -43,15 +45,15 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
   // Open/close blips for the overlay panels. Compared against previous state
   // so the mount itself (all closed) never fires a sound.
-  const prevPanelsRef = useRef({ map: false, codex: false, outfitting: false, settings: false, chronicle: false });
+  const prevPanelsRef = useRef({ map: false, codex: false, outfitting: false, settings: false, chronicle: false, contact: false });
   useEffect(() => {
     const prev = prevPanelsRef.current;
-    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen };
+    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen, contact: !!contactCivId };
     Object.keys(next).forEach((k) => {
       if (next[k] !== prev[k]) playSfx(next[k] ? 'uiOpen' : 'uiClose');
     });
     prevPanelsRef.current = next;
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen, contactCivId]);
 
   // HUD update callback
   const handleHUDUpdate = (data) => {
@@ -95,6 +97,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       }
       if (e.key === 'Escape') {
         if (sceneRef.current?.inputSystem?.isMinigameActive) return;
+        if (contactCivId) { setContactCivId(null); return; }
         if (isFullMapOpen) { setIsFullMapOpen(false); return; }
         if (isCodexOpen) { setIsCodexOpen(false); return; }
         if (isOutfittingOpen) { setIsOutfittingOpen(false); return; }
@@ -105,7 +108,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId]);
 
   useEffect(() => {
     const SceneClass = UniverseSceneFactory({
@@ -115,7 +118,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       onHUDUpdate: handleHUDUpdate,
       onMinimapUpdate: handleMinimapUpdate,
       onFullMapUpdate: handleFullMapUpdate,
-      onDiscovery: handleDiscoveryFromScene
+      onDiscovery: handleDiscoveryFromScene,
+      onCivContact: (civId) => setContactCivId(civId)
     });
 
     const container = document.getElementById("phaser-container");
@@ -189,7 +193,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
     }
     // upgrades must be a dep: InputSystem/ScanSystem read stat modifiers off
     // the scene's universe reference, which only refreshes through this effect
-  }, [universe?.anomalies, universe?.currentState, universe?.discoveries, universe?.upgrades]);
+  }, [universe?.anomalies, universe?.currentState, universe?.discoveries, universe?.upgrades, universe?.civilizations]);
 
   return (
     <div className="w-full h-full bg-void relative overflow-hidden">
@@ -246,6 +250,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         isOpen={isChronicleOpen}
         onClose={() => setIsChronicleOpen(false)}
         universe={universe}
+      />
+      <FirstContactPanel
+        civId={contactCivId}
+        onClose={() => setContactCivId(null)}
+        universe={universe}
+        onAction={onContactAction}
       />
 
       <div id="phaser-container" className="w-full h-full" />

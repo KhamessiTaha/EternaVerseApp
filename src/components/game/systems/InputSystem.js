@@ -110,6 +110,13 @@ export class InputSystem {
       if (this.isMinigameActive) return;
       this.scene.scanSystem?.tryStartScan();
     });
+
+    // G key: open First Contact with the nearest civilization beacon
+    this.scene.input.keyboard.on('keydown-G', () => {
+      if (this.isMinigameActive) return;
+      const civ = this.scene.civilizationSystem?.findNearest(this.scene.player);
+      if (civ) this.scene.onCivContact?.(civ.id);
+    });
   }
 
   /**
