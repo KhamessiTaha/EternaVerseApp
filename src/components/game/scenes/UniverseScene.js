@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
 import { getChunkCoords, lerpFactorByDelta } from "../utils";
+import { getSettings } from "../settings.js";
 import { ChunkSystem } from "../systems/ChunkSystem";
 import { TextureFactory } from "../graphics/TextureFactory.js";
 import { BackgroundSystem } from "../systems/BackgroundSystem.js";
@@ -191,7 +192,9 @@ export const UniverseSceneFactory = (props) => {
         console.log(`🎆 Playing anomaly destruction effect at (${x.toFixed(0)}, ${y.toFixed(0)})`);
 
         // Camera shake effect
-        this.cameras.main.shake(300, 0.008);
+        if (getSettings().cameraShake) {
+          this.cameras.main.shake(300, 0.008);
+        }
 
         // Create particle burst for destruction
         const particleBurst = this.add.particles(x, y, "Player", {
@@ -350,7 +353,7 @@ export const UniverseSceneFactory = (props) => {
     }
 
     updateCameraShake() {
-      if (this.cameraShakeIntensity > 0.0001) {
+      if (this.cameraShakeIntensity > 0.0001 && getSettings().cameraShake) {
         this.cameras.main.shake(16, this.cameraShakeIntensity);
       }
     }
@@ -426,6 +429,7 @@ export const UniverseSceneFactory = (props) => {
       
       this.backgroundSystem?.destroy();
       this.scanSystem?.destroy();
+      this.inputSystem?.destroy();
 
       // Remove lights
       if (this.playerLight) this.lights.removeLight(this.playerLight);

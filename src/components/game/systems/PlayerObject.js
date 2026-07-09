@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { getSettings } from '../settings.js';
 
 export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture) {
@@ -89,17 +90,20 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
    * Create engine trail particles
    */
   updateTrail(velocity, inputData) {
-    if (velocity < 40) return;
-    
+    const trailQuality = getSettings().trailQuality;
+    if (trailQuality === "off" || velocity < 40) return;
+
     const now = this.scene.time.now;
     if (now - this.lastTrailTime < this.flameConfig.trailInterval) return;
-    
+
     this.lastTrailTime = now;
-    
-    // Particle intensity
+
+    // Particle intensity (low quality halves the count and skips the
+    // outer-layer / sparkle particles below)
     const boostMultiplier = inputData.boosting ? 1.5 : 1;
     const velocityFactor = Math.min(velocity / 600, 1);
-    const particleCount = Math.floor(2 + velocityFactor * 4) * boostMultiplier;
+    let particleCount = Math.floor(2 + velocityFactor * 4) * boostMultiplier;
+    if (trailQuality === "low") particleCount = Math.max(1, Math.floor(particleCount / 2));
     
     // Colors - normal thrust matches the HUD's amber accent (starlight),
     // boost shifts to a cool cyan "overdrive" tone distinct from any UI status color
@@ -159,16 +163,16 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
           midColor, 0.5, 2.5, 280, 'Quad'
         );
         
-        if (Math.random() > 0.4) {
+        if (trailQuality === "high" && Math.random() > 0.4) {
           this.createParticle(
             spawnX + trailDir.x * 2,
             spawnY + trailDir.y * 2,
             outerColor, 0.25, 3.5, 320, 'Cubic'
           );
         }
-        
+
         // Sparkles when boosting
-        if (isBoosting && Math.random() > 0.6) {
+        if (trailQuality === "high" && isBoosting && Math.random() > 0.6) {
           this.createParticle(
             spawnX + perpDir.x * sideOffset * 0.5,
             spawnY + perpDir.y * sideOffset * 0.5,
@@ -225,8 +229,10 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
       repeat: 2,
       ease: 'Cubic.easeOut',
     });
-    
-    this.scene.cameras.main.shake(150, 0.005);
+
+    if (getSettings().cameraShake) {
+      this.scene.cameras.main.shake(150, 0.005);
+    }
   }
   
   /**

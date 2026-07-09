@@ -15,6 +15,7 @@ import { FullMapPanel } from "./game/ui/FullMapPanel";
 import { CodexPanel } from "./game/ui/CodexPanel";
 import { DiscoveryToast } from "./game/ui/DiscoveryToast";
 import { OutfittingPanel } from "./game/ui/OutfittingPanel";
+import { SettingsPanel } from "./game/ui/SettingsPanel";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade }) => {
   const gameRef = useRef(null);
@@ -27,6 +28,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [toast, setToast] = useState(null);
   const [isCodexOpen, setIsCodexOpen] = useState(false);
   const [isOutfittingOpen, setIsOutfittingOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Scan completions: show the toast locally, then hand the discovery up to
   // GameplayPage for the backend submission / optimistic universe update.
@@ -58,7 +60,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
     setIsFullMapOpen(prev => !prev);
   };
 
-  // Listen for M key to toggle map
+  // Overlay hotkeys. ESC behaves like a real game: closes whatever overlay
+  // is open first, otherwise toggles Settings - and does nothing while a
+  // minigame is running, where ESC already means "abort minigame".
   useEffect(() => {
     const handleKeyPress = (e) => {
       if (e.key === 'm' || e.key === 'M') {
@@ -70,11 +74,18 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       if (e.key === 'u' || e.key === 'U') {
         setIsOutfittingOpen(prev => !prev);
       }
+      if (e.key === 'Escape') {
+        if (sceneRef.current?.inputSystem?.isMinigameActive) return;
+        if (isFullMapOpen) { setIsFullMapOpen(false); return; }
+        if (isCodexOpen) { setIsCodexOpen(false); return; }
+        if (isOutfittingOpen) { setIsOutfittingOpen(false); return; }
+        setIsSettingsOpen(prev => !prev);
+      }
     };
-    
+
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, []);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen]);
 
   useEffect(() => {
     const SceneClass = UniverseSceneFactory({
@@ -201,6 +212,10 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         onClose={() => setIsOutfittingOpen(false)}
         universe={universe}
         onPurchase={onPurchaseUpgrade}
+      />
+      <SettingsPanel
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
 
       <div id="phaser-container" className="w-full h-full" />

@@ -125,7 +125,7 @@ export class ExpansionContainmentScene extends MiniGameScene {
   registerBreach(front) {
     this.breaches++;
     this.breachText.setText(`BREACHES ${this.breaches} / ${this.maxBreaches}`);
-    this.cameras.main.shake(200, 0.01);
+    this.shake(200, 0.01);
     this.showFeedback('BREACH!', MG_COLORS.critical, front.x, front.y - 40);
     front.radius = 14;
   }

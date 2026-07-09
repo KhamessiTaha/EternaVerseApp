@@ -8,6 +8,7 @@
  */
 import Phaser from 'phaser';
 import { getGradeForAccuracy } from '../utils';
+import { getSettings } from '../settings.js';
 
 // Shared observatory palette - keep in sync with tailwind.config.js tokens
 export const MG_COLORS = {
@@ -69,6 +70,16 @@ export class MiniGameScene extends Phaser.Scene {
     this.add.rectangle(0, 0, this.cameras.main.width, this.cameras.main.height, MG_COLORS.void)
       .setOrigin(0, 0)
       .setDepth(-10);
+  }
+
+  /**
+   * Camera shake that respects the player's settings. Minigames should call
+   * this instead of this.cameras.main.shake directly.
+   */
+  shake(duration, intensity) {
+    if (getSettings().cameraShake) {
+      this.cameras.main.shake(duration, intensity);
+    }
   }
 
   /**

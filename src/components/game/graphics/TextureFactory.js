@@ -178,19 +178,26 @@ export class TextureFactory {
 
   _generateStarfield(key, layerIndex) {
     if (this.scene.textures.exists(key)) return;
-    const rt = this.scene.make.renderTexture({ width: STAR_TEX_SIZE, height: STAR_TEX_SIZE }, false);
-    const g = this.scene.make.graphics({ add: false });
+    // These must be plain canvas textures, NOT the RenderTexture.saveTexture
+    // path used for the object sprites above: TileSprite (BackgroundSystem's
+    // parallax layers) cannot tile a dynamic texture in WebGL and renders
+    // Phaser's green "missing texture" grid across the whole screen instead.
+    const canvas = document.createElement("canvas");
+    canvas.width = STAR_TEX_SIZE;
+    canvas.height = STAR_TEX_SIZE;
+    const ctx = canvas.getContext("2d");
+
     const counts = [170, 110, 60][layerIndex] ?? 100;
     const maxR = [0.9, 1.3, 1.8][layerIndex] ?? 1;
     for (let i = 0; i < counts; i++) {
       const tintRoll = this.rng();
-      const color = tintRoll < 0.12 ? 0xbcd4ff : tintRoll < 0.2 ? 0xffe2b0 : 0xffffff;
-      g.fillStyle(color, 0.25 + this.rng() * 0.6);
-      g.fillCircle(this.rng() * STAR_TEX_SIZE, this.rng() * STAR_TEX_SIZE, 0.4 + this.rng() * maxR);
+      const rgb = tintRoll < 0.12 ? "188,212,255" : tintRoll < 0.2 ? "255,226,176" : "255,255,255";
+      ctx.fillStyle = `rgba(${rgb},${(0.25 + this.rng() * 0.6).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(this.rng() * STAR_TEX_SIZE, this.rng() * STAR_TEX_SIZE, 0.4 + this.rng() * maxR, 0, Math.PI * 2);
+      ctx.fill();
     }
-    rt.draw(g);
-    rt.saveTexture(key);
-    g.destroy();
-    rt.destroy();
+
+    this.scene.textures.addCanvas(key, canvas);
   }
 }

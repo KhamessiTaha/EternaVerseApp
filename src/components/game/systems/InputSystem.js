@@ -1,11 +1,22 @@
 import Phaser from "phaser";
 import { scaleByDelta, decayByDelta } from "../utils";
 import { getShipModifiers } from "../content/upgradeCatalog.js";
+import { getSettings, onSettingsChange } from "../settings.js";
+
+// Movement key presets, selected via the settings menu. AZERTY (ZQSD) is the
+// game's original binding; QWERTY gives the standard WASD cluster.
+const KEY_LAYOUTS = {
+  azerty: { thrust: "Z", brake: "S", left: "Q", right: "D", strafeLeft: "A", strafeRight: "E" },
+  qwerty: { thrust: "W", brake: "S", left: "A", right: "D", strafeLeft: "Q", strafeRight: "E" },
+};
 
 export class InputSystem {
   constructor(scene) {
     this.scene = scene;
     this.setupControls();
+
+    // Rebind movement keys immediately when the layout setting changes
+    this.unsubscribeSettings = onSettingsChange(() => this.applyKeyboardLayout());
     
     // Enhanced physics parameters
     this.params = {
@@ -85,21 +96,7 @@ export class InputSystem {
   }
 
   setupControls() {
-    this.keys = this.scene.input.keyboard.addKeys({
-      thrust: Phaser.Input.Keyboard.KeyCodes.Z,
-      brake: Phaser.Input.Keyboard.KeyCodes.S,
-      left: Phaser.Input.Keyboard.KeyCodes.Q,
-      right: Phaser.Input.Keyboard.KeyCodes.D,
-      strafeLeft: Phaser.Input.Keyboard.KeyCodes.A,
-      strafeRight: Phaser.Input.Keyboard.KeyCodes.E,
-      boost: Phaser.Input.Keyboard.KeyCodes.SHIFT,
-      map: Phaser.Input.Keyboard.KeyCodes.M,
-      fix: Phaser.Input.Keyboard.KeyCodes.F,
-      scan: Phaser.Input.Keyboard.KeyCodes.V,
-    });
-
-    this.mapKey = this.keys.map;
-    this.fixKey = this.keys.fix;
+    this.applyKeyboardLayout();
 
     // Setup F key listener for anomaly interaction
     this.scene.input.keyboard.on('keydown-F', () => {
@@ -111,6 +108,34 @@ export class InputSystem {
       if (this.isMinigameActive) return;
       this.scene.scanSystem?.tryStartScan();
     });
+  }
+
+  /**
+   * (Re)bind all polled keys from the current keyboard-layout setting.
+   * Safe to call at any time - old Key objects are released first so
+   * abandoned bindings don't keep firing.
+   */
+  applyKeyboardLayout() {
+    const layout = KEY_LAYOUTS[getSettings().keyboardLayout] || KEY_LAYOUTS.azerty;
+
+    if (this.keys) {
+      Object.values(this.keys).forEach((key) => this.scene.input.keyboard.removeKey(key));
+    }
+
+    this.keys = this.scene.input.keyboard.addKeys({
+      ...layout,
+      boost: Phaser.Input.Keyboard.KeyCodes.SHIFT,
+      map: Phaser.Input.Keyboard.KeyCodes.M,
+      fix: Phaser.Input.Keyboard.KeyCodes.F,
+      scan: Phaser.Input.Keyboard.KeyCodes.V,
+    });
+
+    this.mapKey = this.keys.map;
+    this.fixKey = this.keys.fix;
+  }
+
+  destroy() {
+    this.unsubscribeSettings?.();
   }
 
   /**
@@ -248,16 +273,20 @@ export class InputSystem {
     const mods = getShipModifiers(this.scene.universe?.upgrades);
 
     // --- SMOOTH ROTATION WITH ACCELERATION ---
+    // Turn sensitivity (settings) scales both how fast rotation ramps up and
+    // its cap, so the whole turn feel shifts together.
+    const sensitivity = getSettings().turnSensitivity || 1;
+
     let rotationInput = 0;
     if (this.keys.left.isDown) rotationInput -= 1;
     if (this.keys.right.isDown) rotationInput += 1;
 
     if (rotationInput !== 0) {
-      this.rotationVelocity += rotationInput * scaleByDelta(this.params.ROTATION_ACCEL, delta);
+      this.rotationVelocity += rotationInput * scaleByDelta(this.params.ROTATION_ACCEL * sensitivity, delta);
       this.rotationVelocity = Phaser.Math.Clamp(
         this.rotationVelocity,
-        -this.params.MAX_ROTATION_VEL,
-        this.params.MAX_ROTATION_VEL
+        -this.params.MAX_ROTATION_VEL * sensitivity,
+        this.params.MAX_ROTATION_VEL * sensitivity
       );
     } else {
       // Smooth deceleration

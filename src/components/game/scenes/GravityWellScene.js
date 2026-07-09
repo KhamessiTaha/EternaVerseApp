@@ -140,7 +140,7 @@ export class GravityWellScene extends MiniGameScene {
   registerBreach() {
     this.breaches++;
     this.breachText.setText(`BREACHES ${this.breaches} / ${this.maxBreaches}`);
-    this.cameras.main.shake(200, 0.01);
+    this.shake(200, 0.01);
     this.showFeedback('BREACH!', MG_COLORS.critical, this.centerX, this.centerY - this.radius - 30);
 
     // Pull the probe back part-way so a breach doesn't guarantee an instant re-breach

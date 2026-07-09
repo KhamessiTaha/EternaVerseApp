@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ANOMALY_TYPE_MAP } from '../constants';
 import { getChunkCoords, getChunkKey } from '../utils';
+import { getSettings } from '../settings.js';
 
 export class AnomalySystem {
   constructor(scene) {
@@ -244,7 +245,9 @@ export class AnomalySystem {
     this.resolvedAnomalies.add(anomaly.id);
 
     // Visual feedback
-    this.scene.cameras.main.shake(200, 0.005);
+    if (getSettings().cameraShake) {
+      this.scene.cameras.main.shake(200, 0.005);
+    }
 
     const particleBurst = this.scene.add.particles(anomaly.x, anomaly.y, "Player", {
       speed: { min: 50, max: 150 },
