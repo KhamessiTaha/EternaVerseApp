@@ -125,6 +125,25 @@ export const submitDiscoveries = async (universeId, discoveries) => {
   }
 };
 
+// Admin dev/test actions. The server re-checks the admin flag against the
+// database on every call - these 404 for regular players.
+export const devAction = async (universeId, action, payload = {}) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/dev/${action}`,
+      payload,
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      `Error in dev action ${action}:`,
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // First Contact action (observe / uplift / pacify). Costs, rewards, and the
 // uplift backfire roll are all server-side; the response carries the updated
 // universe plus an outcome message for the panel.

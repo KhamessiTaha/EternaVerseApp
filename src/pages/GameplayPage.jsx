@@ -10,6 +10,7 @@ import {
   submitDiscoveries,
   purchaseUpgrade,
   contactCivilization,
+  devAction,
 } from "../api/universeApi";
 import { getShipModifiers } from "../components/game/content/upgradeCatalog";
 import { Button, Eyebrow } from "../components/ui/primitives";
@@ -210,6 +211,19 @@ const GameplayPage = () => {
     }
   };
 
+  // Admin dev/test actions - server re-validates the admin flag per request
+  const handleDevAction = async (action, payload) => {
+    try {
+      const data = await devAction(id, action, payload);
+      if (data.ok && data.universe) {
+        setUniverse(data.universe);
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.response?.data?.error || "Dev action failed" };
+    }
+  };
+
   // Background simulation (every 30 seconds)
   useEffect(() => {
     if (!universe || universe.status === 'ended') return;
@@ -391,6 +405,7 @@ const GameplayPage = () => {
         onDiscovery={handleDiscovery}
         onPurchaseUpgrade={handlePurchaseUpgrade}
         onContactAction={handleContactAction}
+        onDevAction={handleDevAction}
       />
       {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
     </>

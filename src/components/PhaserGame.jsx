@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useContext } from "react";
 import Phaser from "phaser";
+import { AuthContext } from "../context/AuthContext";
 import { UniverseSceneFactory } from "./game/scenes/UniverseScene";
 import { QuantumStabilizerScene } from "./game/scenes/QuantumStabilizerScene";
 import { GravityWellScene } from "./game/scenes/GravityWellScene";
@@ -18,9 +19,12 @@ import { OutfittingPanel } from "./game/ui/OutfittingPanel";
 import { SettingsPanel } from "./game/ui/SettingsPanel";
 import { ChroniclePanel } from "./game/ui/ChroniclePanel";
 import { FirstContactPanel } from "./game/ui/FirstContactPanel";
+import { DevPanel } from "./game/ui/DevPanel";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction }) => {
+  const { user } = useContext(AuthContext);
+  const isAdmin = !!user?.isAdmin;
   const gameRef = useRef(null);
   const sceneRef = useRef(null);
   const [stats, setStats] = useState({ resolved: 0, discovered: 0 });
@@ -34,6 +38,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChronicleOpen, setIsChronicleOpen] = useState(false);
   const [contactCivId, setContactCivId] = useState(null);
+  const [isDevOpen, setIsDevOpen] = useState(false);
 
   // Scan completions: show the toast locally, then hand the discovery up to
   // GameplayPage for the backend submission / optimistic universe update.
@@ -95,8 +100,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       if (e.key === 'l' || e.key === 'L') {
         setIsChronicleOpen(prev => !prev);
       }
+      if ((e.key === 'k' || e.key === 'K') && isAdmin) {
+        setIsDevOpen(prev => !prev);
+      }
       if (e.key === 'Escape') {
         if (sceneRef.current?.inputSystem?.isMinigameActive) return;
+        if (isDevOpen) { setIsDevOpen(false); return; }
         if (contactCivId) { setContactCivId(null); return; }
         if (isFullMapOpen) { setIsFullMapOpen(false); return; }
         if (isCodexOpen) { setIsCodexOpen(false); return; }
@@ -108,7 +117,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin]);
 
   useEffect(() => {
     const SceneClass = UniverseSceneFactory({
@@ -257,6 +266,13 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         universe={universe}
         onAction={onContactAction}
       />
+      {isAdmin && (
+        <DevPanel
+          isOpen={isDevOpen}
+          onClose={() => setIsDevOpen(false)}
+          onDevAction={onDevAction}
+        />
+      )}
 
       <div id="phaser-container" className="w-full h-full" />
     </div>
