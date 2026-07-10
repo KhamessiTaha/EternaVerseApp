@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { getSettings } from '../settings.js';
+import { TextureFactory } from '../graphics/TextureFactory.js';
+import { HULL_SHAPES } from '../content/hullCatalog.js';
 
 export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture) {
@@ -13,9 +15,10 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
     this.body.setDamping(true);
     this.body.setDrag(0.97);
     // Generous per-axis cap only; actual top speed (including thruster
-    // upgrades AND the boosted speed cap) is the resultant-vector clamp in
-    // InputSystem. Must stay above max boosted+upgraded speed (~1116).
-    this.body.setMaxVelocity(1400);
+    // upgrades, hull stats, AND the boosted speed cap) is the resultant-
+    // vector clamp in InputSystem. Must stay above the fastest possible
+    // combo: Tachyon boosted with Mk3 thrusters (~600*1.6*1.5*1.24 ≈ 1790).
+    this.body.setMaxVelocity(2200);
     this.body.setAngularDrag(0.96);
     this.body.setMass(1.2);
     this.body.useDamping = true;
@@ -44,13 +47,6 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
       // Spread angle in radians (how wide the flame cone is)
       spreadAngle: Math.PI / 12, // ~15 degrees spread
       
-      // Thruster positions relative to ship center (local coordinates)
-      // Positive Y = toward back of ship, Negative Y = toward front
-      thrusterOffsets: {
-        left: { x: -9, y: 17 },   // Left thruster position
-        right: { x: 9, y: 17 }     // Right thruster position
-      },
-      
       // Flame length multipliers
       minLength: 8,
       maxLength: 28,
@@ -73,6 +69,25 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
 
     this.lastTrailTime = 0;
     this.activeParticles = [];
+
+    // Hull loadout state - set properly via applyLoadout()
+    this.hullId = null;
+    this.loadoutColor = null;
+    this.thrusterFractions = HULL_SHAPES.interceptor.thrusters;
+  }
+
+  /**
+   * Swap hull texture, tint, and thruster geometry. Called at spawn and
+   * whenever the loadout store changes (UniverseScene polls it per frame),
+   * so Hangar saves apply live with no React->Phaser wiring involved.
+   */
+  applyLoadout(hullId, colorHex) {
+    this.hullId = hullId;
+    this.loadoutColor = colorHex;
+    this.setTexture(TextureFactory.hullKey(hullId));
+    this.setTint(parseInt(colorHex.replace('#', ''), 16));
+    const shape = HULL_SHAPES[hullId] || HULL_SHAPES.interceptor;
+    this.thrusterFractions = shape.thrusters || HULL_SHAPES.interceptor.thrusters;
   }
 
   /**
@@ -133,13 +148,21 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
       y: Math.sin(perpAngle)
     };
     
-    // Spawn particles from thruster positions
-    const thrusters = [
-      this.flameConfig.thrusterOffsets.left,
-      this.flameConfig.thrusterOffsets.right
-    ];
-    
-    thrusters.forEach(offset => {
+    // Spawn particles from the hull's actual engine positions (fractional
+    // texture coords from HULL_SHAPES, converted through displayWidth/Height
+    // so they track the current hull AND the live scale, including the
+    // Tachyon's relativistic contraction)
+    const emitters = this.thrusterFractions;
+    const perThruster = Math.max(1, Math.ceil(particleCount / emitters.length));
+
+    emitters.forEach(([fx, fy]) => {
+      const offset = {
+        x: (fx - 0.5) * this.displayWidth,
+        // Push the emit point slightly past the stern so the flame reads
+        // as exhaust, not as burning inside the hull
+        y: (fy - 0.5) * this.displayHeight + 6,
+      };
+
       // Rotate offset to world space
       const cos = Math.cos(shipRotation);
       const sin = Math.sin(shipRotation);
@@ -147,11 +170,11 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
         x: offset.x * cos - offset.y * sin,
         y: offset.x * sin + offset.y * cos
       };
-      
+
       const thrusterX = this.x + rotatedOffset.x;
       const thrusterY = this.y + rotatedOffset.y;
-      
-      for (let i = 0; i < particleCount / 2; i++) {
+
+      for (let i = 0; i < perThruster; i++) {
         const sideOffset = (Math.random() - 0.5) * this.flameConfig.trailSpread;
         const depthOffset = (Math.random() - 0.5) * 2;
         
@@ -225,9 +248,11 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
    * Play damage feedback animation
    */
   playDamageAnimation() {
+    // Relative to the CURRENT scale - base scale varies per frame (speed/
+    // boost lerp in updatePlayerThrusters) and per hull (Tachyon contraction)
     this.scene.tweens.add({
       targets: this,
-      scaleX: { from: 0.105, to: 0.095 },
+      scaleX: { from: this.scaleX, to: this.scaleX * 0.9 },
       duration: 80,
       yoyo: true,
       repeat: 2,

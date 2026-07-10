@@ -24,6 +24,7 @@ import { MissionsPanel } from "./game/ui/MissionsPanel";
 import { AchievementsPanel } from "./ui/AchievementsPanel";
 import { HangarPanel } from "./ui/HangarPanel";
 import { getLoadout } from "../api/userApi";
+import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission }) => {
@@ -48,12 +49,17 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isHangarOpen, setIsHangarOpen] = useState(false);
   const [loadout, setLoadout] = useState(null); // { hull, shipColor } - fetched once, applied at scene creation
 
-  // Fetch the player's saved hull/color before the scene mounts, so the
-  // ship spawns already looking right instead of popping in default.
+  // Fetch the player's saved hull/color before the scene mounts: seed the
+  // module store the scene reads at spawn (and polls each frame for live
+  // Hangar swaps), then unblock scene creation via the state gate.
   useEffect(() => {
     let cancelled = false;
     getLoadout()
-      .then((data) => { if (!cancelled) setLoadout({ hull: data.hull, shipColor: data.shipColor }); })
+      .then((data) => {
+        if (cancelled) return;
+        setLoadoutLocal(data.hull, data.shipColor);
+        setLoadout({ hull: data.hull, shipColor: data.shipColor });
+      })
       .catch(() => { if (!cancelled) setLoadout({ hull: 'interceptor', shipColor: '#dfa73f' }); });
     return () => { cancelled = true; };
   }, []);
@@ -162,9 +168,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       onMinimapUpdate: handleMinimapUpdate,
       onFullMapUpdate: handleFullMapUpdate,
       onDiscovery: handleDiscoveryFromScene,
-      onCivContact: (civId) => setContactCivId(civId),
-      hull: loadout.hull,
-      shipColor: loadout.shipColor
+      onCivContact: (civId) => setContactCivId(civId)
     });
 
     const container = document.getElementById("phaser-container");
@@ -320,16 +324,11 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         isOpen={isAchievementsOpen}
         onClose={() => setIsAchievementsOpen(false)}
       />
+      {/* Live swap needs no wiring: HangarPanel writes the loadout store on
+          save, and the running scene polls it every frame */}
       <HangarPanel
         isOpen={isHangarOpen}
         onClose={() => setIsHangarOpen(false)}
-        onApply={(hull, shipColor) => {
-          // Swap the live sprite only - `loadout` state feeds the scene's
-          // creation effect, so setting it here would tear down and rebuild
-          // the entire Phaser game just to change a hull/color.
-          sceneRef.current?.applyHullChange?.(hull, shipColor);
-          playSfx('install');
-        }}
       />
 
       <div id="phaser-container" className="w-full h-full" />

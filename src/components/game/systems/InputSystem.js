@@ -3,6 +3,8 @@ import { scaleByDelta, decayByDelta } from "../utils";
 import { getShipModifiers } from "../content/upgradeCatalog.js";
 import { getSettings, onSettingsChange } from "../settings.js";
 import { playSfx } from "../audio.js";
+import { getLoadoutLocal } from "../loadoutStore.js";
+import { HULL_STATS } from "../content/hullCatalog.js";
 
 // Movement key presets, selected via the settings menu. AZERTY (ZQSD) is the
 // game's original binding; QWERTY gives the standard WASD cluster.
@@ -300,10 +302,18 @@ export class InputSystem {
     // live from the scene's universe so a purchase applies immediately.
     const mods = getShipModifiers(this.scene.universe?.upgrades);
 
+    // Hull flight characteristics stack multiplicatively on the upgrade
+    // mods (getShipModifiers returns a fresh object each call, so mutating
+    // it here is safe) - every downstream use of mods picks these up.
+    const hullStats = HULL_STATS[getLoadoutLocal().hull] || {};
+    mods.thrust *= hullStats.thrust || 1;
+    mods.maxSpeed *= hullStats.maxSpeed || 1;
+
     // --- SMOOTH ROTATION WITH ACCELERATION ---
     // Turn sensitivity (settings) scales both how fast rotation ramps up and
-    // its cap, so the whole turn feel shifts together.
-    const sensitivity = getSettings().turnSensitivity || 1;
+    // its cap, so the whole turn feel shifts together. Hull turn rating
+    // stacks the same way.
+    const sensitivity = (getSettings().turnSensitivity || 1) * (hullStats.turn || 1);
 
     let rotationInput = 0;
     if (this.keys.left.isDown) rotationInput -= 1;

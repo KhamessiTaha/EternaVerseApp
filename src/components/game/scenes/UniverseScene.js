@@ -16,9 +16,11 @@ import { PlayerObject } from "../systems/PlayerObject";
 import { CivilizationSystem } from "../systems/CivilizationSystem";
 import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
+import { getLoadoutLocal } from "../loadoutStore.js";
+import { HULL_STATS } from "../content/hullCatalog.js";
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, hull, shipColor } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -31,8 +33,6 @@ export const UniverseSceneFactory = (props) => {
       this.onFullMapUpdate = onFullMapUpdate;
       this.onDiscovery = onDiscovery;
       this.onCivContact = onCivContact;
-      this.hull = hull || "interceptor";
-      this.shipColor = shipColor || "#dfa73f";
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -100,8 +100,9 @@ export const UniverseSceneFactory = (props) => {
     }
 
     createPlayer() {
-      this.player = new PlayerObject(this, 0, 0, TextureFactory.hullKey(this.hull));
-      this.player.setTint(parseInt(this.shipColor.replace('#', ''), 16));
+      const { hull, shipColor } = getLoadoutLocal();
+      this.player = new PlayerObject(this, 0, 0, TextureFactory.hullKey(hull));
+      this.player.applyLoadout(hull, shipColor);
       // Spawn grace: no anomaly forces or damage for the first few seconds,
       // so arriving in a hostile neighborhood never means instant pinball
       this.player.invulnerableUntil = this.time.now + 4000;
@@ -491,6 +492,13 @@ export const UniverseSceneFactory = (props) => {
     }
 
     update(time, delta) {
+      // Poll the loadout store: Hangar saves (from any panel, any tab
+      // state) apply on the next frame with no cross-boundary wiring
+      const lo = getLoadoutLocal();
+      if (this.player.hullId !== lo.hull || this.player.loadoutColor !== lo.shipColor) {
+        this.player.applyLoadout(lo.hull, lo.shipColor);
+      }
+
       this.inputSystem.handlePlayerMovement(this.player, delta);
       // Anomaly forces stack on top of the acceleration input just set
       this.hazardSystem.update(time);
@@ -572,9 +580,20 @@ export const UniverseSceneFactory = (props) => {
       const speedScale = speed > 50 ? 0.115 : baseScale;
       const boostScale = isBoosting ? 0.13 : speedScale;
 
-      this.player.setScale(
-        Phaser.Math.Linear(this.player.scaleX, boostScale, lerpFactorByDelta(0.15, delta)),
-      );
+      const s = Phaser.Math.Linear(this.player.scaleX, boostScale, lerpFactorByDelta(0.15, delta));
+
+      // Relativistic hulls (Tachyon) visibly length-contract along their
+      // axis of motion as v approaches "game-c": the real Lorentz factor,
+      // scaleY = s * sqrt(1 - v²/c²). At its boosted top speed the needle
+      // squashes to ~60% length - physics as a cosmetic flex.
+      const hullStats = HULL_STATS[this.player.hullId] || {};
+      let sy = s;
+      if (hullStats.relativistic) {
+        const C_GAME = 1900; // just above the fastest achievable speed
+        const beta = Math.min(0.95, speed / C_GAME);
+        sy = s * Math.sqrt(1 - beta * beta);
+      }
+      this.player.setScale(s, sy);
 
       if (isBoosting) {
         this.cameraShakeIntensity = Phaser.Math.Linear(
@@ -649,14 +668,6 @@ export const UniverseSceneFactory = (props) => {
       );
     }
 
-
-    /** Live hull/color swap when the Hangar panel saves mid-session. */
-    applyHullChange(hullId, colorHex) {
-      this.hull = hullId;
-      this.shipColor = colorHex;
-      this.player.setTexture(TextureFactory.hullKey(hullId));
-      this.player.setTint(parseInt(colorHex.replace('#', ''), 16));
-    }
 
     handleResize() {
 

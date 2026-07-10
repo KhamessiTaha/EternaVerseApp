@@ -6,7 +6,9 @@
 // via onApply so the change is visible without leaving the universe.
 import { useEffect, useState } from 'react';
 import { getLoadout, updateLoadout } from '../../api/userApi';
-import { HULL_CATALOG, HULL_SHAPES, COLOR_PALETTE, TIER_STYLE } from '../game/content/hullCatalog.js';
+import { HULL_CATALOG, HULL_SHAPES, HULL_STATS, COLOR_PALETTE, TIER_STYLE } from '../game/content/hullCatalog.js';
+import { setLoadoutLocal } from '../game/loadoutStore.js';
+import { playSfx } from '../game/audio.js';
 
 const shapeToPath = (points) =>
   points.map(([fx, fy], i) => `${i === 0 ? 'M' : 'L'}${(fx * 100).toFixed(1)},${(fy * 100).toFixed(1)}`).join(' ') + ' Z';
@@ -57,6 +59,10 @@ export const HangarPanel = ({ isOpen, onClose, onApply }) => {
       const data = await updateLoadout(selected.hull, selected.shipColor);
       if (data.ok) {
         setLoadout((prev) => ({ ...prev, hull: data.hull, shipColor: data.shipColor }));
+        // The module store is what the running scene polls - updating it IS
+        // the live apply, no scene wiring involved
+        setLoadoutLocal(data.hull, data.shipColor);
+        playSfx('install');
         onApply?.(data.hull, data.shipColor);
       } else {
         setError(data.error || 'Save failed');
@@ -101,6 +107,26 @@ export const HangarPanel = ({ isOpen, onClose, onApply }) => {
                 <div className="font-mono text-sm text-ink">{HULL_CATALOG.find((h) => h.id === selected.hull)?.label}</div>
                 <div className="font-mono text-[11px] text-ink-faint mt-1">
                   {HULL_CATALOG.find((h) => h.id === selected.hull)?.description}
+                </div>
+                <div className="flex gap-3 mt-2 font-mono text-[10px] tabular-nums">
+                  {(() => {
+                    const s = HULL_STATS[selected.hull] || {};
+                    const stat = (label, v, invert = false) => {
+                      const good = invert ? v < 1 : v > 1;
+                      const cls = v === 1 ? 'text-ink-faint' : good ? 'text-good' : 'text-critical';
+                      return (
+                        <span key={label} className={cls}>
+                          {label} ×{(v ?? 1).toFixed(2)}
+                        </span>
+                      );
+                    };
+                    return [
+                      stat('SPD', s.maxSpeed ?? 1),
+                      stat('THR', s.thrust ?? 1),
+                      stat('TRN', s.turn ?? 1),
+                      stat('DMG', s.damageTaken ?? 1, true),
+                    ];
+                  })()}
                 </div>
               </div>
             </div>

@@ -5,6 +5,8 @@
 // hull damage inside its danger ring - so approaching a severity-5 black
 // hole merger to resolve it is a risk decision, not a chore. Forces are
 // added on top of the acceleration InputSystem already set this frame.
+import { getLoadoutLocal } from "../loadoutStore.js";
+import { HULL_STATS } from "../content/hullCatalog.js";
 
 export const dangerRadius = (severity) => 110 + (severity || 1) * 28;
 export const pullRadius = (severity) => 400 + (severity || 1) * 80;
@@ -78,8 +80,10 @@ export class HazardSystem {
 
     if (incomingDps > 0 && time - this.lastDamageAt >= DAMAGE_TICK_MS) {
       this.lastDamageAt = time;
+      // Hull armor rating scales exposure (Bastion 0.55x ... Tachyon 1.25x)
+      const armor = HULL_STATS[getLoadoutLocal().hull]?.damageTaken ?? 1;
       // takeDamage plays the hit feedback (scale pulse + shake if enabled)
-      const remaining = player.takeDamage(incomingDps * (DAMAGE_TICK_MS / 1000));
+      const remaining = player.takeDamage(incomingDps * (DAMAGE_TICK_MS / 1000) * armor);
       if (remaining <= 0) {
         this.scene.handleShipDestroyed();
       }
