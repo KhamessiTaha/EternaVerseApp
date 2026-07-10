@@ -45,7 +45,17 @@ export function updateSettings(patch) {
   } catch {
     // Storage unavailable (private mode etc.) - settings still apply for this session
   }
-  listeners.forEach((fn) => fn(settings));
+  // Isolate each listener: one throwing (e.g. a stale/torn-down subscriber)
+  // must never stop the rest from running, or block this function's own
+  // return value from reaching the caller - that's exactly what let a
+  // single bad InputSystem instance silently break every settings panel.
+  listeners.forEach((fn) => {
+    try {
+      fn(settings);
+    } catch (err) {
+      console.error("settings listener failed:", err);
+    }
+  });
   return settings;
 }
 

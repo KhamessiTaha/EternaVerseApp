@@ -18,7 +18,17 @@ export class InputSystem {
 
     // Rebind movement keys immediately when the layout setting changes
     this.unsubscribeSettings = onSettingsChange(() => this.applyKeyboardLayout());
-    
+
+    // Self-managed cleanup: don't rely solely on the scene remembering to
+    // call destroy(). A full game teardown (leaving the universe) fires
+    // 'destroy', NOT 'shutdown' - relying on 'shutdown' alone left this
+    // subscribed forever with a torn-down scene.input.keyboard, and the
+    // next settings change anywhere in the app would throw inside this
+    // stale listener, aborting the whole notification loop for everyone
+    // after it in the Set (e.g. the radar-size listener never ran).
+    this.scene.events.once('shutdown', this.destroy, this);
+    this.scene.events.once('destroy', this.destroy, this);
+
     // Enhanced physics parameters
     this.params = {
       ROTATION_SPEED: 0.06,
@@ -125,6 +135,12 @@ export class InputSystem {
    * abandoned bindings don't keep firing.
    */
   applyKeyboardLayout() {
+    // Defensive: if this instance is somehow still subscribed after its
+    // scene was torn down (Phaser nulls out input internals on shutdown),
+    // bail instead of throwing - a thrown error here would abort the
+    // settings module's listener loop for every OTHER subscriber too.
+    if (!this.scene?.input?.keyboard) return;
+
     const layout = KEY_LAYOUTS[getSettings().keyboardLayout] || KEY_LAYOUTS.azerty;
 
     if (this.keys) {
@@ -144,7 +160,10 @@ export class InputSystem {
   }
 
   destroy() {
+    // Safe to call more than once - shutdown/destroy events and
+    // UniverseScene's own cleanup can all reach this.
     this.unsubscribeSettings?.();
+    this.unsubscribeSettings = null;
   }
 
   /**
