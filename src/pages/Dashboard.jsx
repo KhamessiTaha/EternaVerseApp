@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { getUserUniverses, deleteUniverse } from "../api/universeApi";
 import {
   AlertCircle, Plus, Loader2, Trash2, RefreshCw,
-  Clock, Globe, Star, Activity, Users
+  Clock, Globe, Star, Activity, Users, Trophy
 } from "lucide-react";
 import { Button, Panel, Eyebrow } from "../components/ui/primitives";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/ToastProvider";
+import { AchievementsPanel } from "../components/ui/AchievementsPanel";
 
 const DIFFICULTY_COLOR = {
   Beginner: 'text-good border-good/30',
@@ -216,6 +217,7 @@ const Dashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null); // universe awaiting confirmation
   const [deletingId, setDeletingId] = useState(null);
+  const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
 
   const fetchUniverses = useCallback(async () => {
     try {
@@ -318,6 +320,15 @@ const Dashboard = () => {
           <div className="flex gap-3">
             <Button
               variant="secondary"
+              onClick={() => setIsAchievementsOpen(true)}
+              title="Achievements"
+              aria-label="Achievements"
+            >
+              <Trophy size={16} />
+              <span className="hidden sm:inline">Achievements</span>
+            </Button>
+            <Button
+              variant="secondary"
               onClick={handleRefresh}
               disabled={isRefreshing}
               title="Refresh universes"
@@ -332,6 +343,8 @@ const Dashboard = () => {
             </Button>
           </div>
         </div>
+
+        <AchievementsPanel isOpen={isAchievementsOpen} onClose={() => setIsAchievementsOpen(false)} />
 
         {universes.length > 0 && <StatsOverview universes={universes} />}
 

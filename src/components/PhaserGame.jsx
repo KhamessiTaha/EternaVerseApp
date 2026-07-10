@@ -21,6 +21,7 @@ import { ChroniclePanel } from "./game/ui/ChroniclePanel";
 import { FirstContactPanel } from "./game/ui/FirstContactPanel";
 import { DevPanel } from "./game/ui/DevPanel";
 import { MissionsPanel } from "./game/ui/MissionsPanel";
+import { AchievementsPanel } from "./ui/AchievementsPanel";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission }) => {
@@ -41,6 +42,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [contactCivId, setContactCivId] = useState(null);
   const [isDevOpen, setIsDevOpen] = useState(false);
   const [isMissionsOpen, setIsMissionsOpen] = useState(false);
+  const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
 
   // Scan completions: show the toast locally, then hand the discovery up to
   // GameplayPage for the backend submission / optimistic universe update.
@@ -55,12 +57,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const prevPanelsRef = useRef({ map: false, codex: false, outfitting: false, settings: false, chronicle: false, contact: false });
   useEffect(() => {
     const prev = prevPanelsRef.current;
-    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen, contact: !!contactCivId, missions: isMissionsOpen };
+    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen, contact: !!contactCivId, missions: isMissionsOpen, achievements: isAchievementsOpen };
     Object.keys(next).forEach((k) => {
       if (next[k] !== prev[k]) playSfx(next[k] ? 'uiOpen' : 'uiClose');
     });
     prevPanelsRef.current = next;
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen, contactCivId, isMissionsOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen, contactCivId, isMissionsOpen, isAchievementsOpen]);
 
   // HUD update callback
   const handleHUDUpdate = (data) => {
@@ -108,11 +110,15 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       if (e.key === 'o' || e.key === 'O') {
         setIsMissionsOpen(prev => !prev);
       }
+      if (e.key === 'p' || e.key === 'P') {
+        setIsAchievementsOpen(prev => !prev);
+      }
       if (e.key === 'Escape') {
         if (sceneRef.current?.inputSystem?.isMinigameActive) return;
         if (isDevOpen) { setIsDevOpen(false); return; }
         if (contactCivId) { setContactCivId(null); return; }
         if (isMissionsOpen) { setIsMissionsOpen(false); return; }
+        if (isAchievementsOpen) { setIsAchievementsOpen(false); return; }
         if (isFullMapOpen) { setIsFullMapOpen(false); return; }
         if (isCodexOpen) { setIsCodexOpen(false); return; }
         if (isOutfittingOpen) { setIsOutfittingOpen(false); return; }
@@ -123,7 +129,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen]);
 
   useEffect(() => {
     const SceneClass = UniverseSceneFactory({
@@ -284,6 +290,10 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         onClose={() => setIsMissionsOpen(false)}
         universe={universe}
         onClaim={onClaimMission}
+      />
+      <AchievementsPanel
+        isOpen={isAchievementsOpen}
+        onClose={() => setIsAchievementsOpen(false)}
       />
 
       <div id="phaser-container" className="w-full h-full" />

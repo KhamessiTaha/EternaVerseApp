@@ -16,10 +16,14 @@ import {
 import { getShipModifiers } from "../components/game/content/upgradeCatalog";
 import { Button, Eyebrow } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
+import { useToast } from "../components/ui/ToastProvider";
+import { ACHIEVEMENT_MAP } from "../components/game/content/achievements";
+import { playSfx } from "../components/game/audio";
 
 const GameplayPage = () => {
   const { id } = useParams();
   const location = useLocation();
+  const toast = useToast();
   const fromBigBang = location.state?.fromBigBang;
   const [universe, setUniverse] = useState(null);
   const [error, setError] = useState(null);
@@ -30,6 +34,18 @@ const GameplayPage = () => {
 
   const handlePlayerPositionUpdate = (position) => {
     playerPositionRef.current = position;
+  };
+
+  // Any server response can carry newAchievements (see backend
+  // utils/achievements.js) - surface each as a toast + jingle, in whatever
+  // action happened to trigger it.
+  const announceAchievements = (list) => {
+    if (!list?.length) return;
+    playSfx('minigameWin');
+    list.forEach((a) => {
+      const meta = ACHIEVEMENT_MAP[a.id];
+      toast(`Achievement unlocked: ${meta?.title || a.id}`, 'success', 6000);
+    });
   };
 
   // Initial universe fetch
@@ -175,6 +191,7 @@ const GameplayPage = () => {
       if (data.ok && data.research) {
         setUniverse((prev) => (prev ? { ...prev, research: data.research } : prev));
       }
+      announceAchievements(data.newAchievements);
     } catch {
       // Server dedup makes retries safe; flush on the next simulate tick.
       pendingDiscoveriesRef.current.push(discovery);
@@ -190,6 +207,7 @@ const GameplayPage = () => {
       if (data.ok) {
         setUniverse((prev) => (prev ? { ...prev, upgrades: data.upgrades, research: data.research } : prev));
         console.log(`🔧 Upgrade installed: ${track}`, data.upgrades);
+        announceAchievements(data.newAchievements);
       }
       return data;
     } catch (err) {
@@ -205,6 +223,7 @@ const GameplayPage = () => {
       const data = await contactCivilization(id, civId, action);
       if (data.ok && data.universe) {
         setUniverse(data.universe);
+        announceAchievements(data.newAchievements);
       }
       return data;
     } catch (err) {
@@ -219,6 +238,7 @@ const GameplayPage = () => {
       const data = await claimMission(id, missionId);
       if (data.ok && data.universe) {
         setUniverse(data.universe);
+        announceAchievements(data.newAchievements);
       }
       return data;
     } catch (err) {
@@ -271,6 +291,7 @@ const GameplayPage = () => {
         if (data.ok) {
           setUniverse(data.universe);
           setLastSimulation(Date.now());
+          announceAchievements(data.newAchievements);
 
           const stats = data.stats;
           console.log(`✅ Simulation complete:`);
