@@ -312,6 +312,19 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
           isOpen={isDevOpen}
           onClose={() => setIsDevOpen(false)}
           onDevAction={onDevAction}
+          onClientAction={(action) => {
+            const scene = sceneRef.current;
+            if (!scene?.player) return;
+            if (action === 'damage-hull') {
+              const remaining = scene.player.takeDamage(50);
+              if (remaining <= 0) scene.handleShipDestroyed();
+            } else if (action === 'destroy-ship') {
+              scene.player.takeDamage(1000);
+              scene.handleShipDestroyed();
+            } else if (action === 'repair-hull') {
+              scene.player.heal(100);
+            }
+          }}
         />
       )}
       <MissionsPanel

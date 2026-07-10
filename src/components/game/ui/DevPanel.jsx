@@ -13,9 +13,18 @@ const ACTIONS = [
   { label: 'Grant 5000 RP', action: 'grant-research', payload: { points: 5000 } },
   { label: 'Spawn 3 anomalies nearby', action: 'spawn-anomalies', payload: { count: 3 } },
   { label: 'Spawn 2 civilizations nearby', action: 'spawn-civilizations', payload: { count: 2 } },
+  { label: 'Spawn WORSHIPPING civ (tribute, halo)', action: 'spawn-civilizations', payload: { count: 1, disposition: 'worship' } },
+  { label: 'Spawn HOSTILE civ (fires missiles!)', action: 'spawn-civilizations', payload: { count: 1, disposition: 'hostile' } },
 ];
 
-export const DevPanel = ({ isOpen, onClose, onDevAction }) => {
+// Session-local effects that never touch the server (hull is client state)
+const CLIENT_ACTIONS = [
+  { label: 'Damage hull -50 (test HUD / armor)', action: 'damage-hull' },
+  { label: 'Destroy ship (test death cinematic)', action: 'destroy-ship' },
+  { label: 'Repair hull to full', action: 'repair-hull' },
+];
+
+export const DevPanel = ({ isOpen, onClose, onDevAction, onClientAction }) => {
   const [busy, setBusy] = useState(false);
   const [lastResult, setLastResult] = useState(null);
 
@@ -61,6 +70,22 @@ export const DevPanel = ({ isOpen, onClose, onDevAction }) => {
               onClick={() => run(a.action, a.payload)}
               disabled={busy}
               className="font-mono text-[11px] tracking-wider px-4 py-2 border border-line text-ink-dim hover:text-ink hover:border-line-bright text-left transition-colors disabled:opacity-50"
+            >
+              {a.label}
+            </button>
+          ))}
+
+          <div className="font-mono text-[9px] uppercase tracking-wider text-ink-faint mt-3 mb-1">
+            Session-local (no server)
+          </div>
+          {CLIENT_ACTIONS.map((a) => (
+            <button
+              key={a.label}
+              onClick={() => {
+                onClientAction?.(a.action);
+                setLastResult(`OK · ${a.action} (client)`);
+              }}
+              className="font-mono text-[11px] tracking-wider px-4 py-2 border border-line text-ink-dim hover:text-ink hover:border-line-bright text-left transition-colors"
             >
               {a.label}
             </button>
