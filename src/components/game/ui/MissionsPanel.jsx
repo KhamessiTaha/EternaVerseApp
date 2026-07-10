@@ -17,7 +17,7 @@ const METRICS = {
   uplifts: (u) => (u.civilizations || []).reduce((s, c) => s + (c.uplifts || 0), 0),
 };
 
-const progressOf = (universe, mission) => {
+export const progressOf = (universe, mission) => {
   const value = METRICS[mission.metric] ? METRICS[mission.metric](universe) : 0;
   const needed = mission.target - mission.baseline;
   return { done: Math.max(0, Math.min(needed, value - mission.baseline)), needed };

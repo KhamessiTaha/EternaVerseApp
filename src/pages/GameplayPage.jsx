@@ -19,6 +19,8 @@ import { FadeFromColor } from "../components/ui/ScreenFlash";
 import { useToast } from "../components/ui/ToastProvider";
 import { ACHIEVEMENT_MAP } from "../components/game/content/achievements";
 import { playSfx } from "../components/game/audio";
+import { narrate, narrateOnce, CURATOR } from "../components/game/narrator";
+import { progressOf } from "../components/game/ui/MissionsPanel";
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -46,7 +48,60 @@ const GameplayPage = () => {
       const meta = ACHIEVEMENT_MAP[a.id];
       toast(`Achievement unlocked: ${meta?.title || a.id}`, 'success', 6000);
     });
+    const first = ACHIEVEMENT_MAP[list[0].id];
+    if (first) narrate(CURATOR.achievement(first.title));
   };
+
+  // Live-notify the drama: new significantEvents arriving with any universe
+  // refresh (simulate ticks, contact responses...) become toasts, and the
+  // Curator comments on the ones worth commenting on.
+  const lastEventStampRef = useRef(null);
+  useEffect(() => {
+    const events = universe?.significantEvents;
+    if (!events?.length) return;
+    const newestStamp = events[events.length - 1]?.timestamp;
+
+    if (lastEventStampRef.current === null) {
+      // First load: don't replay history
+      lastEventStampRef.current = newestStamp;
+      return;
+    }
+    if (newestStamp === lastEventStampRef.current) return;
+
+    const lastIdx = events.findIndex((e) => e.timestamp === lastEventStampRef.current);
+    const fresh = lastIdx >= 0 ? events.slice(lastIdx + 1) : events.slice(-3);
+    lastEventStampRef.current = newestStamp;
+
+    // Civ drama + milestones make good notifications; cap per tick so a big
+    // catch-up sim doesn't flood the corner of the screen
+    fresh
+      .filter((e) => e.type === 'civilization' || e.type === 'milestone')
+      .slice(0, 2)
+      .forEach((e) => {
+        toast(e.description, e.type === 'milestone' ? 'success' : 'info', 7000);
+        if (/holy war|worship|monument|tribute|denounc/i.test(e.description || '')) {
+          narrate(e.description);
+        }
+      });
+  }, [universe?.significantEvents]);
+
+  // Objective-complete nudge: fires the moment an active mission's progress
+  // reaches its target, once per mission
+  const notifiedMissionsRef = useRef(new Set());
+  useEffect(() => {
+    if (!universe) return;
+    (universe.missions || [])
+      .filter((m) => m.status === 'active' && !notifiedMissionsRef.current.has(m.id))
+      .forEach((m) => {
+        const { done, needed } = progressOf(universe, m);
+        if (done >= needed) {
+          notifiedMissionsRef.current.add(m.id);
+          toast(`Objective complete: ${m.title} - press O to claim +${m.reward} RP`, 'success', 8000);
+          narrateOnce('first-mission-complete', CURATOR.missionComplete);
+          playSfx('scanComplete');
+        }
+      });
+  }, [universe]);
 
   // Initial universe fetch
   useEffect(() => {
@@ -224,6 +279,7 @@ const GameplayPage = () => {
       if (data.ok && data.universe) {
         setUniverse(data.universe);
         announceAchievements(data.newAchievements);
+        if (data.outcome === 'backfire') narrate(CURATOR.backfire);
       }
       return data;
     } catch (err) {

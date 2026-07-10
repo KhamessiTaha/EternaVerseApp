@@ -23,6 +23,9 @@ import { DevPanel } from "./game/ui/DevPanel";
 import { MissionsPanel } from "./game/ui/MissionsPanel";
 import { AchievementsPanel } from "./ui/AchievementsPanel";
 import { HangarPanel } from "./ui/HangarPanel";
+import { GameMenu } from "./game/ui/GameMenu";
+import { NarratorOverlay } from "./game/ui/NarratorOverlay";
+import { narrateOnce, CURATOR } from "./game/narrator";
 import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
@@ -47,6 +50,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isMissionsOpen, setIsMissionsOpen] = useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [isHangarOpen, setIsHangarOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [loadout, setLoadout] = useState(null); // { hull, shipColor } - fetched once, applied at scene creation
 
   // Fetch the player's saved hull/color before the scene mounts: seed the
@@ -68,6 +72,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   // GameplayPage for the backend submission / optimistic universe update.
   const handleDiscoveryFromScene = (discovery) => {
     playSfx('discovery', discovery.rarity);
+    narrateOnce('first-scan', CURATOR.firstScan);
     setToast({ discovery, key: Date.now() });
     onDiscovery?.(discovery);
   };
@@ -77,16 +82,19 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const prevPanelsRef = useRef({ map: false, codex: false, outfitting: false, settings: false, chronicle: false, contact: false });
   useEffect(() => {
     const prev = prevPanelsRef.current;
-    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen, contact: !!contactCivId, missions: isMissionsOpen, achievements: isAchievementsOpen, hangar: isHangarOpen };
+    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen, contact: !!contactCivId, missions: isMissionsOpen, achievements: isAchievementsOpen, hangar: isHangarOpen, menu: isMenuOpen };
     Object.keys(next).forEach((k) => {
       if (next[k] !== prev[k]) playSfx(next[k] ? 'uiOpen' : 'uiClose');
     });
     prevPanelsRef.current = next;
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen, contactCivId, isMissionsOpen, isAchievementsOpen, isHangarOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen, contactCivId, isMissionsOpen, isAchievementsOpen, isHangarOpen, isMenuOpen]);
 
   // HUD update callback
   const handleHUDUpdate = (data) => {
     setHudData(data);
+    if (data?.hull !== undefined && data.hull <= 30 && data.hull > 0) {
+      narrateOnce('hull-critical', CURATOR.hullCritical);
+    }
     if (data?.position) {
       onPlayerPositionUpdate?.(data.position);
     }
@@ -147,13 +155,15 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         if (isCodexOpen) { setIsCodexOpen(false); return; }
         if (isOutfittingOpen) { setIsOutfittingOpen(false); return; }
         if (isChronicleOpen) { setIsChronicleOpen(false); return; }
-        setIsSettingsOpen(prev => !prev);
+        if (isSettingsOpen) { setIsSettingsOpen(false); return; }
+        // Nothing open: ESC is the game menu hub
+        setIsMenuOpen(prev => !prev);
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen, isSettingsOpen]);
 
   useEffect(() => {
     // Wait for the saved loadout so the ship never spawns/pops from a
@@ -168,7 +178,10 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       onMinimapUpdate: handleMinimapUpdate,
       onFullMapUpdate: handleFullMapUpdate,
       onDiscovery: handleDiscoveryFromScene,
-      onCivContact: (civId) => setContactCivId(civId)
+      onCivContact: (civId) => {
+        narrateOnce('first-contact', CURATOR.firstContact);
+        setContactCivId(civId);
+      }
     });
 
     const container = document.getElementById("phaser-container");
@@ -343,6 +356,25 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         isOpen={isHangarOpen}
         onClose={() => setIsHangarOpen(false)}
       />
+      <GameMenu
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        universeName={universe?.name}
+        onOpenPanel={(id) => {
+          const open = {
+            missions: setIsMissionsOpen,
+            codex: setIsCodexOpen,
+            outfitting: setIsOutfittingOpen,
+            hangar: setIsHangarOpen,
+            chronicle: setIsChronicleOpen,
+            achievements: setIsAchievementsOpen,
+            map: setIsFullMapOpen,
+            settings: setIsSettingsOpen,
+          }[id];
+          open?.(true);
+        }}
+      />
+      <NarratorOverlay />
 
       <div id="phaser-container" className="w-full h-full" />
     </div>

@@ -122,6 +122,6 @@ export const ControlsHint = () => (
     <div><Key>L</Key>chronicle</div>
     <div><Key>M</Key>full map</div>
     <div><Key>SHIFT</Key>boost</div>
-    <div><Key>ESC</Key>settings</div>
+    <div><Key>ESC</Key>menu</div>
   </div>
 );

@@ -18,6 +18,7 @@ import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
+import { narrate, narrateOnce, pick, CURATOR } from "../narrator.js";
 
 export const UniverseSceneFactory = (props) => {
   const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact } = props;
@@ -73,6 +74,12 @@ export const UniverseSceneFactory = (props) => {
 
       // Space drone (fades in on the first user gesture if audio is locked)
       startAmbient();
+
+      // The Curator greets you, once per session, by cosmic era
+      const phase = this.universe.currentState?.cosmicPhase;
+      this.time.delayedCall(2500, () => {
+        narrateOnce(`greet:${phase}`, CURATOR.greetings[phase] || CURATOR.greetings.fallback);
+      });
 
       // Phaser fires 'shutdown' as an EVENT - a method merely named
       // shutdown() is never auto-called, so without this line none of the
@@ -171,7 +178,8 @@ export const UniverseSceneFactory = (props) => {
       // Only notify if the minigame was won (anomalyResolved = true)
       if (result.impact.anomalyResolved) {
         console.log(`✓ Game result was successful, calling anomaly resolution handler`);
-        
+        narrateOnce('first-resolve', CURATOR.firstResolve);
+
         // Trigger destruction animation and visual effects
         this.playAnomalyDestructionEffect(anomaly);
         
@@ -456,6 +464,8 @@ export const UniverseSceneFactory = (props) => {
           align: 'center',
         }).setOrigin(0.5).setAlpha(0).setDepth(2000);
       this.tweens.add({ targets: notice, alpha: 1, y: y - 84, duration: 350, delay: 300 });
+
+      narrate(pick(CURATOR.deaths));
 
       this.time.delayedCall(2000, () => {
         notice.destroy();
