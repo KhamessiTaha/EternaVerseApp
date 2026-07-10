@@ -118,6 +118,7 @@ export const ControlsHint = () => (
     <div><Key>U</Key>outfitting</div>
     <div><Key>O</Key>objectives</div>
     <div><Key>P</Key>achievements</div>
+    <div><Key>H</Key>hangar</div>
     <div><Key>L</Key>chronicle</div>
     <div><Key>M</Key>full map</div>
     <div><Key>SHIFT</Key>boost</div>

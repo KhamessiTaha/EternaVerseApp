@@ -3,12 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { getUserUniverses, deleteUniverse } from "../api/universeApi";
 import {
   AlertCircle, Plus, Loader2, Trash2, RefreshCw,
-  Clock, Globe, Star, Activity, Users, Trophy
+  Clock, Globe, Star, Activity, Users, Trophy, Rocket
 } from "lucide-react";
 import { Button, Panel, Eyebrow } from "../components/ui/primitives";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/ToastProvider";
 import { AchievementsPanel } from "../components/ui/AchievementsPanel";
+import { HangarPanel } from "../components/ui/HangarPanel";
 
 const DIFFICULTY_COLOR = {
   Beginner: 'text-good border-good/30',
@@ -218,6 +219,7 @@ const Dashboard = () => {
   const [pendingDelete, setPendingDelete] = useState(null); // universe awaiting confirmation
   const [deletingId, setDeletingId] = useState(null);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+  const [isHangarOpen, setIsHangarOpen] = useState(false);
 
   const fetchUniverses = useCallback(async () => {
     try {
@@ -320,6 +322,15 @@ const Dashboard = () => {
           <div className="flex gap-3">
             <Button
               variant="secondary"
+              onClick={() => setIsHangarOpen(true)}
+              title="Hangar"
+              aria-label="Hangar"
+            >
+              <Rocket size={16} />
+              <span className="hidden sm:inline">Hangar</span>
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setIsAchievementsOpen(true)}
               title="Achievements"
               aria-label="Achievements"
@@ -345,6 +356,7 @@ const Dashboard = () => {
         </div>
 
         <AchievementsPanel isOpen={isAchievementsOpen} onClose={() => setIsAchievementsOpen(false)} />
+        <HangarPanel isOpen={isHangarOpen} onClose={() => setIsHangarOpen(false)} />
 
         {universes.length > 0 && <StatsOverview universes={universes} />}
 

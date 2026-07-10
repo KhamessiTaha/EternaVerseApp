@@ -21,8 +21,11 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
     this.body.useDamping = true;
     this.body.allowRotation = false;
     
-    // Visual state
-    this.setScale(0.05);
+    // Visual state - hull textures are 256px canvases (see TextureFactory),
+    // scale tuned to land around the same ~27px on-screen size the old
+    // 512px PNG had at 0.05. Kept in sync with updatePlayerThrusters'
+    // baseScale/speedScale/boostScale in UniverseScene.js.
+    this.setScale(0.105);
     this.setTint(0xffffff);
     this.setDepth(5);
     
@@ -224,7 +227,7 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
   playDamageAnimation() {
     this.scene.tweens.add({
       targets: this,
-      scaleX: { from: 0.05, to: 0.045 },
+      scaleX: { from: 0.105, to: 0.095 },
       duration: 80,
       yoyo: true,
       repeat: 2,

@@ -6,9 +6,11 @@
 // scale/rotation/alpha. Budget: well under 300ms on a mid-range machine.
 import seedrandom from "seedrandom";
 import { OBJECT_CLASSES } from "../world/researchValues.js";
+import { HULL_CATALOG, HULL_SHAPES } from "../content/hullCatalog.js";
 
 const TEX_SIZE = 256;
 const STAR_TEX_SIZE = 512;
+const HULL_TEX_SIZE = 256;
 
 const VARIANTS = { spiral: 3, barred: 2, elliptical: 3, irregular: 2, nebula: 3, quasar: 1, merger: 1 };
 
@@ -46,6 +48,57 @@ export class TextureFactory {
     }
     TextureFactory.STARFIELD_KEYS.forEach((key, i) => this._generateStarfield(key, i));
     this._generateSpark();
+    HULL_CATALOG.forEach((hull) => this._generateHull(hull.id));
+  }
+
+  /** Texture key for a given hull id - drawn once, tinted per-player via setTint. */
+  static hullKey(hullId) {
+    return `evtex:hull:${hullId}`;
+  }
+
+  /**
+   * Ship hull silhouettes: vector-drawn (path fills, not raster art), one
+   * canvas per archetype, grayscale-with-gradient so a single setTint()
+   * recolors the whole hull accurately. Nose points toward the top of the
+   * canvas (+Y up in image space) to match the existing rotation
+   * convention (PlayerObject assumes forward = rotation - PI/2).
+   */
+  _generateHull(hullId) {
+    const key = TextureFactory.hullKey(hullId);
+    if (this.scene.textures.exists(key)) return;
+
+    const size = HULL_TEX_SIZE;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+
+    // Nose-bright-to-tail-dark shading reads as dimensional once tinted
+    const shade = ctx.createLinearGradient(0, size * 0.12, 0, size * 0.92);
+    shade.addColorStop(0, "#ffffff");
+    shade.addColorStop(1, "#9aa0b8");
+
+    const shape = HULL_SHAPES[hullId] || HULL_SHAPES.interceptor;
+
+    ctx.beginPath();
+    shape.points.forEach(([fx, fy], i) => {
+      const x = fx * size, y = fy * size;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = shade;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(20,22,38,0.55)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    const [ccx, ccy, cr] = shape.cockpit;
+    ctx.beginPath();
+    ctx.ellipse(ccx * size, ccy * size, cr * size * 0.55, cr * size, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(20,22,38,0.55)";
+    ctx.fill();
+
+    this.scene.textures.addCanvas(key, canvas);
   }
 
   /**

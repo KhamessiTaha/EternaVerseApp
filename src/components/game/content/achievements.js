@@ -29,6 +29,7 @@ export const ACHIEVEMENT_CATALOG = [
 export const ACHIEVEMENT_MAP = Object.fromEntries(ACHIEVEMENT_CATALOG.map((a) => [a.id, a]));
 
 export const TIER_STYLE = {
+  starter: { text: "text-ink-faint", border: "border-line-bright" },
   bronze: { text: "text-[#c68a4a]", border: "border-[#c68a4a]/40" },
   silver: { text: "text-[#adb2c4]", border: "border-[#adb2c4]/40" },
   gold: { text: "text-accent", border: "border-accent/40" },

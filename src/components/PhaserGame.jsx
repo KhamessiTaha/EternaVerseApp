@@ -22,6 +22,8 @@ import { FirstContactPanel } from "./game/ui/FirstContactPanel";
 import { DevPanel } from "./game/ui/DevPanel";
 import { MissionsPanel } from "./game/ui/MissionsPanel";
 import { AchievementsPanel } from "./ui/AchievementsPanel";
+import { HangarPanel } from "./ui/HangarPanel";
+import { getLoadout } from "../api/userApi";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission }) => {
@@ -43,6 +45,18 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isDevOpen, setIsDevOpen] = useState(false);
   const [isMissionsOpen, setIsMissionsOpen] = useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+  const [isHangarOpen, setIsHangarOpen] = useState(false);
+  const [loadout, setLoadout] = useState(null); // { hull, shipColor } - fetched once, applied at scene creation
+
+  // Fetch the player's saved hull/color before the scene mounts, so the
+  // ship spawns already looking right instead of popping in default.
+  useEffect(() => {
+    let cancelled = false;
+    getLoadout()
+      .then((data) => { if (!cancelled) setLoadout({ hull: data.hull, shipColor: data.shipColor }); })
+      .catch(() => { if (!cancelled) setLoadout({ hull: 'interceptor', shipColor: '#dfa73f' }); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Scan completions: show the toast locally, then hand the discovery up to
   // GameplayPage for the backend submission / optimistic universe update.
@@ -57,12 +71,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const prevPanelsRef = useRef({ map: false, codex: false, outfitting: false, settings: false, chronicle: false, contact: false });
   useEffect(() => {
     const prev = prevPanelsRef.current;
-    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen, contact: !!contactCivId, missions: isMissionsOpen, achievements: isAchievementsOpen };
+    const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen, contact: !!contactCivId, missions: isMissionsOpen, achievements: isAchievementsOpen, hangar: isHangarOpen };
     Object.keys(next).forEach((k) => {
       if (next[k] !== prev[k]) playSfx(next[k] ? 'uiOpen' : 'uiClose');
     });
     prevPanelsRef.current = next;
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen, contactCivId, isMissionsOpen, isAchievementsOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isSettingsOpen, isChronicleOpen, contactCivId, isMissionsOpen, isAchievementsOpen, isHangarOpen]);
 
   // HUD update callback
   const handleHUDUpdate = (data) => {
@@ -113,12 +127,16 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       if (e.key === 'p' || e.key === 'P') {
         setIsAchievementsOpen(prev => !prev);
       }
+      if (e.key === 'h' || e.key === 'H') {
+        setIsHangarOpen(prev => !prev);
+      }
       if (e.key === 'Escape') {
         if (sceneRef.current?.inputSystem?.isMinigameActive) return;
         if (isDevOpen) { setIsDevOpen(false); return; }
         if (contactCivId) { setContactCivId(null); return; }
         if (isMissionsOpen) { setIsMissionsOpen(false); return; }
         if (isAchievementsOpen) { setIsAchievementsOpen(false); return; }
+        if (isHangarOpen) { setIsHangarOpen(false); return; }
         if (isFullMapOpen) { setIsFullMapOpen(false); return; }
         if (isCodexOpen) { setIsCodexOpen(false); return; }
         if (isOutfittingOpen) { setIsOutfittingOpen(false); return; }
@@ -129,9 +147,13 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen]);
 
   useEffect(() => {
+    // Wait for the saved loadout so the ship never spawns/pops from a
+    // default hull into the player's actual one.
+    if (!loadout) return;
+
     const SceneClass = UniverseSceneFactory({
       universe,
       onAnomalyResolved,
@@ -140,7 +162,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       onMinimapUpdate: handleMinimapUpdate,
       onFullMapUpdate: handleFullMapUpdate,
       onDiscovery: handleDiscoveryFromScene,
-      onCivContact: (civId) => setContactCivId(civId)
+      onCivContact: (civId) => setContactCivId(civId),
+      hull: loadout.hull,
+      shipColor: loadout.shipColor
     });
 
     const container = document.getElementById("phaser-container");
@@ -206,7 +230,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       stopEngine();
       stopAmbient();
     };
-  }, [universe?.seed, universe?.name]);
+  }, [universe?.seed, universe?.name, loadout]);
 
   useEffect(() => {
     if (sceneRef.current && universe) {
@@ -295,6 +319,17 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       <AchievementsPanel
         isOpen={isAchievementsOpen}
         onClose={() => setIsAchievementsOpen(false)}
+      />
+      <HangarPanel
+        isOpen={isHangarOpen}
+        onClose={() => setIsHangarOpen(false)}
+        onApply={(hull, shipColor) => {
+          // Swap the live sprite only - `loadout` state feeds the scene's
+          // creation effect, so setting it here would tear down and rebuild
+          // the entire Phaser game just to change a hull/color.
+          sceneRef.current?.applyHullChange?.(hull, shipColor);
+          playSfx('install');
+        }}
       />
 
       <div id="phaser-container" className="w-full h-full" />
