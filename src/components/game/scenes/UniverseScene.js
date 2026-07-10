@@ -212,26 +212,11 @@ export const UniverseSceneFactory = (props) => {
 
         console.log(`🎆 Playing anomaly destruction effect at (${x.toFixed(0)}, ${y.toFixed(0)})`);
 
-        // Camera shake + detonation audio
-        if (getSettings().cameraShake) {
-          this.cameras.main.shake(300, 0.008);
-        }
         playSfx('explosion');
-
-        // Create particle burst for destruction
-        const particleBurst = this.add.particles(x, y, "Player", {
-          speed: { min: 80, max: 200 },
-          scale: { start: 0.03, end: 0 },
-          lifespan: 1000,
-          quantity: 30,
-          angle: { min: 0, max: 360 },
-          blendMode: "ADD"
-        });
-
-        // Remove particles after animation completes
-        this.time.delayedCall(1000, () => {
-          particleBurst.destroy();
-        });
+        // Cinematic containment-collapse burst (shake, shockwaves, spokes,
+        // sparks, flare) - visual.color was captured at creation time, more
+        // reliable than re-deriving it from anomaly.type here.
+        this.anomalySystem.playResolutionEffect(x, y, visual.color, anomaly.severity ?? visual.severity);
 
         // Destroy the visual anomaly
         this.anomalySystem.destroyAnomalyVisual(visual);
@@ -266,39 +251,106 @@ export const UniverseSceneFactory = (props) => {
      * flash, dual shockwave rings, spinning debris shards, light flare -
      * then emergency recovery at the origin with an invulnerability window.
      */
+    /**
+     * Full ship-death cinematic: a beat of compression (implosion pulse +
+     * camera punch-in) before the hull ruptures into a layered eruption
+     * (core flash, three staggered plasma rings, shattered hull-plate
+     * debris, a hot spark burst, a secondary ember shower that lingers,
+     * and a drifting wreckage core) - then a warp-in recovery. Uses the
+     * shared 'evtex:spark' texture (tintable dot) throughout; the ship
+     * sprite is never used as a particle, which is what made the old
+     * version read as tiny ships flying apart instead of an explosion.
+     */
     handleShipDestroyed() {
       if (this.respawning) return;
       this.respawning = true;
 
       const x = this.player.x;
       const y = this.player.y;
+      const baseZoom = this.cameras.main.zoom;
 
-      playSfx('explosion');
-      if (getSettings().cameraShake) {
-        this.cameras.main.shake(500, 0.022);
-      }
-      this.cameras.main.flash(220, 255, 120, 60);
-
-      this.player.setVisible(false);
       this.player.body.moves = false;
       this.player.setVelocity(0, 0);
 
-      // 1. White-hot core flash
-      const core = this.add.circle(x, y, 8, 0xffffff, 1)
-        .setDepth(1999)
-        .setBlendMode(Phaser.BlendModes.ADD);
+      // --- Stage 0: compression beat. The ship itself animates through
+      // this (power-surge flicker, then collapses to nothing) instead of
+      // freezing solid, and the eruption is triggered from THAT tween's
+      // completion rather than an independent timer - one continuous
+      // handoff instead of two animations racing to the same deadline.
+      const implosion = this.add.graphics({ x, y }).setDepth(1998);
+      implosion.lineStyle(2, 0xffffff, 0.85);
+      implosion.strokeCircle(0, 0, 60);
       this.tweens.add({
-        targets: core, scale: 7, alpha: 0,
-        duration: 280, ease: 'Cubic.easeOut',
+        targets: implosion,
+        scaleX: 0.08, scaleY: 0.08,
+        alpha: { from: 0.85, to: 0.2 },
+        duration: 190,
+        ease: 'Cubic.easeIn',
+        onComplete: () => implosion.destroy(),
+      });
+      this.tweens.add({
+        targets: this.cameras.main,
+        zoom: baseZoom * 0.97,
+        duration: 190,
+        ease: 'Cubic.easeIn',
+      });
+
+      this.tweens.add({
+        targets: this.player,
+        alpha: { from: 1, to: 0.2 },
+        duration: 26,
+        yoyo: true,
+        repeat: 2,
+        onComplete: () => {
+          this.tweens.add({
+            targets: this.player,
+            alpha: 0,
+            duration: 55,
+            ease: 'Cubic.easeIn',
+            onComplete: () => this.detonateShip(x, y, baseZoom),
+          });
+        },
+      });
+    }
+
+    detonateShip(x, y, baseZoom) {
+      playSfx('explosion');
+      if (getSettings().cameraShake) {
+        this.cameras.main.shake(550, 0.026);
+      }
+      this.cameras.main.flash(120, 255, 255, 255);
+      this.time.delayedCall(80, () => this.cameras.main.flash(260, 255, 140, 70));
+
+      // Punch the zoom back out past baseline, then settle - sells weight
+      this.tweens.add({
+        targets: this.cameras.main,
+        zoom: baseZoom * 1.05,
+        duration: 160,
+        ease: 'Cubic.easeOut',
+        onComplete: () => {
+          this.tweens.add({ targets: this.cameras.main, zoom: baseZoom, duration: 380, ease: 'Sine.easeInOut' });
+        },
+      });
+
+      this.player.setVisible(false);
+
+      // White-hot core flash
+      const core = this.add.circle(x, y, 10, 0xffffff, 1)
+        .setDepth(1999).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: core, scale: 9, alpha: 0,
+        duration: 300, ease: 'Cubic.easeOut',
         onComplete: () => core.destroy(),
       });
 
-      // 2. Dual shockwave rings, staggered
-      [{ color: 0xf5cf7a, scale: 6, dur: 480, delay: 0 },
-       { color: 0xe0524a, scale: 10, dur: 720, delay: 130 }].forEach((cfg) => {
+      // Triple shockwave: white-hot -> amber -> deep red, staggered so the
+      // burst reads as expanding rather than one flat pulse
+      [{ color: 0xffffff, scale: 5, dur: 380, delay: 0, width: 3 },
+       { color: 0xf5cf7a, scale: 8, dur: 560, delay: 90, width: 2.5 },
+       { color: 0xe0524a, scale: 12, dur: 820, delay: 200, width: 2 }].forEach((cfg) => {
         const ring = this.add.graphics({ x, y }).setDepth(1998);
-        ring.lineStyle(3, cfg.color, 0.9);
-        ring.strokeCircle(0, 0, 18);
+        ring.lineStyle(cfg.width, cfg.color, 0.9);
+        ring.strokeCircle(0, 0, 20);
         this.tweens.add({
           targets: ring, scaleX: cfg.scale, scaleY: cfg.scale, alpha: 0,
           duration: cfg.dur, delay: cfg.delay, ease: 'Cubic.easeOut',
@@ -306,50 +358,92 @@ export const UniverseSceneFactory = (props) => {
         });
       });
 
-      // 3. Spinning debris shards
-      const shardColors = [0xf5cf7a, 0xe0824a, 0x9497ad, 0xffffff];
-      for (let i = 0; i < 14; i++) {
-        const angle = (i / 14) * Math.PI * 2 + Math.random() * 0.5;
-        const dist = 90 + Math.random() * 160;
+      // Shattered hull-plate debris - irregular polygons, not rectangles,
+      // tumbling outward with rotational overshoot for weight
+      const shardColors = [0xf5cf7a, 0xe0824a, 0x9497ad, 0xffffff, 0x8b7bd8];
+      for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2 + Math.random() * 0.4;
+        const dist = 100 + Math.random() * 220;
+        const s = 3 + Math.random() * 4;
         const shard = this.add.graphics({ x, y }).setDepth(1998);
         shard.fillStyle(shardColors[i % shardColors.length], 1);
-        shard.fillRect(-3, -1.2, 6, 2.4);
+        shard.fillPoints([
+          { x: -s, y: -s * 0.5 }, { x: s * 0.6, y: -s }, { x: s, y: s * 0.4 }, { x: -s * 0.3, y: s },
+        ], true);
         shard.rotation = Math.random() * Math.PI;
         this.tweens.add({
           targets: shard,
           x: x + Math.cos(angle) * dist,
           y: y + Math.sin(angle) * dist,
-          rotation: shard.rotation + (Math.random() - 0.5) * 12,
+          rotation: shard.rotation + (Math.random() - 0.5) * 14,
           alpha: 0,
-          scale: 0.3,
-          duration: 650 + Math.random() * 350,
+          scale: 0.25,
+          duration: 700 + Math.random() * 450,
           ease: 'Cubic.easeOut',
           onComplete: () => shard.destroy(),
         });
       }
 
-      // 4. Hot spark burst (additive, tight and fast)
-      const sparks = this.add.particles(x, y, "Player", {
-        speed: { min: 180, max: 420 },
-        scale: { start: 0.02, end: 0 },
-        lifespan: { min: 300, max: 700 },
-        quantity: 26,
+      // Hot spark burst - tight, fast, additive
+      const sparks = this.add.particles(x, y, "evtex:spark", {
+        speed: { min: 200, max: 460 },
+        scale: { start: 0.55, end: 0 },
+        lifespan: { min: 300, max: 750 },
+        quantity: 34,
         angle: { min: 0, max: 360 },
         blendMode: "ADD",
         tint: [0xffe2b0, 0xe0824a, 0xffffff],
       });
-      this.time.delayedCall(800, () => sparks.destroy());
+      this.time.delayedCall(850, () => sparks.destroy());
 
-      // 5. Light flare that decays with the fireball
-      const flare = this.lights.addLight(x, y, 520, 0xffaa55, 3.5);
-      const flareProxy = { i: 3.5 };
+      // Secondary ember shower - slower, drifts with gravity, lingers
+      // longer than the initial burst for a smoldering-wreckage feel
+      this.time.delayedCall(180, () => {
+        const embers = this.add.particles(x, y, "evtex:spark", {
+          speed: { min: 30, max: 110 },
+          scale: { start: 0.3, end: 0 },
+          lifespan: { min: 900, max: 1600 },
+          quantity: 16,
+          angle: { min: 0, max: 360 },
+          gravityY: 40,
+          blendMode: "ADD",
+          tint: [0xe0824a, 0xffe2b0],
+        });
+        this.time.delayedCall(1700, () => embers.destroy());
+      });
+
+      // Light flare that decays with the fireball
+      const flare = this.lights.addLight(x, y, 560, 0xffaa55, 4);
+      const flareProxy = { i: 4 };
       this.tweens.add({
-        targets: flareProxy, i: 0, duration: 750, ease: 'Cubic.easeOut',
+        targets: flareProxy, i: 0, duration: 800, ease: 'Cubic.easeOut',
         onUpdate: () => flare.setIntensity(flareProxy.i),
         onComplete: () => this.lights.removeLight(flare),
       });
 
-      // 6. Notice, then recovery
+      // Drifting wreckage ember - a small dim glow that lingers and slowly
+      // fades, so the moment reads as "something was destroyed here" rather
+      // than an instant clean reset
+      const wreckDrift = { x: 0, y: 0 };
+      const wreck = this.add.circle(x, y, 4, 0xe0824a, 0.9).setDepth(1997).setBlendMode(Phaser.BlendModes.ADD);
+      const wreckLight = this.lights.addLight(x, y, 90, 0xe0824a, 1.2);
+      this.tweens.add({
+        targets: wreckDrift,
+        x: (Math.random() - 0.5) * 140,
+        y: (Math.random() - 0.5) * 140,
+        duration: 1600,
+        ease: 'Sine.easeOut',
+        onUpdate: () => {
+          wreck.setPosition(x + wreckDrift.x, y + wreckDrift.y);
+          wreckLight.setPosition(x + wreckDrift.x, y + wreckDrift.y);
+        },
+      });
+      this.tweens.add({
+        targets: [wreck], alpha: 0, duration: 1600, delay: 200, ease: 'Cubic.easeIn',
+        onComplete: () => { wreck.destroy(); this.lights.removeLight(wreckLight); },
+      });
+
+      // Notice, then recovery
       const notice = this.add.text(x, y - 70,
         'VESSEL DESTROYED\nEMERGENCY RECOVERY INITIATED', {
           fontFamily: '"IBM Plex Mono", monospace',
@@ -357,9 +451,9 @@ export const UniverseSceneFactory = (props) => {
           color: '#e0524a',
           align: 'center',
         }).setOrigin(0.5).setAlpha(0).setDepth(2000);
-      this.tweens.add({ targets: notice, alpha: 1, y: y - 84, duration: 350, delay: 250 });
+      this.tweens.add({ targets: notice, alpha: 1, y: y - 84, duration: 350, delay: 300 });
 
-      this.time.delayedCall(1800, () => {
+      this.time.delayedCall(2000, () => {
         notice.destroy();
         this.player.setPosition(0, 0);
         this.player.heal(100);
@@ -368,7 +462,7 @@ export const UniverseSceneFactory = (props) => {
         this.player.invulnerableUntil = this.time.now + 4000;
         this.respawning = false;
 
-        // Recovery ring imploding onto the ship + blink while invulnerable
+        // Recovery ring imploding onto the ship + arrival flash + blink
         const arrival = this.add.graphics({ x: 0, y: 0 }).setDepth(1998);
         arrival.lineStyle(2, 0x4fd1a5, 0.9);
         arrival.strokeCircle(0, 0, 90);
@@ -376,6 +470,11 @@ export const UniverseSceneFactory = (props) => {
           targets: arrival, scaleX: 0.1, scaleY: 0.1, alpha: 0,
           duration: 450, ease: 'Cubic.easeIn',
           onComplete: () => arrival.destroy(),
+        });
+        const arrivalFlash = this.add.circle(0, 0, 4, 0x4fd1a5, 1).setDepth(1999).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+          targets: arrivalFlash, scale: 12, alpha: 0, duration: 350, ease: 'Cubic.easeOut',
+          onComplete: () => arrivalFlash.destroy(),
         });
         this.tweens.add({
           targets: this.player,

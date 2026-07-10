@@ -167,6 +167,7 @@ export class AnomalySystem {
       id, x, y,
       type: typeObj.type,
       category: typeObj.category,
+      color: typeObj.color,
       severity, radius,
       entity, glow, light, lightProxy,
       interactionText,
@@ -250,20 +251,7 @@ export class AnomalySystem {
     anomaly.resolved = true;
     this.resolvedAnomalies.add(anomaly.id);
 
-    // Visual feedback
-    if (getSettings().cameraShake) {
-      this.scene.cameras.main.shake(200, 0.005);
-    }
-
-    const particleBurst = this.scene.add.particles(anomaly.x, anomaly.y, "Player", {
-      speed: { min: 50, max: 150 },
-      scale: { start: 0.02, end: 0 },
-      lifespan: 800,
-      quantity: 20,
-      blendMode: "ADD"
-    });
-
-    this.scene.time.delayedCall(800, () => particleBurst.destroy());
+    this.playResolutionEffect(anomaly.x, anomaly.y, anomaly.color, anomaly.severity);
     this.destroyAnomalyVisual(anomaly);
 
     // Update stats
@@ -282,5 +270,111 @@ export class AnomalySystem {
         isBackend: anomaly.isBackend
       });
     }
+  }
+
+  /**
+   * Cinematic containment-collapse sequence for a resolved anomaly: the
+   * reticle snaps inward (containment closing) then releases as a colored
+   * shockwave/spoke/spark burst with a decaying light flare. Shared by the
+   * live minigame-completion path (UniverseScene.playAnomalyDestructionEffect)
+   * and this class's own resolveAnomaly. Uses the shared 'evtex:spark'
+   * texture (a soft tintable dot) rather than the ship sprite, which is
+   * what made earlier explosions read as tiny ships flying apart.
+   */
+  playResolutionEffect(x, y, color = 0xdfa73f, severity = 1) {
+    const scene = this.scene;
+    const sev = Math.max(1, Math.min(5, severity || 1));
+
+    if (getSettings().cameraShake) {
+      scene.cameras.main.shake(180 + sev * 40, 0.004 + sev * 0.0015);
+    }
+    if (sev >= 4) {
+      const r = (color >> 16) & 255, g = (color >> 8) & 255, b = color & 255;
+      scene.cameras.main.flash(160, r, g, b, false);
+    }
+
+    // Containment collapse: the reticle's ring snaps inward before releasing
+    const collapse = scene.add.graphics({ x, y }).setDepth(1500);
+    collapse.lineStyle(2, color, 0.9);
+    collapse.strokeCircle(0, 0, 70 + sev * 14);
+    scene.tweens.add({
+      targets: collapse,
+      scaleX: 0.05, scaleY: 0.05,
+      alpha: { from: 0.9, to: 0.3 },
+      duration: 200,
+      ease: "Cubic.easeIn",
+      onComplete: () => {
+        collapse.destroy();
+        this._burstResolution(x, y, color, sev);
+      },
+    });
+  }
+
+  _burstResolution(x, y, color, sev) {
+    const scene = this.scene;
+
+    // White-hot core flash
+    const core = scene.add.circle(x, y, 6 + sev, 0xffffff, 1)
+      .setDepth(1502).setBlendMode(Phaser.BlendModes.ADD);
+    scene.tweens.add({
+      targets: core, scale: 5 + sev, alpha: 0,
+      duration: 260, ease: "Cubic.easeOut",
+      onComplete: () => core.destroy(),
+    });
+
+    // Dual shockwave rings - the anomaly's own color, then a brighter
+    // white-hot rim just behind it
+    [{ tint: color, scale: 4 + sev * 0.6, dur: 420, delay: 0 },
+     { tint: 0xffffff, scale: 6 + sev * 0.8, dur: 620, delay: 90 }].forEach((cfg) => {
+      const ring = scene.add.graphics({ x, y }).setDepth(1501);
+      ring.lineStyle(2, cfg.tint, 0.85);
+      ring.strokeCircle(0, 0, 14 + sev * 2);
+      scene.tweens.add({
+        targets: ring, scaleX: cfg.scale, scaleY: cfg.scale, alpha: 0,
+        duration: cfg.dur, delay: cfg.delay, ease: "Cubic.easeOut",
+        onComplete: () => ring.destroy(),
+      });
+    });
+
+    // Radial energy spokes: pre-drawn full-length streaks scaled up from
+    // the origin, reading as energy release rather than solid debris
+    const spokeCount = 6 + sev * 2;
+    for (let i = 0; i < spokeCount; i++) {
+      const angle = (i / spokeCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+      const len = 50 + sev * 14 + Math.random() * 26;
+      const spoke = scene.add.graphics({ x, y })
+        .setDepth(1500).setBlendMode(Phaser.BlendModes.ADD).setScale(0.15);
+      spoke.lineStyle(2.5, i % 2 === 0 ? color : 0xffffff, 0.85);
+      spoke.lineBetween(0, 0, Math.cos(angle) * len, Math.sin(angle) * len);
+      scene.tweens.add({
+        targets: spoke,
+        scaleX: 1, scaleY: 1,
+        alpha: { from: 0.9, to: 0 },
+        duration: 380 + Math.random() * 220,
+        ease: "Cubic.easeOut",
+        onComplete: () => spoke.destroy(),
+      });
+    }
+
+    // Spark particles - tintable soft dots, not the ship sprite
+    const sparks = scene.add.particles(x, y, "evtex:spark", {
+      speed: { min: 60 + sev * 20, max: 200 + sev * 40 },
+      scale: { start: 0.45 + sev * 0.05, end: 0 },
+      lifespan: { min: 400, max: 900 },
+      quantity: 18 + sev * 6,
+      angle: { min: 0, max: 360 },
+      blendMode: "ADD",
+      tint: [color, 0xffffff],
+    });
+    scene.time.delayedCall(1000, () => sparks.destroy());
+
+    // Decaying light flare
+    const flare = scene.lights.addLight(x, y, 260 + sev * 40, color, 2.5 + sev * 0.4);
+    const proxy = { i: flare.intensity };
+    scene.tweens.add({
+      targets: proxy, i: 0, duration: 500 + sev * 60, ease: "Cubic.easeOut",
+      onUpdate: () => flare.setIntensity(proxy.i),
+      onComplete: () => scene.lights.removeLight(flare),
+    });
   }
 }

@@ -45,6 +45,34 @@ export class TextureFactory {
       for (let i = 0; i < count; i++) this._generate(family, i);
     }
     TextureFactory.STARFIELD_KEYS.forEach((key, i) => this._generateStarfield(key, i));
+    this._generateSpark();
+  }
+
+  /**
+   * Soft radial-gradient dot, white on transparent - the shared particle
+   * texture for explosions/sparks (anomaly resolution, ship destruction).
+   * Tinted per-emitter via Phaser's particle `tint`, so one texture covers
+   * every color. Using the ship sprite as a stand-in (the old approach) is
+   * what made past explosions read as "tiny ships flying everywhere."
+   */
+  _generateSpark() {
+    const key = "evtex:spark";
+    if (this.scene.textures.exists(key)) return;
+
+    const size = 64;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+
+    const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    grad.addColorStop(0, "rgba(255,255,255,1)");
+    grad.addColorStop(0.35, "rgba(255,255,255,0.7)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+
+    this.scene.textures.addCanvas(key, canvas);
   }
 
   keyFor(descriptor) {
