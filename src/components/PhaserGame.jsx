@@ -223,24 +223,25 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         <PrimaryInstrument universe={universe} />
       </div>
 
-      {/* Radar - top right */}
-      <div className="absolute top-5 right-5 z-10">
-        <MinimapPanel minimapData={minimapData} onMapToggle={handleMapToggle} />
-      </div>
-
-      {/* Console - below radar, right */}
-      <div className="absolute top-[172px] right-5 z-10">
-        <Console universe={universe} stats={stats} />
+      {/* Right column: radar, console, controls hint - stacked in normal
+          flow (not independently-positioned absolute blocks) so a taller
+          Console or a resized radar (settings) can never overlap the hint
+          pinned below it. Scrolls internally if the viewport is short. */}
+      <div className="absolute top-5 right-5 bottom-5 z-10 flex flex-col items-end gap-3 pointer-events-none">
+        <div className="pointer-events-auto shrink-0">
+          <MinimapPanel minimapData={minimapData} onMapToggle={handleMapToggle} />
+        </div>
+        <div className="pointer-events-auto min-h-0 overflow-y-auto">
+          <Console universe={universe} stats={stats} />
+        </div>
+        <div className="pointer-events-auto shrink-0 mt-auto">
+          <ControlsHint />
+        </div>
       </div>
 
       {/* Telemetry bar - bottom center */}
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10">
         <HUDPanel hudData={hudData} />
-      </div>
-
-      {/* Controls hint - bottom right */}
-      <div className="absolute bottom-5 right-5 z-10">
-        <ControlsHint />
       </div>
 
       {/* Full Map Overlay */}

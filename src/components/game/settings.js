@@ -18,7 +18,12 @@ export const DEFAULT_SETTINGS = {
   masterVolume: 0.8,        // 0 - 1, scales everything
   sfxVolume: 1.0,           // 0 - 1, one-shot effects + engine hum
   ambientVolume: 0.5,       // 0 - 1, the deep-space drone
+  minimapSize: "medium",    // "small" | "medium" | "large" - radar diameter, see MINIMAP_SIZES
 };
+
+// Radar diameter in pixels per minimapSize setting - shared by MinimapPanel
+// (rendering) and SettingsPanel (the picker).
+export const MINIMAP_SIZES = { small: 76, medium: 104, large: 140 };
 
 function load() {
   try {

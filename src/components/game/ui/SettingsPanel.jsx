@@ -62,8 +62,8 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/85 backdrop-blur-sm">
-      <div className="relative w-[90vw] max-w-xl bg-void border border-line overflow-hidden">
-        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+      <div className="relative w-[90vw] max-w-xl max-h-[85vh] bg-void border border-line overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4 shrink-0">
           <div>
             <h2 className="font-sans text-ink font-medium text-lg tracking-wide">Settings</h2>
             <p className="text-ink-faint text-[10px] font-mono tracking-wider uppercase">
@@ -77,6 +77,8 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
             CLOSE [ESC]
           </button>
         </div>
+
+        <div className="overflow-y-auto">
 
         <SettingRow label="Movement Keys" hint="Rotation, thrust and strafe cluster">
           <OptionButtons
@@ -150,7 +152,21 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
           />
         </SettingRow>
 
-        <div className="flex justify-end px-5 py-3 border-t border-line">
+        <SettingRow label="Radar Size" hint="Minimap diameter, top-right of the HUD">
+          <OptionButtons
+            value={settings.minimapSize}
+            onSelect={(v) => change({ minimapSize: v })}
+            options={[
+              { value: 'small', label: 'SMALL' },
+              { value: 'medium', label: 'MEDIUM' },
+              { value: 'large', label: 'LARGE' },
+            ]}
+          />
+        </SettingRow>
+
+        </div>
+
+        <div className="flex justify-end px-5 py-3 border-t border-line shrink-0">
           <button
             onClick={() => setSettings({ ...resetSettings() })}
             className="font-mono text-[10px] tracking-wider uppercase text-ink-faint hover:text-critical transition-colors"

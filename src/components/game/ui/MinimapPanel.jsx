@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CHUNK_SIZE } from '../constants';
+import { getSettings, onSettingsChange, MINIMAP_SIZES } from '../settings.js';
 
 const VOID_RAISED = '#0c0f1c';
 const LINE = '#1e2540';
@@ -18,13 +19,18 @@ const CIV_COLORS = {
 
 export const MinimapPanel = ({ minimapData, onMapToggle }) => {
   const canvasRef = useRef(null);
+  // Radar size is a device setting, not scene state - read directly rather
+  // than trust minimapData.size, so it responds live to the settings panel.
+  const [size, setSize] = useState(MINIMAP_SIZES[getSettings().minimapSize] || MINIMAP_SIZES.medium);
+
+  useEffect(() => onSettingsChange((s) => setSize(MINIMAP_SIZES[s.minimapSize] || MINIMAP_SIZES.medium)), []);
 
   useEffect(() => {
     if (!minimapData || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const { player, currentChunk, loadedChunks, anomalies, civs, size = 200 } = minimapData;
+    const { player, currentChunk, loadedChunks, anomalies, civs } = minimapData;
     const radius = size / 2;
 
     ctx.clearRect(0, 0, size, size);
@@ -139,11 +145,10 @@ export const MinimapPanel = ({ minimapData, onMapToggle }) => {
     ctx.beginPath();
     ctx.arc(radius, radius, radius - 1, 0, Math.PI * 2);
     ctx.stroke();
-  }, [minimapData]);
+  }, [minimapData, size]);
 
   if (!minimapData) return null;
 
-  const size = minimapData.size || 96;
   const activeBackend = (minimapData.anomalies || []).filter((a) => a.isBackend).length;
 
   return (

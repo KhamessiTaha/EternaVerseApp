@@ -17,8 +17,9 @@ export class MinimapSystem {
         },
         loadedChunks: this.formatLoadedChunks(loadedChunks),
         anomalies: this.formatAnomalies(loadedChunks, backendAnomalies),
-        civs: civMarkers,
-        size: 96
+        civs: civMarkers
+        // Radar pixel size is a device setting rendered client-side by
+        // MinimapPanel (see settings.js MINIMAP_SIZES), not scene state.
       });
     }
   }
