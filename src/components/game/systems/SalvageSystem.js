@@ -8,6 +8,7 @@
 // ChunkSystem, this system handles collection.
 import Phaser from "phaser";
 import { playSfx } from "../audio.js";
+import { narrateOnce, pick, CURATOR } from "../narrator.js";
 
 const COLLECT_RANGE = 42;
 const HULL_REPAIR = 8;
@@ -42,6 +43,7 @@ export class SalvageSystem {
         });
         player.heal(HULL_REPAIR);
         playSfx("salvage");
+        narrateOnce('first-salvage', pick(CURATOR.firstSalvage));
       }
     });
   }

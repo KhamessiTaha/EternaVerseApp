@@ -10,7 +10,7 @@ import { getChunkCoords, getChunkKey, civDesignation, civAttitude } from "../uti
 import { playSfx } from "../audio.js";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
-import { narrateOnce, CURATOR } from "../narrator.js";
+import { narrateOnce, pick, CURATOR } from "../narrator.js";
 
 // Kardashev type -> beacon color (matches the escalation feel: mundane ->
 // notable -> remarkable -> transcendent)
@@ -310,7 +310,7 @@ export class CivilizationSystem {
       gfx,
     });
     playSfx("alert");
-    narrateOnce('first-missile', CURATOR.firstMissile);
+    narrateOnce('first-missile', pick(CURATOR.firstMissile));
   }
 
   _fizzleMissile(m, index) {

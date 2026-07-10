@@ -12,7 +12,8 @@ const STORAGE_KEY = "eternaverse:settings";
 
 export const DEFAULT_SETTINGS = {
   keyboardLayout: "azerty", // "azerty" (ZQSD, the original bindings) | "qwerty" (WASD)
-  turnSensitivity: 1.0,     // 0.5 - 2.0 multiplier on rotation accel + max turn rate
+  flightModel: "newtonian", // "newtonian" (full inertia) | "assisted" (lateral grip + auto-brake)
+  turnSensitivity: 1.0,     // 0.2 - 2.0 multiplier on rotation accel + max turn rate
   cameraShake: true,        // all camera shake effects (boost rumble, hits, breaches)
   trailQuality: "high",     // "off" | "low" | "high" - ship engine trail particles
   masterVolume: 0.8,        // 0 - 1, scales everything

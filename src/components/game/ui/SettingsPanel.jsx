@@ -91,11 +91,22 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
           />
         </SettingRow>
 
+        <SettingRow label="Flight Model" hint="Assisted grips sideways drift and auto-brakes when you release thrust">
+          <OptionButtons
+            value={settings.flightModel}
+            onSelect={(v) => change({ flightModel: v })}
+            options={[
+              { value: 'newtonian', label: 'NEWTONIAN' },
+              { value: 'assisted', label: 'ASSISTED' },
+            ]}
+          />
+        </SettingRow>
+
         <SettingRow label="Turn Sensitivity" hint="How sharply the ship responds to rotation input">
           <div className="flex items-center gap-3">
             <input
               type="range"
-              min="0.5"
+              min="0.2"
               max="2"
               step="0.05"
               value={settings.turnSensitivity}

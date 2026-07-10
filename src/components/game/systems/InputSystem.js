@@ -5,6 +5,7 @@ import { getSettings, onSettingsChange } from "../settings.js";
 import { playSfx } from "../audio.js";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
+import { narrateOnce, pick, CURATOR } from "../narrator.js";
 
 // Movement key presets, selected via the settings menu. AZERTY (ZQSD) is the
 // game's original binding; QWERTY gives the standard WASD cluster.
@@ -394,7 +395,10 @@ export class InputSystem {
     // Trigger lockout the moment energy bottoms out; release it only once
     // energy has climbed back past the threshold
     if (this.boostEnergy <= 0) {
-      if (!this.boostLocked) playSfx('boostDepleted');
+      if (!this.boostLocked) {
+        playSfx('boostDepleted');
+        narrateOnce('boost-locked', pick(CURATOR.boostLocked));
+      }
       this.boostLocked = true;
     } else if (this.boostLocked && this.boostEnergy >= this.params.BOOST_LOCKOUT_THRESHOLD) {
       this.boostLocked = false;
@@ -417,6 +421,28 @@ export class InputSystem {
     const speed = player.body.velocity.length();
     if (speed > maxSpeed) {
       player.body.velocity.setLength(Math.max(maxSpeed, decayByDelta(speed, 0.985, delta)));
+    }
+
+    // --- ASSISTED FLIGHT MODEL (settings) ---
+    // The forgiving mode: decompose velocity into forward/lateral relative
+    // to the ship's facing, then (a) bleed lateral drift hard so the ship
+    // GOES WHERE THE NOSE POINTS instead of sliding, and (b) auto-brake
+    // forward momentum whenever no thrust is held, so releasing the keys
+    // means stopping. Newtonian mode skips all of this - pure inertia.
+    if (getSettings().flightModel === "assisted") {
+      const fwdAngle = player.rotation - Math.PI / 2;
+      const fx = Math.cos(fwdAngle);
+      const fy = Math.sin(fwdAngle);
+      const v = player.body.velocity;
+      const forward = v.x * fx + v.y * fy;
+      const latX = v.x - forward * fx;
+      const latY = v.y - forward * fy;
+
+      const grip = decayByDelta(1, 0.9, delta);          // sideways drift dies fast
+      const brake = isThrusting ? 1 : decayByDelta(1, 0.965, delta); // coast to a stop in ~2s
+
+      v.x = forward * brake * fx + latX * grip;
+      v.y = forward * brake * fy + latY * grip;
     }
   }
 

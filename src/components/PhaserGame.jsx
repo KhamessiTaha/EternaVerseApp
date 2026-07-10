@@ -25,7 +25,7 @@ import { AchievementsPanel } from "./ui/AchievementsPanel";
 import { HangarPanel } from "./ui/HangarPanel";
 import { GameMenu } from "./game/ui/GameMenu";
 import { NarratorOverlay } from "./game/ui/NarratorOverlay";
-import { narrateOnce, CURATOR } from "./game/narrator";
+import { narrate, narrateOnce, pick, CURATOR } from "./game/narrator";
 import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
@@ -72,7 +72,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   // GameplayPage for the backend submission / optimistic universe update.
   const handleDiscoveryFromScene = (discovery) => {
     playSfx('discovery', discovery.rarity);
-    narrateOnce('first-scan', CURATOR.firstScan);
+    narrateOnce('first-scan', pick(CURATOR.firstScan));
+    if (discovery.rarity === 'exceptional') narrate(pick(CURATOR.exceptional));
     setToast({ discovery, key: Date.now() });
     onDiscovery?.(discovery);
   };
@@ -93,7 +94,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const handleHUDUpdate = (data) => {
     setHudData(data);
     if (data?.hull !== undefined && data.hull <= 30 && data.hull > 0) {
-      narrateOnce('hull-critical', CURATOR.hullCritical);
+      narrateOnce('hull-critical', pick(CURATOR.hullCritical));
     }
     if (data?.position) {
       onPlayerPositionUpdate?.(data.position);
@@ -179,7 +180,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       onFullMapUpdate: handleFullMapUpdate,
       onDiscovery: handleDiscoveryFromScene,
       onCivContact: (civId) => {
-        narrateOnce('first-contact', CURATOR.firstContact);
+        narrateOnce('first-contact', pick(CURATOR.firstContact));
         setContactCivId(civId);
       }
     });

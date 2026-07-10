@@ -19,7 +19,7 @@ import { FadeFromColor } from "../components/ui/ScreenFlash";
 import { useToast } from "../components/ui/ToastProvider";
 import { ACHIEVEMENT_MAP } from "../components/game/content/achievements";
 import { playSfx } from "../components/game/audio";
-import { narrate, narrateOnce, CURATOR } from "../components/game/narrator";
+import { narrate, narrateOnce, pick, CURATOR } from "../components/game/narrator";
 import { progressOf } from "../components/game/ui/MissionsPanel";
 
 const GameplayPage = () => {
@@ -97,7 +97,7 @@ const GameplayPage = () => {
         if (done >= needed) {
           notifiedMissionsRef.current.add(m.id);
           toast(`Objective complete: ${m.title} - press O to claim +${m.reward} RP`, 'success', 8000);
-          narrateOnce('first-mission-complete', CURATOR.missionComplete);
+          narrateOnce('first-mission-complete', pick(CURATOR.missionComplete));
           playSfx('scanComplete');
         }
       });
@@ -263,6 +263,7 @@ const GameplayPage = () => {
         setUniverse((prev) => (prev ? { ...prev, upgrades: data.upgrades, research: data.research } : prev));
         console.log(`🔧 Upgrade installed: ${track}`, data.upgrades);
         announceAchievements(data.newAchievements);
+        narrateOnce('first-upgrade', pick(CURATOR.firstUpgrade));
       }
       return data;
     } catch (err) {
@@ -295,6 +296,7 @@ const GameplayPage = () => {
       if (data.ok && data.universe) {
         setUniverse(data.universe);
         announceAchievements(data.newAchievements);
+        if (Math.random() < 0.5) narrate(pick(CURATOR.claims));
       }
       return data;
     } catch (err) {
