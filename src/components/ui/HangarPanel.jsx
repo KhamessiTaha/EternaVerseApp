@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { getLoadout, updateLoadout } from '../../api/userApi';
 import { HULL_CATALOG, HULL_SHAPES, HULL_STATS, COLOR_PALETTE, TIER_STYLE } from '../game/content/hullCatalog.js';
+import { ABILITIES } from '../game/content/abilities.js';
 import { setLoadoutLocal } from '../game/loadoutStore.js';
 import { playSfx } from '../game/audio.js';
 
@@ -108,6 +109,12 @@ export const HangarPanel = ({ isOpen, onClose, onApply }) => {
                 <div className="font-mono text-[11px] text-ink-faint mt-1">
                   {HULL_CATALOG.find((h) => h.id === selected.hull)?.description}
                 </div>
+                {ABILITIES[selected.hull] && (
+                  <div className="font-mono text-[10px] mt-1.5">
+                    <span className="text-accent">[SPACE] {ABILITIES[selected.hull].label}</span>
+                    <span className="text-ink-faint"> - {ABILITIES[selected.hull].description}</span>
+                  </div>
+                )}
                 <div className="flex gap-3 mt-2 font-mono text-[10px] tabular-nums">
                   {(() => {
                     const s = HULL_STATS[selected.hull] || {};

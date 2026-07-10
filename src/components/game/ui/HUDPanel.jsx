@@ -3,7 +3,7 @@ const BOOST_SEGMENTS = 10;
 export const HUDPanel = ({ hudData }) => {
   if (!hudData) return null;
 
-  const { velocity, position, boostEnergy, isBoosting, boostLocked, hull = 100 } = hudData;
+  const { velocity, position, boostEnergy, isBoosting, boostLocked, hull = 100, ability } = hudData;
 
   const hullColor = hull > 60 ? 'bg-good' : hull > 30 ? 'bg-warn' : 'bg-critical';
   const hullFilled = Math.round((hull / 100) * BOOST_SEGMENTS);
@@ -59,6 +59,22 @@ export const HUDPanel = ({ hudData }) => {
           ))}
         </div>
       </div>
+
+      {ability && (
+        <>
+          <div className="w-px h-4 bg-line" />
+          <div className="flex items-baseline gap-2">
+            <span className="text-[9px] uppercase tracking-wider text-ink-faint">{ability.label}</span>
+            <span className={`text-[10px] tabular-nums uppercase tracking-wider ${
+              ability.active ? 'text-accent animate-pulse'
+              : ability.cooldown > 0 ? 'text-ink-faint'
+              : 'text-good'
+            }`}>
+              {ability.active ? 'ACTIVE' : ability.cooldown > 0 ? `${ability.cooldown}s` : '[SPACE]'}
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 };

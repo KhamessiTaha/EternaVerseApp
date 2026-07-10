@@ -117,6 +117,7 @@ export const ControlsHint = () => (
     <div><Key>F</Key>resolve anomaly</div>
     <div><Key>V</Key>scan object</div>
     <div><Key>G</Key>first contact</div>
+    <div><Key>SPACE</Key>ability</div>
     <div><Key>SHIFT</Key>boost</div>
     <div><Key>ESC</Key>menu</div>
   </div>

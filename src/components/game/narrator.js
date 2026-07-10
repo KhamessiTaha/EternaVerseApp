@@ -156,4 +156,8 @@ export const CURATOR = {
     "Now THAT is worth cataloging. I haven't seen one of those since the last universe.",
     "An exceptional find. Frame this one. Metaphorically. Your ship has no walls to speak of.",
   ],
+  firstAbility: [
+    "Ah, you found the button. Every hull hides one trick. This is yours.",
+    "Your ship has exactly one party trick, and you just used it. Use it wisely. Or don't - I'm a curator, not a coach.",
+  ],
 };

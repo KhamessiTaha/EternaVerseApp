@@ -146,6 +146,10 @@ const SFX = {
     tone({ freq: 1050 + Math.random() * 150, type: "triangle", dur: 0.05, vol: 0.09 });
     tone({ freq: 1568, type: "triangle", dur: 0.07, vol: 0.07, at: 0.05 });
   },
+  ability: () => {
+    tone({ freq: 330, end: 660, type: "sawtooth", dur: 0.16, vol: 0.12 });
+    tone({ freq: 660, end: 990, dur: 0.14, vol: 0.12, at: 0.1 });
+  },
 };
 
 /** Fire a named one-shot effect. Safe to call unconditionally. */

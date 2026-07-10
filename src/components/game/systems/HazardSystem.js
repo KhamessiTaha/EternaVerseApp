@@ -75,8 +75,11 @@ export class HazardSystem {
       fx = (fx / total) * MAX_HAZARD_ACCEL;
       fy = (fy / total) * MAX_HAZARD_ACCEL;
     }
-    player.body.acceleration.x += fx;
-    player.body.acceleration.y += fy;
+    // Tachyon's Time Dilation weakens the slowed world's grip on you
+    const tScale = this.scene.worldTimeScale ?? 1;
+    player.body.acceleration.x += fx * tScale;
+    player.body.acceleration.y += fy * tScale;
+    incomingDps *= tScale;
 
     if (incomingDps > 0 && time - this.lastDamageAt >= DAMAGE_TICK_MS) {
       this.lastDamageAt = time;

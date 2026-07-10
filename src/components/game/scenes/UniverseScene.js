@@ -16,6 +16,7 @@ import { PlayerObject } from "../systems/PlayerObject";
 import { CivilizationSystem } from "../systems/CivilizationSystem";
 import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
+import { AbilitySystem } from "../systems/AbilitySystem";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
 import { narrate, narrateOnce, pick, muse, CURATOR } from "../narrator.js";
@@ -108,6 +109,7 @@ export const UniverseSceneFactory = (props) => {
       this.civilizationSystem = new CivilizationSystem(this);
       this.hazardSystem = new HazardSystem(this);
       this.salvageSystem = new SalvageSystem(this);
+      this.abilitySystem = new AbilitySystem(this);
       this.minimapSystem = new MinimapSystem(this);
       this.fullMapSystem = new FullMapSystem(this);
       this.inputSystem = new InputSystem(this);
@@ -737,6 +739,9 @@ export const UniverseSceneFactory = (props) => {
       this.scanSystem?.destroy();
       this.inputSystem?.destroy();
       this.civilizationSystem?.destroy();
+      // Ability effects that alter global timescales must not outlive the scene
+      this.worldTimeScale = 1;
+      this.tweens.timeScale = 1;
       stopEngine();
       stopAmbient();
 

@@ -48,6 +48,17 @@ export class CivilizationSystem {
     this.scene = scene;
     this.beacons = new Map(); // civ.id -> { data, visual, attitude, nextMissileAt }
     this.missiles = [];
+    this.ceasefireUntil = 0; // Cruiser's Ceasefire Broadcast (AbilitySystem)
+  }
+
+  /** Destroy (harmlessly) all missiles within radius - Cutter's pulse. */
+  clearMissilesNear(x, y, radius) {
+    for (let i = this.missiles.length - 1; i >= 0; i--) {
+      const m = this.missiles[i];
+      if (Phaser.Math.Distance.Between(x, y, m.x, m.y) <= radius) {
+        this._detonateMissile(m, i);
+      }
+    }
   }
 
   /** Refresh the tracked set from the universe document. */
@@ -236,12 +247,14 @@ export class CivilizationSystem {
   update(time, delta) {
     const player = this.scene.player;
     if (!player?.body || this.scene.respawning) return;
-    const dt = delta / 1000;
+    // Tachyon's Time Dilation slows the world - missiles included
+    const dt = (delta / 1000) * (this.scene.worldTimeScale ?? 1);
     const paused = this.scene.inputSystem?.isMinigameActive;
     const invulnerable = time < (player.invulnerableUntil || 0);
+    const ceasefire = time < this.ceasefireUntil;
 
     // Launches
-    if (!paused && !invulnerable && this.missiles.length < MAX_MISSILES) {
+    if (!paused && !invulnerable && !ceasefire && this.missiles.length < MAX_MISSILES) {
       for (const beacon of this.beacons.values()) {
         if (civAttitude(beacon.data) !== "hostile" || beacon.data.type === "Type0") continue;
         const { x, y } = beacon.data.location;

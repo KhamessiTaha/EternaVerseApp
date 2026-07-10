@@ -27,24 +27,43 @@ export class SalvageSystem {
       for (const mote of chunk.salvage) {
         if (mote.collected) continue;
         if (Phaser.Math.Distance.Between(player.x, player.y, mote.x, mote.y) > COLLECT_RANGE) continue;
-
-        mote.collected = true;
-        this.scene.tweens.killTweensOf(mote.gfx);
-        // Zip into the ship, then vanish
-        this.scene.tweens.add({
-          targets: mote.gfx,
-          x: player.x,
-          y: player.y,
-          scale: 0.2,
-          alpha: 0,
-          duration: 160,
-          ease: "Cubic.easeIn",
-          onComplete: () => mote.gfx.destroy(),
-        });
-        player.heal(HULL_REPAIR);
-        playSfx("salvage");
-        narrateOnce('first-salvage', pick(CURATOR.firstSalvage));
+        this._collect(mote);
       }
     });
+  }
+
+  /** Collect every uncollected mote within radius - the Hauler's magnet. */
+  collectWithin(x, y, radius) {
+    let count = 0;
+    this.scene.chunkSystem.loadedChunks.forEach((chunk) => {
+      if (!chunk.salvage) return;
+      for (const mote of chunk.salvage) {
+        if (mote.collected) continue;
+        if (Phaser.Math.Distance.Between(x, y, mote.x, mote.y) > radius) continue;
+        this._collect(mote, 300 + Math.random() * 250); // staggered zip = satisfying vacuum
+        count++;
+      }
+    });
+    return count;
+  }
+
+  _collect(mote, zipMs = 160) {
+    const player = this.scene.player;
+    mote.collected = true;
+    this.scene.tweens.killTweensOf(mote.gfx);
+    // Zip into the ship, then vanish
+    this.scene.tweens.add({
+      targets: mote.gfx,
+      x: player.x,
+      y: player.y,
+      scale: 0.2,
+      alpha: 0,
+      duration: zipMs,
+      ease: "Cubic.easeIn",
+      onComplete: () => mote.gfx.destroy(),
+    });
+    player.heal(HULL_REPAIR);
+    playSfx("salvage");
+    narrateOnce('first-salvage', pick(CURATOR.firstSalvage));
   }
 }
