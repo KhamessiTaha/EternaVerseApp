@@ -6,8 +6,21 @@
 // The civ is looked up fresh from the universe prop by id, so server
 // responses (stat changes, spent RP) reflect immediately.
 import { useState } from 'react';
-import { civDesignation } from '../utils';
+import { civDesignation, civAttitude } from '../utils';
 import { playSfx } from '../audio.js';
+
+const ATTITUDE_INFO = {
+  worship: { label: 'WORSHIPS YOU', cls: 'text-[#f5cf7a] border-[#f5cf7a]/40',
+    line: 'They have built a religion around your ship. Tribute flows to your research.' },
+  friendly: { label: 'FRIENDLY', cls: 'text-good border-good/40',
+    line: 'Your interventions are remembered kindly.' },
+  neutral: { label: 'NEUTRAL', cls: 'text-ink-dim border-line-bright',
+    line: 'They are aware of you, and undecided.' },
+  wary: { label: 'WARY', cls: 'text-warn border-warn/40',
+    line: 'They track your vessel with every instrument they have.' },
+  hostile: { label: 'HOSTILE', cls: 'text-critical border-critical/40',
+    line: 'They fire on your vessel on sight. Approach at your own risk.' },
+};
 
 const TYPE_INFO = {
   Type0: { label: 'TYPE 0 · PRE-PLANETARY', color: 'text-ink-dim border-line-bright' },
@@ -73,6 +86,7 @@ export const FirstContactPanel = ({ civId, onClose, universe, onAction }) => {
   const typeInfo = TYPE_INFO[civ.type] ?? TYPE_INFO.Type0;
   const name = civDesignation(civ.id);
   const ageMyr = ((civ.age || 0) / 1e6).toFixed(0);
+  const attitude = ATTITUDE_INFO[civAttitude(civ)] ?? ATTITUDE_INFO.neutral;
 
   const upliftCost = UPLIFT_BASE_COST * ((civ.uplifts || 0) + 1);
   const pacifyCost = PACIFY_BASE_COST * ((civ.pacifies || 0) + 1);
@@ -111,6 +125,9 @@ export const FirstContactPanel = ({ civId, onClose, universe, onAction }) => {
               <h2 className="font-sans text-ink font-medium text-lg tracking-wide">Signal · {name}</h2>
               <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 border ${typeInfo.color}`}>
                 {typeInfo.label}
+              </span>
+              <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 border ${attitude.cls}`}>
+                {attitude.label}
               </span>
             </div>
             <p className="text-ink-faint text-[10px] font-mono tracking-wider uppercase mt-0.5">
@@ -196,7 +213,7 @@ export const FirstContactPanel = ({ civId, onClose, universe, onAction }) => {
         </div>
 
         <div className="px-5 py-3 font-mono text-[10px] text-ink-faint border-t border-line">
-          Surviving civilizations advance toward higher Kardashev types on their own - your interventions tilt the odds.
+          {attitude.line}
         </div>
       </div>
     </div>

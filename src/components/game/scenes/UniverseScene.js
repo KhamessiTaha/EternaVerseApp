@@ -536,6 +536,7 @@ export const UniverseSceneFactory = (props) => {
         this.chunkSystem.loadedChunks
       );
       this.civilizationSystem.handleInteraction(this.player);
+      this.civilizationSystem.update(time, delta); // hostile-civ missiles
 
       // Update minimap (now sends data to React)
       this.minimapSystem.update(
