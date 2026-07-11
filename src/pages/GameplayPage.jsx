@@ -1,7 +1,6 @@
 import { useParams, useLocation } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import PhaserGame from "../components/PhaserGame";
-import { getGradeForAccuracy } from "../components/game/utils";
 import {
   getUniverse,
   simulateUniverse,
@@ -12,8 +11,8 @@ import {
   contactCivilization,
   devAction,
   claimMission,
+  resolveMinorAnomaly,
 } from "../api/universeApi";
-import { getShipModifiers } from "../components/game/content/upgradeCatalog";
 import { Button, Eyebrow } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
 import { useToast } from "../components/ui/ToastProvider";
@@ -190,28 +189,25 @@ const GameplayPage = () => {
           }
         }
       } else {
-        // Procedural anomaly - update locally, scaled by minigame performance
-        // and the Containment Rig upgrade (same multipliers the backend
-        // applies to real anomalies)
+        // MINOR anomaly (chunk-seeded). Server-validated like discoveries:
+        // real RP, real stability, real mission credit, persistent dedup -
+        // no longer a client-side illusion that respawned on reload.
         resolvedAnomaliesRef.current.add(anomaly.id);
-        console.log(`✅ Procedural anomaly resolved locally`);
-
-        const multiplier = getGradeForAccuracy(anomaly.gameResult?.accuracy ?? 70).stabilityMultiplier;
-
-        setUniverse(prev => {
-          const boost = 0.005 * multiplier * getShipModifiers(prev.upgrades).containment;
-          return {
-            ...prev,
-            currentState: {
-              ...prev.currentState,
-              stabilityIndex: Math.min(1, (prev.currentState.stabilityIndex || 1) + boost)
-            },
-            metrics: {
-              ...prev.metrics,
-              playerInterventions: (prev.metrics?.playerInterventions || 0) + 1
-            }
-          };
-        });
+        try {
+          const data = await resolveMinorAnomaly(
+            id, anomaly.id, anomaly.severity, anomaly.gameResult?.accuracy ?? 70
+          );
+          if (data.ok && data.universe) {
+            setUniverse(data.universe);
+            announceAchievements(data.newAchievements);
+            console.log(`✅ Minor anomaly resolved (+${data.reward} RP)`);
+          }
+        } catch (apiErr) {
+          const errorMsg = apiErr.response?.data?.error || apiErr.message;
+          if (!errorMsg?.includes('already resolved')) {
+            console.error("❌ Failed to resolve minor anomaly:", errorMsg);
+          }
+        }
       }
     } catch (err) {
       console.error("❌ Unhandled error in anomaly resolution:", err);

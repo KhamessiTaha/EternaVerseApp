@@ -125,6 +125,25 @@ export const submitDiscoveries = async (universeId, discoveries) => {
   }
 };
 
+// Resolve a MINOR (chunk-seeded) anomaly - server validates the
+// deterministic id, dedups, and computes rewards + mission credit.
+export const resolveMinorAnomaly = async (universeId, anomalyId, severity, accuracy) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/resolve-minor`,
+      { anomalyId, severity, accuracy },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error resolving minor anomaly:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Claim a completed mission. The server validates completion against live
 // universe state and issues a replacement objective.
 export const claimMission = async (universeId, missionId) => {

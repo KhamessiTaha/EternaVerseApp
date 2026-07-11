@@ -146,9 +146,12 @@ export class AnomalySystem {
 
     // Interaction label - instrument tag, monospace, no solid neon-on-black box
     const hexColor = `#${typeObj.color.toString(16).padStart(6, "0")}`;
+    // The tier IS the fiction: CRITICAL anomalies are physics-engine events
+    // with real consequences; MINOR ones are ambient field turbulence -
+    // smaller but still real rewards
     const labelText = isBackend
-      ? `${typeObj.label}\nSEV ${severity} · [F] RESOLVE`
-      : `${typeObj.label}\n[F] RESOLVE`;
+      ? `${typeObj.label}\nCRITICAL · SEV ${severity} · [F] RESOLVE`
+      : `${typeObj.label}\nMINOR · [F] RESOLVE`;
 
     const interactionText = this.scene.add
       .text(x, y - radius - 26, labelText, {

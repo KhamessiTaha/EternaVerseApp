@@ -116,6 +116,11 @@ export const UniverseSceneFactory = (props) => {
       this.hud = new HUD(this);
 
       this.anomalySystem.syncBackendAnomalies();
+      // Server-side dedup history: minor anomalies resolved in past sessions
+      // must not re-render when their chunk regenerates
+      (this.universe.resolvedMinorAnomalies || []).forEach((id) =>
+        this.anomalySystem.resolvedAnomalies.add(id)
+      );
       this.civilizationSystem.sync();
     }
 
@@ -708,6 +713,9 @@ export const UniverseSceneFactory = (props) => {
       this.universe = newUniverse;
       this.anomalySystem.syncBackendAnomalies();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
+      (newUniverse.resolvedMinorAnomalies || []).forEach((id) =>
+        this.anomalySystem.resolvedAnomalies.add(id)
+      );
       this.scanSystem.seedScanned((newUniverse.discoveries || []).map((d) => d.id));
       this.civilizationSystem.sync();
       this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
