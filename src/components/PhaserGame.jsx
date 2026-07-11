@@ -30,7 +30,7 @@ import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward }) => {
   const { user } = useContext(AuthContext);
   const isAdmin = !!user?.isAdmin;
   const gameRef = useRef(null);
@@ -186,7 +186,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       // Phaser boots async - getScene() right after construction returns
       // null, which left sceneRef dead for every consumer. The scene calls
       // this from create(), when it actually exists.
-      onSceneReady: (scene) => { sceneRef.current = scene; }
+      onSceneReady: (scene) => { sceneRef.current = scene; },
+      onEventReward
     });
 
     const container = document.getElementById("phaser-container");

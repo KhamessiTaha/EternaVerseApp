@@ -30,7 +30,7 @@ export const MinimapPanel = ({ minimapData, onMapToggle }) => {
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const { player, currentChunk, loadedChunks, anomalies, civs } = minimapData;
+    const { player, currentChunk, loadedChunks, anomalies, civs, events } = minimapData;
     const radius = size / 2;
 
     ctx.clearRect(0, 0, size, size);
@@ -109,6 +109,35 @@ export const MinimapPanel = ({ minimapData, onMapToggle }) => {
         ctx.lineTo(cx + 3, cy);
         ctx.lineTo(cx, cy + 3.5);
         ctx.lineTo(cx - 3, cy);
+        ctx.closePath();
+        ctx.fill();
+      });
+    }
+
+    // Live cosmic events: pulsing 4-point star, kind-colored. Drawn at the
+    // radar edge (clamped) when out of range so it acts as a direction hint.
+    if (events) {
+      const EVENT_COLORS = { supernova: '#e0824a', comet: '#4ec9e0', derelict: '#9497ad' };
+      const pulse = 1 + Math.sin(Date.now() / 180) * 0.35;
+      events.forEach((ev) => {
+        let ex = (ev.x - player.x) * scale;
+        let ey = (ev.y - player.y) * scale;
+        const d = Math.sqrt(ex * ex + ey * ey);
+        const maxR = radius - 8;
+        if (d > maxR) { ex = (ex / d) * maxR; ey = (ey / d) * maxR; }
+        const px = centerX + ex, py = centerY + ey;
+        const r = 4 * pulse;
+
+        ctx.fillStyle = EVENT_COLORS[ev.kind] || ACCENT;
+        ctx.beginPath();
+        ctx.moveTo(px, py - r);
+        ctx.lineTo(px + r * 0.35, py - r * 0.35);
+        ctx.lineTo(px + r, py);
+        ctx.lineTo(px + r * 0.35, py + r * 0.35);
+        ctx.lineTo(px, py + r);
+        ctx.lineTo(px - r * 0.35, py + r * 0.35);
+        ctx.lineTo(px - r, py);
+        ctx.lineTo(px - r * 0.35, py - r * 0.35);
         ctx.closePath();
         ctx.fill();
       });

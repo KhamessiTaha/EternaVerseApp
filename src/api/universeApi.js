@@ -144,6 +144,25 @@ export const resolveMinorAnomaly = async (universeId, anomalyId, severity, accur
   }
 };
 
+// Claim a live cosmic event reward (supernova/comet/derelict) - the server
+// rate-limits per event kind.
+export const claimEventReward = async (universeId, kind) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/event-reward`,
+      { kind },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error claiming event reward:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Claim a completed mission. The server validates completion against live
 // universe state and issues a replacement objective.
 export const claimMission = async (universeId, missionId) => {

@@ -25,7 +25,7 @@ export const FullMapPanel = ({ isOpen, onClose, fullMapData }) => {
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const { player, currentChunk, loadedChunks, anomalies, resolvedAnomalies, civs } = fullMapData;
+    const { player, currentChunk, loadedChunks, anomalies, resolvedAnomalies, civs, events } = fullMapData;
 
     const width = canvas.width;
     const height = canvas.height;
@@ -132,6 +132,40 @@ export const FullMapPanel = ({ isOpen, onClose, fullMapData }) => {
         ctx.arc(cx, cy, 10, 0, Math.PI * 2);
         ctx.stroke();
         ctx.globalAlpha = 1;
+      });
+    }
+
+    // Live cosmic events: labeled pulsing markers
+    if (events) {
+      const EVENT_STYLE = {
+        supernova: { color: '#e0824a', label: 'DYING STAR' },
+        comet: { color: '#4ec9e0', label: 'COMET' },
+        derelict: { color: '#9497ad', label: 'DERELICT' },
+      };
+      const pulse = 1 + Math.sin(Date.now() / 180) * 0.3;
+      events.forEach((ev) => {
+        const style = EVENT_STYLE[ev.kind] || EVENT_STYLE.derelict;
+        const ex = centerX + (ev.x - player.x) * scale;
+        const ey = centerY + (ev.y - player.y) * scale;
+        const r = 6 * pulse;
+
+        ctx.fillStyle = style.color;
+        ctx.beginPath();
+        ctx.moveTo(ex, ey - r);
+        ctx.lineTo(ex + r * 0.35, ey - r * 0.35);
+        ctx.lineTo(ex + r, ey);
+        ctx.lineTo(ex + r * 0.35, ey + r * 0.35);
+        ctx.lineTo(ex, ey + r);
+        ctx.lineTo(ex - r * 0.35, ey + r * 0.35);
+        ctx.lineTo(ex - r, ey);
+        ctx.lineTo(ex - r * 0.35, ey - r * 0.35);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.font = '9px "IBM Plex Mono", monospace';
+        ctx.fillStyle = style.color;
+        ctx.textAlign = 'center';
+        ctx.fillText(style.label, ex, ey - 12);
       });
     }
 

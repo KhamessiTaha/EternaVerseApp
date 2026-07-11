@@ -20,6 +20,7 @@ const TYPE_STYLE = {
   upgrade: { label: 'OUTFITTING', cls: 'text-accent border-accent/40' },
   contact: { label: 'CONTACT', cls: 'text-good border-good/40' },
   mission: { label: 'OBJECTIVE', cls: 'text-accent border-accent/40' },
+  cosmic_event: { label: 'EVENT', cls: 'text-[#4ec9e0] border-[#4ec9e0]/40' },
 };
 
 // Unstyled types are raw anomaly-spawn events (their `type` is the anomaly
@@ -36,7 +37,7 @@ const FILTERS = [
 
 const groupOf = (type) => {
   if (type === 'milestone' || type === 'universe_end') return 'milestones';
-  if (type === 'anomaly_resolved' || type === 'upgrade' || type === 'discovery' || type === 'contact' || type === 'mission') return 'player';
+  if (type === 'anomaly_resolved' || type === 'upgrade' || type === 'discovery' || type === 'contact' || type === 'mission' || type === 'cosmic_event') return 'player';
   if (type === 'civilization' || type === 'extinction' || type === 'catastrophe') return 'civilizations';
   return 'anomalies';
 };

@@ -12,6 +12,7 @@ import {
   devAction,
   claimMission,
   resolveMinorAnomaly,
+  claimEventReward,
 } from "../api/universeApi";
 import { Button, Eyebrow } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
@@ -300,6 +301,22 @@ const GameplayPage = () => {
     }
   };
 
+  // Live cosmic event rewards - server rate-limits per event kind, so a
+  // cooldown rejection is normal (event fired again too soon) and silent
+  const handleEventReward = async (kind) => {
+    try {
+      const data = await claimEventReward(id, kind);
+      if (data.ok && data.universe) {
+        setUniverse(data.universe);
+        toast(`+${data.reward} RP - ${data.title}`, 'success', 6000);
+      }
+    } catch (err) {
+      if (!err.response?.data?.cooldown) {
+        console.error("Event reward failed:", err.response?.data || err.message);
+      }
+    }
+  };
+
   // Admin dev/test actions - server re-validates the admin flag per request
   const handleDevAction = async (action, payload) => {
     try {
@@ -497,6 +514,7 @@ const GameplayPage = () => {
         onContactAction={handleContactAction}
         onDevAction={handleDevAction}
         onClaimMission={handleClaimMission}
+        onEventReward={handleEventReward}
       />
       {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
     </>

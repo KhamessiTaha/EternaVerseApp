@@ -3,7 +3,7 @@ export class FullMapSystem {
     this.scene = scene;
   }
 
-  render(player, currentChunk, loadedChunks, backendAnomalies, resolvedAnomalies, civMarkers = []) {
+  render(player, currentChunk, loadedChunks, backendAnomalies, resolvedAnomalies, civMarkers = [], eventMarkers = []) {
     // Just send data to React
     if (this.scene.onFullMapUpdate) {
       this.scene.onFullMapUpdate({
@@ -19,7 +19,8 @@ export class FullMapSystem {
         loadedChunks: this.formatLoadedChunks(loadedChunks),
         anomalies: this.formatActiveAnomalies(loadedChunks, backendAnomalies),
         resolvedAnomalies: this.formatResolvedAnomalies(loadedChunks, resolvedAnomalies),
-        civs: civMarkers
+        civs: civMarkers,
+        events: eventMarkers
       });
     }
   }

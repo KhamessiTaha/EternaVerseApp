@@ -17,12 +17,13 @@ import { CivilizationSystem } from "../systems/CivilizationSystem";
 import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
 import { AbilitySystem } from "../systems/AbilitySystem";
+import { CosmicEventSystem } from "../systems/CosmicEventSystem";
 import { getLoadoutLocal, setLoadoutLocal } from "../loadoutStore.js";
 import { HULL_CATALOG } from "../content/hullCatalog.js";
 import { narrate, narrateOnce, pick, muse, CURATOR } from "../narrator.js";
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -36,6 +37,7 @@ export const UniverseSceneFactory = (props) => {
       this.onDiscovery = onDiscovery;
       this.onCivContact = onCivContact;
       this.onSceneReady = onSceneReady;
+      this.onEventReward = onEventReward;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -126,6 +128,7 @@ export const UniverseSceneFactory = (props) => {
       this.hazardSystem = new HazardSystem(this);
       this.salvageSystem = new SalvageSystem(this);
       this.abilitySystem = new AbilitySystem(this);
+      this.cosmicEventSystem = new CosmicEventSystem(this);
       this.minimapSystem = new MinimapSystem(this);
       this.fullMapSystem = new FullMapSystem(this);
       this.inputSystem = new InputSystem(this);
@@ -595,6 +598,7 @@ export const UniverseSceneFactory = (props) => {
       );
       this.civilizationSystem.handleInteraction(this.player);
       this.civilizationSystem.update(time, delta); // hostile-civ missiles
+      this.cosmicEventSystem.update(time, delta);
 
       // Update minimap (now sends data to React)
       this.minimapSystem.update(
@@ -603,6 +607,7 @@ export const UniverseSceneFactory = (props) => {
         this.chunkSystem.loadedChunks,
         this.anomalySystem.backendAnomalies,
         this.civilizationSystem.getMapMarkers(),
+        this.cosmicEventSystem.getMapMarkers(),
       );
       
       // Update full map (send data to React)
@@ -716,6 +721,7 @@ export const UniverseSceneFactory = (props) => {
         this.anomalySystem.backendAnomalies,
         this.anomalySystem.resolvedAnomalies,
         this.civilizationSystem.getMapMarkers(),
+        this.cosmicEventSystem.getMapMarkers(),
       );
     }
 
@@ -803,6 +809,7 @@ export const UniverseSceneFactory = (props) => {
       this.scanSystem?.destroy();
       this.inputSystem?.destroy();
       this.civilizationSystem?.destroy();
+      this.cosmicEventSystem?.destroy();
       // Ability effects that alter global timescales must not outlive the scene
       this.worldTimeScale = 1;
       this.tweens.timeScale = 1;

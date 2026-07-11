@@ -160,4 +160,26 @@ export const CURATOR = {
     "Ah, you found the button. Every hull hides one trick. This is yours.",
     "Your ship has exactly one party trick, and you just used it. Use it wisely. Or don't - I'm a curator, not a coach.",
   ],
+  events: {
+    supernova: (dir) => pick([
+      `A star to the ${dir} has begun its death spiral. Ninety seconds, give or take. Front-row seats are... educational. Briefly.`,
+      `Stellar collapse imminent, ${dir} of you. Get close for the data. Then get very, very far.`,
+    ]),
+    supernovaCaptured: [
+      "Spectral data captured. Now would be an excellent time to be somewhere else.",
+      "You have the data. The star has seconds. Do the arithmetic while accelerating.",
+    ],
+    comet: (dir) => pick([
+      `A comet is crossing to the ${dir}. Older than most civilizations, faster than most regrets. Skim it.`,
+      `Comet inbound from the ${dir}. Its tail is full of usable ice. Its head is full of momentum. Respect both.`,
+    ]),
+    derelict: (dir) => pick([
+      `A dead ship drifts to the ${dir}. Someone else's story, abandoned mid-sentence. Salvage rights are yours - finders keepers is universal law.`,
+      `Derelict vessel, ${dir}. No life signs. No distress call. Just cargo, patience, and questions I recommend not asking.`,
+    ]),
+    derelictLooted: [
+      "Salvage complete. The previous owners won't mind. The previous owners won't anything.",
+      "Their hull feeds yours now. Out here, that's what passes for a eulogy.",
+    ],
+  },
 };
