@@ -3,7 +3,8 @@ const BOOST_SEGMENTS = 10;
 export const HUDPanel = ({ hudData }) => {
   if (!hudData) return null;
 
-  const { velocity, position, boostEnergy, isBoosting, boostLocked, hull = 100, ability } = hudData;
+  const { velocity, position, boostEnergy, isBoosting, boostLocked, hull = 100, ability, gamma = 1 } = hudData;
+  const showGamma = gamma > 1.02;
 
   const hullColor = hull > 60 ? 'bg-good' : hull > 30 ? 'bg-warn' : 'bg-critical';
   const hullFilled = Math.round((hull / 100) * BOOST_SEGMENTS);
@@ -32,6 +33,14 @@ export const HUDPanel = ({ hudData }) => {
       <div className="flex items-baseline gap-2">
         <span className="text-[9px] uppercase tracking-wider text-ink-faint">Vel</span>
         <span className="text-[11px] tabular-nums text-ink">{velocity.toFixed(0)} u/s</span>
+        {showGamma && (
+          <span
+            className={`text-[11px] tabular-nums ${gamma > 1.3 ? 'text-accent' : 'text-ink-dim'}`}
+            title="Lorentz factor - time dilation / mass increase at your current velocity"
+          >
+            γ {gamma.toFixed(2)}
+          </span>
+        )}
       </div>
 
       <div className="w-px h-4 bg-line" />

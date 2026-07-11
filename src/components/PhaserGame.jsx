@@ -27,7 +27,8 @@ import { GameMenu } from "./game/ui/GameMenu";
 import { NarratorOverlay } from "./game/ui/NarratorOverlay";
 import { narrate, narrateOnce, pick, CURATOR } from "./game/narrator";
 import { getLoadout } from "../api/userApi";
-import { setLoadoutLocal } from "./game/loadoutStore";
+import { setLoadoutLocal, getLoadoutLocal } from "./game/loadoutStore";
+import { HULL_CATALOG } from "./game/content/hullCatalog";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission }) => {
@@ -337,6 +338,13 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
               scene.handleShipDestroyed();
             } else if (action === 'repair-hull') {
               scene.player.heal(100);
+            } else if (action === 'cycle-hull') {
+              // Session-only: writes the local store the scene polls, never
+              // the server - locked hulls stay locked for real saves
+              const { hull, shipColor } = getLoadoutLocal();
+              const idx = HULL_CATALOG.findIndex((h) => h.id === hull);
+              const next = HULL_CATALOG[(idx + 1) % HULL_CATALOG.length];
+              setLoadoutLocal(next.id, shipColor);
             }
           }}
         />

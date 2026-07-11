@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { getLoadout, updateLoadout } from '../../api/userApi';
 import { HULL_CATALOG, HULL_SHAPES, HULL_STATS, COLOR_PALETTE, TIER_STYLE } from '../game/content/hullCatalog.js';
 import { ABILITIES } from '../game/content/abilities.js';
+import { ACHIEVEMENT_MAP } from '../game/content/achievements.js';
 import { setLoadoutLocal } from '../game/loadoutStore.js';
 import { playSfx } from '../game/audio.js';
 
@@ -157,8 +158,15 @@ export const HangarPanel = ({ isOpen, onClose, onApply }) => {
                       <HullIcon hullId={h.id} color={unlocked ? selected.shipColor : '#565a72'} size={34} />
                       <div className="min-w-0">
                         <div className="font-mono text-[11px] text-ink truncate">{h.label}</div>
-                        <div className={`font-mono text-[8px] uppercase tracking-wider ${style.text}`}>
-                          {unlocked ? h.tier : 'locked'}
+                        <div
+                          className={`font-mono text-[8px] uppercase tracking-wider truncate ${style.text}`}
+                          title={!unlocked && h.requiresAchievement
+                            ? `Unlock: ${ACHIEVEMENT_MAP[h.requiresAchievement]?.title} - ${ACHIEVEMENT_MAP[h.requiresAchievement]?.description}`
+                            : undefined}
+                        >
+                          {unlocked
+                            ? h.tier
+                            : `🔒 ${ACHIEVEMENT_MAP[h.requiresAchievement]?.title || 'locked'}`}
                         </div>
                       </div>
                     </button>

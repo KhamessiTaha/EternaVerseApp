@@ -22,6 +22,7 @@ const CLIENT_ACTIONS = [
   { label: 'Damage hull -50 (test HUD / armor)', action: 'damage-hull' },
   { label: 'Destroy ship (test death cinematic)', action: 'destroy-ship' },
   { label: 'Repair hull to full', action: 'repair-hull' },
+  { label: 'Next ship hull (session-only, ignores unlocks)', action: 'cycle-hull' },
 ];
 
 export const DevPanel = ({ isOpen, onClose, onDevAction, onClientAction }) => {

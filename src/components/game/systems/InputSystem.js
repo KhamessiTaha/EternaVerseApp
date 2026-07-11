@@ -310,6 +310,12 @@ export class InputSystem {
     mods.thrust *= hullStats.thrust || 1;
     mods.maxSpeed *= hullStats.maxSpeed || 1;
 
+    // Relativistic mass: F = gamma * m * a, so at fixed engine force your
+    // acceleration falls by 1/gamma as v approaches game-c (gamma computed
+    // per-frame in UniverseScene). Engines feel heavier the faster you go -
+    // a physically honest soft wall at the speed of light.
+    mods.thrust /= this.scene.gamma || 1;
+
     // --- SMOOTH ROTATION WITH ACCELERATION ---
     // Turn sensitivity (settings) scales both how fast rotation ramps up and
     // its cap, so the whole turn feel shifts together. Hull turn rating

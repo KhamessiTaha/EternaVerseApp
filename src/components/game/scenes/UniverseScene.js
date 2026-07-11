@@ -18,7 +18,6 @@ import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
 import { AbilitySystem } from "../systems/AbilitySystem";
 import { getLoadoutLocal } from "../loadoutStore.js";
-import { HULL_STATS } from "../content/hullCatalog.js";
 import { narrate, narrateOnce, pick, muse, CURATOR } from "../narrator.js";
 
 export const UniverseSceneFactory = (props) => {
@@ -72,6 +71,16 @@ export const UniverseSceneFactory = (props) => {
       this.renderFullMap();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
       this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
+
+      // Relativity overlay: the universe visibly darkens as v approaches
+      // game-c (fewer photons catch up to you). Alpha driven per-frame from
+      // the Lorentz factor computed in update().
+      this.gamma = 1;
+      this.relativityOverlay = this.add
+        .rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0)
+        .setOrigin(0)
+        .setScrollFactor(0)
+        .setDepth(900);
 
       // Space drone (fades in on the first user gesture if audio is locked)
       startAmbient();
@@ -527,6 +536,20 @@ export const UniverseSceneFactory = (props) => {
         this.player.applyLoadout(lo.hull, lo.shipColor);
       }
 
+      // --- SPECIAL RELATIVITY (game-c = 1900 u/s) ---
+      // beta/gamma from last frame's velocity, consumed everywhere this
+      // frame: InputSystem divides thrust by gamma (relativistic mass -
+      // acceleration falls toward zero as v->c, a natural soft light-speed
+      // wall), the ship length-contracts, and the universe darkens.
+      const C_GAME = 1900;
+      const beta = Math.min(0.99, this.player.body.velocity.length() / C_GAME);
+      this.gamma = 1 / Math.sqrt(1 - beta * beta);
+      this.relativityOverlay.setAlpha(
+        Phaser.Math.Linear(this.relativityOverlay.alpha,
+          Phaser.Math.Clamp((this.gamma - 1) * 0.9, 0, 0.55),
+          lerpFactorByDelta(0.08, delta))
+      );
+
       this.inputSystem.handlePlayerMovement(this.player, delta);
       // Anomaly forces stack on top of the acceleration input just set
       this.hazardSystem.update(time);
@@ -611,18 +634,10 @@ export const UniverseSceneFactory = (props) => {
 
       const s = Phaser.Math.Linear(this.player.scaleX, boostScale, lerpFactorByDelta(0.15, delta));
 
-      // Relativistic hulls (Tachyon) visibly length-contract along their
-      // axis of motion as v approaches "game-c": the real Lorentz factor,
-      // scaleY = s * sqrt(1 - v²/c²). At its boosted top speed the needle
-      // squashes to ~60% length - physics as a cosmetic flex.
-      const hullStats = HULL_STATS[this.player.hullId] || {};
-      let sy = s;
-      if (hullStats.relativistic) {
-        const C_GAME = 1900; // just above the fastest achievable speed
-        const beta = Math.min(0.95, speed / C_GAME);
-        sy = s * Math.sqrt(1 - beta * beta);
-      }
-      this.player.setScale(s, sy);
+      // Length contraction for EVERY hull: scaleY = s / gamma, the real
+      // Lorentz factor (computed once per frame in update()). Subtle at
+      // cruise (~2% at 600 u/s), dramatic on a boosted Tachyon (~40%).
+      this.player.setScale(s, s / (this.gamma || 1));
 
       if (isBoosting) {
         this.cameraShakeIntensity = Phaser.Math.Linear(
@@ -699,8 +714,8 @@ export const UniverseSceneFactory = (props) => {
 
 
     handleResize() {
-
       this.inputSystem.updateArrowPositions?.(this.scale.width, this.scale.height);
+      this.relativityOverlay?.setSize(this.scale.width, this.scale.height);
     }
 
     updateUIPositions() {
