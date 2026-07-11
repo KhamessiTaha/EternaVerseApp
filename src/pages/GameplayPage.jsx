@@ -21,6 +21,7 @@ import { ACHIEVEMENT_MAP } from "../components/game/content/achievements";
 import { playSfx } from "../components/game/audio";
 import { narrate, narrateOnce, pick, CURATOR } from "../components/game/narrator";
 import { progressOf } from "../components/game/ui/MissionsPanel";
+import { WelcomeBackPanel, buildDigest } from "../components/game/ui/WelcomeBackPanel";
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -29,6 +30,7 @@ const GameplayPage = () => {
   const fromBigBang = location.state?.fromBigBang;
   const [universe, setUniverse] = useState(null);
   const [error, setError] = useState(null);
+  const [digest, setDigest] = useState(null);
   const [lastSimulation, setLastSimulation] = useState(Date.now());
   const simulationInProgress = useRef(false);
   const playerPositionRef = useRef({ x: 0, y: 0 });
@@ -109,6 +111,9 @@ const GameplayPage = () => {
       try {
         const uni = await getUniverse(id);
         setUniverse(uni);
+        // "While you were away" digest - only materializes after a real
+        // absence with something to report (buildDigest returns null otherwise)
+        setDigest(buildDigest(uni));
         console.log(`🌌 Universe loaded: ${uni.name}`);
         console.log(`   Galaxies: ${uni.currentState.galaxyCount}`);
         console.log(`   Stars: ${uni.currentState.starCount}`);
@@ -516,6 +521,15 @@ const GameplayPage = () => {
         onClaimMission={handleClaimMission}
         onEventReward={handleEventReward}
       />
+      {digest && (
+        <WelcomeBackPanel
+          digest={digest}
+          onClose={() => {
+            setDigest(null);
+            narrate(pick(CURATOR.welcomeBack));
+          }}
+        />
+      )}
       {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
     </>
   );

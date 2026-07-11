@@ -160,6 +160,11 @@ export const CURATOR = {
     "Ah, you found the button. Every hull hides one trick. This is yours.",
     "Your ship has exactly one party trick, and you just used it. Use it wisely. Or don't - I'm a curator, not a coach.",
   ],
+  welcomeBack: [
+    "Caught up? Good. It all happened whether you watched or not. That's rather the point of a universe.",
+    "I kept notes while you were gone. I always keep notes. Welcome back, warden.",
+    "The universe managed without you. Barely, I'd say, but I'm biased toward flattery.",
+  ],
   events: {
     supernova: (dir) => pick([
       `A star to the ${dir} has begun its death spiral. Ninety seconds, give or take. Front-row seats are... educational. Briefly.`,

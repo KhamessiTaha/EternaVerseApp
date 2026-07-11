@@ -26,11 +26,12 @@ export const createUniverse = async (universeData) => {
   }
 };
 
-// Get a single universe by id
+// Get a single universe by id. Also returns previousVisit ({at, age}) for
+// the "while you were away" digest - the server stamps the new visit.
 export const getUniverse = async (universeId) => {
   try {
     const res = await axios.get(`${API_URL}/${universeId}`, getAuthHeaders());
-    return res.data.universe;
+    return { ...res.data.universe, previousVisit: res.data.previousVisit };
   } catch (error) {
     console.error(
       "Error fetching universe:",
