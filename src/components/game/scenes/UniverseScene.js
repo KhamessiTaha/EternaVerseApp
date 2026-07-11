@@ -17,11 +17,12 @@ import { CivilizationSystem } from "../systems/CivilizationSystem";
 import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
 import { AbilitySystem } from "../systems/AbilitySystem";
-import { getLoadoutLocal } from "../loadoutStore.js";
+import { getLoadoutLocal, setLoadoutLocal } from "../loadoutStore.js";
+import { HULL_CATALOG } from "../content/hullCatalog.js";
 import { narrate, narrateOnce, pick, muse, CURATOR } from "../narrator.js";
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -34,6 +35,7 @@ export const UniverseSceneFactory = (props) => {
       this.onFullMapUpdate = onFullMapUpdate;
       this.onDiscovery = onDiscovery;
       this.onCivContact = onCivContact;
+      this.onSceneReady = onSceneReady;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -106,6 +108,11 @@ export const UniverseSceneFactory = (props) => {
       // shutdown() is never auto-called, so without this line none of the
       // scene's cleanup ever ran.
       this.events.once('shutdown', this.shutdown, this);
+
+      // Hand React a reference to the LIVE scene. Phaser boots async, so
+      // getScene() right after `new Phaser.Game()` returns null - this
+      // callback is the only reliable way for sceneRef to be real.
+      this.onSceneReady?.(this);
     }
 
     initSystems() {
@@ -712,6 +719,40 @@ export const UniverseSceneFactory = (props) => {
       );
     }
 
+
+    /**
+     * Session-local dev-console actions (DevPanel). Lives ON the scene so
+     * the React side needs exactly one call with no per-action logic -
+     * returns true/false so failures surface in the panel instead of
+     * vanishing into an optional-chain.
+     */
+    devAction(action) {
+      if (!this.player) return false;
+      switch (action) {
+        case 'damage-hull': {
+          const remaining = this.player.takeDamage(50);
+          if (remaining <= 0) this.handleShipDestroyed();
+          return true;
+        }
+        case 'destroy-ship':
+          this.player.takeDamage(1000);
+          this.handleShipDestroyed();
+          return true;
+        case 'repair-hull':
+          this.player.heal(100);
+          return true;
+        case 'cycle-hull': {
+          // Session-only: writes the local store this scene polls each
+          // frame - never the server, so real unlocks stay authoritative
+          const { hull, shipColor } = getLoadoutLocal();
+          const idx = HULL_CATALOG.findIndex((h) => h.id === hull);
+          setLoadoutLocal(HULL_CATALOG[(idx + 1) % HULL_CATALOG.length].id, shipColor);
+          return true;
+        }
+        default:
+          return false;
+      }
+    }
 
     handleResize() {
       this.inputSystem.updateArrowPositions?.(this.scale.width, this.scale.height);

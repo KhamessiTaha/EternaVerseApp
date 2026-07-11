@@ -27,8 +27,7 @@ import { GameMenu } from "./game/ui/GameMenu";
 import { NarratorOverlay } from "./game/ui/NarratorOverlay";
 import { narrate, narrateOnce, pick, CURATOR } from "./game/narrator";
 import { getLoadout } from "../api/userApi";
-import { setLoadoutLocal, getLoadoutLocal } from "./game/loadoutStore";
-import { HULL_CATALOG } from "./game/content/hullCatalog";
+import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission }) => {
@@ -183,7 +182,11 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       onCivContact: (civId) => {
         narrateOnce('first-contact', pick(CURATOR.firstContact));
         setContactCivId(civId);
-      }
+      },
+      // Phaser boots async - getScene() right after construction returns
+      // null, which left sceneRef dead for every consumer. The scene calls
+      // this from create(), when it actually exists.
+      onSceneReady: (scene) => { sceneRef.current = scene; }
     });
 
     const container = document.getElementById("phaser-container");
@@ -218,7 +221,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
     if (!gameRef.current) {
       gameRef.current = new Phaser.Game(config);
       gameRef.current.scene.start("UniverseScene", { universe, onAnomalyResolved, setStats });
-      sceneRef.current = gameRef.current.scene.getScene("UniverseScene");
+      // NOTE: no getScene() here - it returns null before Phaser's async
+      // boot completes. sceneRef is set by the scene itself via onSceneReady.
     }
 
     const resizeHandler = () => {
@@ -328,24 +332,11 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
           onClose={() => setIsDevOpen(false)}
           onDevAction={onDevAction}
           onClientAction={(action) => {
-            const scene = sceneRef.current;
-            if (!scene?.player) return;
-            if (action === 'damage-hull') {
-              const remaining = scene.player.takeDamage(50);
-              if (remaining <= 0) scene.handleShipDestroyed();
-            } else if (action === 'destroy-ship') {
-              scene.player.takeDamage(1000);
-              scene.handleShipDestroyed();
-            } else if (action === 'repair-hull') {
-              scene.player.heal(100);
-            } else if (action === 'cycle-hull') {
-              // Session-only: writes the local store the scene polls, never
-              // the server - locked hulls stay locked for real saves
-              const { hull, shipColor } = getLoadoutLocal();
-              const idx = HULL_CATALOG.findIndex((h) => h.id === hull);
-              const next = HULL_CATALOG[(idx + 1) % HULL_CATALOG.length];
-              setLoadoutLocal(next.id, shipColor);
-            }
+            // Logic lives on the scene (devAction) - if this warns, the
+            // running Phaser scene predates the current code: hard-refresh.
+            const ok = sceneRef.current?.devAction?.(action);
+            if (!ok) console.warn(`[DevPanel] client action '${action}' failed - scene missing or stale (reload the tab)`);
+            return !!ok;
           }}
         />
       )}

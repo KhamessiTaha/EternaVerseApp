@@ -48,8 +48,8 @@ export const DevPanel = ({ isOpen, onClose, onDevAction, onClientAction }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/85 backdrop-blur-sm">
-      <div className="relative w-[90vw] max-w-md bg-void border border-critical/50 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-critical/30 px-5 py-4">
+      <div className="relative w-[90vw] max-w-md max-h-[85vh] bg-void border border-critical/50 overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between border-b border-critical/30 px-5 py-4 shrink-0">
           <div>
             <h2 className="font-sans text-critical font-medium text-lg tracking-wide">Dev Console</h2>
             <p className="text-ink-faint text-[10px] font-mono tracking-wider uppercase">
@@ -64,7 +64,7 @@ export const DevPanel = ({ isOpen, onClose, onDevAction, onClientAction }) => {
           </button>
         </div>
 
-        <div className="p-5 flex flex-col gap-2">
+        <div className="p-5 flex flex-col gap-2 overflow-y-auto">
           {ACTIONS.map((a) => (
             <button
               key={a.label}
@@ -83,8 +83,10 @@ export const DevPanel = ({ isOpen, onClose, onDevAction, onClientAction }) => {
             <button
               key={a.label}
               onClick={() => {
-                onClientAction?.(a.action);
-                setLastResult(`OK · ${a.action} (client)`);
+                const ok = onClientAction?.(a.action);
+                setLastResult(ok
+                  ? `OK · ${a.action} (client)`
+                  : `FAILED · ${a.action} - scene not ready or stale code, reload the tab`);
               }}
               className="font-mono text-[11px] tracking-wider px-4 py-2 border border-line text-ink-dim hover:text-ink hover:border-line-bright text-left transition-colors"
             >
