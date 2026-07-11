@@ -15,6 +15,13 @@ const METRICS = {
   classesDiscovered: (u) => (u.research?.classesDiscovered || []).length,
   civsObserved: (u) => (u.civilizations || []).filter((c) => c.observed).length,
   uplifts: (u) => (u.civilizations || []).reduce((s, c) => s + (c.uplifts || 0), 0),
+  pacifies: (u) => (u.civilizations || []).reduce((s, c) => s + (c.pacifies || 0), 0),
+  researchEarned: (u) => Math.floor(u.research?.totalEarned || 0),
+  rareFinds: (u) => (u.discoveries || []).filter((d) => d.rarity === "rare" || d.rarity === "exceptional").length,
+  worshippers: (u) => (u.civilizations || []).filter(
+    (c) => !c.extinct && (c.type === "Type0" || c.type === "Type1") && (c.relationship || 0) >= 0.45
+  ).length,
+  ageMyr: (u) => Math.floor((u.currentState?.age || 0) / 1e6),
 };
 
 export const progressOf = (universe, mission) => {
