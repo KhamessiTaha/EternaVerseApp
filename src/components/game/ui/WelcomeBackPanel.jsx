@@ -11,7 +11,7 @@ const MIN_AWAY_MS = 10 * 60 * 1000; // don't greet people who just refreshed
 
 const KNOWN_TYPES = new Set([
   'milestone', 'civilization', 'extinction', 'catastrophe', 'universe_end',
-  'anomaly_resolved', 'discovery', 'upgrade', 'contact', 'mission', 'cosmic_event',
+  'anomaly_resolved', 'discovery', 'upgrade', 'contact', 'mission', 'cosmic_event', 'war',
 ]);
 
 const formatAway = (ms) => {
@@ -42,7 +42,7 @@ export const buildDigest = (universe) => {
 
   const milestones = fresh.filter((e) => e.type === 'milestone' || e.type === 'universe_end');
   const civLines = fresh.filter((e) =>
-    e.type === 'civilization' || e.type === 'extinction' || e.type === 'catastrophe'
+    e.type === 'civilization' || e.type === 'extinction' || e.type === 'catastrophe' || e.type === 'war'
   );
   // Unknown types are anomaly spawns (their type is the anomaly class)
   const anomalySpawns = fresh.filter(

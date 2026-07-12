@@ -15,6 +15,8 @@ const ACTIONS = [
   { label: 'Spawn 2 civilizations nearby', action: 'spawn-civilizations', payload: { count: 2 } },
   { label: 'Spawn WORSHIPPING civ (tribute, halo)', action: 'spawn-civilizations', payload: { count: 1, disposition: 'worship' } },
   { label: 'Spawn HOSTILE civ (fires missiles!)', action: 'spawn-civilizations', payload: { count: 1, disposition: 'hostile' } },
+  { label: 'Rewind visit (test away-digest: fast-forward, exit, re-enter)', action: 'rewind-visit', payload: {} },
+  { label: 'Start a WAR between the 2 newest civs', action: 'start-war', payload: {} },
 ];
 
 // Session-local effects that never touch the server (hull is client state)

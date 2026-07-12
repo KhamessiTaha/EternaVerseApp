@@ -32,6 +32,8 @@ const TYPE_INFO = {
 const OBSERVE_REWARDS = { Type0: 25, Type1: 50, Type2: 100, Type3: 200 };
 const UPLIFT_BASE_COST = 60;
 const PACIFY_BASE_COST = 50;
+const ARM_COST = 80;
+const BROKER_COST = 120;
 const MAX_USES = 3;
 
 const formatPopulation = (n) => {
@@ -57,6 +59,8 @@ const OUTCOME_STYLE = {
   observed: 'text-good',
   uplifted: 'text-good',
   pacified: 'text-good',
+  armed: 'text-warn',
+  brokered: 'text-good',
   backfire: 'text-warn',
   error: 'text-critical',
 };
@@ -92,6 +96,11 @@ export const FirstContactPanel = ({ civId, onClose, universe, onAction }) => {
   const pacifyCost = PACIFY_BASE_COST * ((civ.pacifies || 0) + 1);
   const backfirePct = Math.round((civ.warlikeness ?? 0) * 35);
 
+  // War status: is this civ currently fighting someone?
+  const war = (universe?.activeWars || []).find((w) => w.a === civ.id || w.b === civ.id);
+  const enemyId = war ? (war.a === civ.id ? war.b : war.a) : null;
+  const enemyName = enemyId ? civDesignation(enemyId) : null;
+
   const act = async (action) => {
     if (busy) return;
     setBusy(true);
@@ -100,7 +109,10 @@ export const FirstContactPanel = ({ civId, onClose, universe, onAction }) => {
       const data = await onAction(civ.id, action);
       if (data?.ok) {
         setLastOutcome({ outcome: data.outcome, message: data.message });
-        playSfx(data.outcome === 'backfire' ? 'alert' : action === 'observe' ? 'discovery' : 'install',
+        playSfx(
+          data.outcome === 'backfire' || data.outcome === 'armed' ? 'alert'
+          : data.outcome === 'brokered' ? 'minigameWin'
+          : action === 'observe' ? 'discovery' : 'install',
           action === 'observe' ? (civ.type === 'Type3' ? 'exceptional' : 'uncommon') : undefined);
       } else {
         setLastOutcome({ outcome: 'error', message: data?.error || 'Contact failed' });
@@ -175,6 +187,39 @@ export const FirstContactPanel = ({ civId, onClose, universe, onAction }) => {
 
           {/* Actions */}
           <div className="w-[280px] shrink-0 p-5 flex flex-col gap-2.5">
+            {war && (
+              <div className="border border-critical/50 bg-critical/5 px-3 py-2 font-mono">
+                <div className="text-[11px] text-critical tracking-wider">AT WAR with {enemyName}</div>
+                <div className="text-[9px] text-ink-faint mt-0.5">Arm them, end it, or let it burn.</div>
+              </div>
+            )}
+
+            {war && (
+              <button
+                onClick={() => act('arm')}
+                disabled={busy || points < ARM_COST}
+                className={actionBtn(points >= ARM_COST)}
+              >
+                <div>ARM · {ARM_COST} RP</div>
+                <div className="text-[10px] normal-case tracking-normal mt-0.5 opacity-70">
+                  Tip the war their way - {enemyName} will remember
+                </div>
+              </button>
+            )}
+
+            {war && (
+              <button
+                onClick={() => act('broker')}
+                disabled={busy || points < BROKER_COST}
+                className={actionBtn(points >= BROKER_COST)}
+              >
+                <div>BROKER PEACE · {BROKER_COST} RP</div>
+                <div className="text-[10px] normal-case tracking-normal mt-0.5 opacity-70">
+                  End the war now - both sides stand down, both remember you
+                </div>
+              </button>
+            )}
+
             <button onClick={() => act('observe')} disabled={busy || civ.observed} className={actionBtn(!civ.observed)}>
               <div>OBSERVE {civ.observed ? '· DONE' : `· +${OBSERVE_REWARDS[civ.type] ?? 25} RP`}</div>
               <div className="text-[10px] normal-case tracking-normal mt-0.5 opacity-70">

@@ -61,6 +61,11 @@ export class CivilizationSystem {
     }
   }
 
+  /** Is this civ currently in one of the universe's active wars? */
+  _isAtWar(civId) {
+    return !!(this.scene.universe?.activeWars || []).find((w) => w.a === civId || w.b === civId);
+  }
+
   /** Refresh the tracked set from the universe document. */
   sync() {
     const civs = (this.scene.universe?.civilizations || []).filter(
@@ -72,9 +77,11 @@ export class CivilizationSystem {
       const existing = this.beacons.get(civ.id);
       if (existing) {
         existing.data = civ; // keep stats fresh for the interaction label
-        // Attitude changed (uplift, backfire, pacify...) - rebuild the
-        // visual so halo/label match; recreated on the next renderVisible
-        if (existing.visual && existing.visual.attitude !== civAttitude(civ)) {
+        // Attitude or war status changed - rebuild the visual so halo/label
+        // match; recreated on the next renderVisible
+        if (existing.visual &&
+            (existing.visual.attitude !== civAttitude(civ) ||
+             existing.visual.atWar !== this._isAtWar(civ.id))) {
           this.destroyVisual(existing.visual);
           existing.visual = null;
         }
@@ -174,9 +181,11 @@ export class CivilizationSystem {
       extras.push(threat);
     }
 
+    const atWar = this._isAtWar(civ.id);
     const attitudeLine = ATTITUDE_LABEL[attitude] ? ` · ${ATTITUDE_LABEL[attitude]}` : "";
+    const warLine = atWar ? " · AT WAR" : "";
     const label = this.scene.add
-      .text(x, y - 34, `[${civDesignation(civ.id)}]\n${civ.type.replace("Type", "TYPE ")}${attitudeLine} · [G] CONTACT`, {
+      .text(x, y - 34, `[${civDesignation(civ.id)}]\n${civ.type.replace("Type", "TYPE ")}${attitudeLine}${warLine} · [G] CONTACT`, {
         fontFamily: '"IBM Plex Mono", monospace',
         fontSize: "11px",
         color: `#${color.toString(16).padStart(6, "0")}`,
@@ -188,7 +197,7 @@ export class CivilizationSystem {
       .setDepth(1000)
       .setVisible(false);
 
-    return { x, y, core, rings, label, extras, attitude };
+    return { x, y, core, rings, label, extras, attitude, atWar };
   }
 
   /** Show/hide contact prompts based on player proximity. */

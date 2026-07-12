@@ -197,6 +197,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       type: Phaser.AUTO,
       backgroundColor: "#000000",
       parent: "phaser-container",
+      // Right-click context menu on the canvas steals keyup events and
+      // leaves movement keys stuck down - kill it entirely
+      disableContextMenu: true,
       physics: {
         default: "arcade",
         arcade: { gravity: { y: 0 }, debug: false },

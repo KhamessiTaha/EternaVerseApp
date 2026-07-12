@@ -22,6 +22,7 @@ const METRICS = {
     (c) => !c.extinct && (c.type === "Type0" || c.type === "Type1") && (c.relationship || 0) >= 0.45
   ).length,
   ageMyr: (u) => Math.floor((u.currentState?.age || 0) / 1e6),
+  warsBrokered: (u) => u.metrics?.warsBrokered || 0,
 };
 
 export const progressOf = (universe, mission) => {

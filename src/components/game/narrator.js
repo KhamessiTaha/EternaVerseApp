@@ -80,8 +80,32 @@ const MUSINGS = [
   "I named a comet after you. It missed everything and left. The resemblance ends there, I hope.",
 ];
 
+// Mechanic teachings in the same voice - the Curator as reluctant tutor.
+// Interleaved with musings so idle chatter also quietly teaches the game.
+const TIPS = [
+  "When two civilizations go to war, visit either one [G]. Arm a side, or make them stop. Both choices are remembered. Differently.",
+  "Those amber shards drifting about are salvage. Fly through them; your hull mends. The universe litters, you profit.",
+  "Hulls matter. The Bastion shrugs off anomaly exposure; the Tachyon is made of speed and regret. Choose in the Hangar.",
+  "Your ship has one special ability on [SPACE]. Each hull's is different. The cooldown is not a suggestion.",
+  "Treat a young civilization kindly and they may start worshipping you. Worshippers pay tribute. Gods have income streams.",
+  "Objectives escalate: finish one and its successor asks more and pays more. The board never empties. I see to that.",
+  "MINOR anomalies are field turbulence - small, honest work. CRITICAL ones bend the universe's actual numbers. Hunt accordingly.",
+  "That gamma readout by your velocity? Lorentz factor. Past 1.3, your engines fight your own mass. Einstein wins every argument.",
+  "The universe keeps simulating while you're gone. Leave. Come back. Read what happened. Some call that neglect; I call it delegation.",
+  "Uplifting an aggressive species can backfire in proportion to the aggression meter. It says so right on the panel. Read panels.",
+  "Critical anomalies pull. Gravitational ones drag you in; dark energy pushes you out. Your thrusters outmuscle both - barely.",
+  "New ships unlock through achievements. The locked ones in the Hangar tell you exactly what they want from you. Ambition, itemized.",
+];
+
 let museBag = [];
+let tipBag = [];
 export function muse() {
+  // ~1 in 3 idle lines is a teaching; the rest are atmosphere
+  if (Math.random() < 0.35) {
+    if (tipBag.length === 0) tipBag = [...TIPS].sort(() => Math.random() - 0.5);
+    narrate(tipBag.pop());
+    return;
+  }
   if (museBag.length === 0) museBag = [...MUSINGS].sort(() => Math.random() - 0.5);
   narrate(museBag.pop());
 }
@@ -160,6 +184,17 @@ export const CURATOR = {
     "Ah, you found the button. Every hull hides one trick. This is yours.",
     "Your ship has exactly one party trick, and you just used it. Use it wisely. Or don't - I'm a curator, not a coach.",
   ],
+  war: {
+    explainer: "A war, then. You have three options: arm a side [G], broker peace [G], or watch. The dead won't know which you chose. The survivors will.",
+    armed: [
+      "Weapons delivered. Somewhere, a factory cheers and a border town goes quiet. This is on both of us now.",
+      "You've picked a side. History will call it foresight if they win. If they lose, history will call it something else.",
+    ],
+    brokered: [
+      "Peace, purchased. The fleets turn home and both species owe you a debt they'll romanticize for centuries.",
+      "You stopped a war with paperwork and research points. More than most gods manage, frankly.",
+    ],
+  },
   welcomeBack: [
     "Caught up? Good. It all happened whether you watched or not. That's rather the point of a universe.",
     "I kept notes while you were gone. I always keep notes. Welcome back, warden.",

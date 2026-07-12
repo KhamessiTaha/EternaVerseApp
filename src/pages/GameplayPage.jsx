@@ -77,12 +77,16 @@ const GameplayPage = () => {
     // Civ drama + milestones make good notifications; cap per tick so a big
     // catch-up sim doesn't flood the corner of the screen
     fresh
-      .filter((e) => e.type === 'civilization' || e.type === 'milestone')
+      .filter((e) => e.type === 'civilization' || e.type === 'milestone' || e.type === 'war')
       .slice(0, 2)
       .forEach((e) => {
         toast(e.description, e.type === 'milestone' ? 'success' : 'info', 7000);
-        if (/holy war|worship|monument|tribute|denounc/i.test(e.description || '')) {
+        if (e.type === 'war' || /holy war|worship|monument|tribute|denounc/i.test(e.description || '')) {
           narrate(e.description);
+        }
+        // First war the player ever witnesses: teach the intervention options
+        if (e.type === 'war' && /erupts/i.test(e.description || '')) {
+          narrateOnce('war-explainer', CURATOR.war.explainer);
         }
       });
   }, [universe?.significantEvents]);
@@ -105,8 +109,15 @@ const GameplayPage = () => {
       });
   }, [universe]);
 
-  // Initial universe fetch
+  // Initial universe fetch. The guard matters: GET /:id stamps the visit
+  // server-side, and React StrictMode double-runs effects in dev - without
+  // it the second fetch sees "you were here milliseconds ago" and the
+  // away-digest can never appear during development.
+  const fetchedRef = useRef(null);
   useEffect(() => {
+    if (fetchedRef.current === id) return;
+    fetchedRef.current = id;
+
     const fetchUniverse = async () => {
       try {
         const uni = await getUniverse(id);
@@ -282,7 +293,9 @@ const GameplayPage = () => {
       if (data.ok && data.universe) {
         setUniverse(data.universe);
         announceAchievements(data.newAchievements);
-        if (data.outcome === 'backfire') narrate(CURATOR.backfire);
+        if (data.outcome === 'backfire') narrate(pick(CURATOR.backfire));
+        if (data.outcome === 'armed') narrate(pick(CURATOR.war.armed));
+        if (data.outcome === 'brokered') narrate(pick(CURATOR.war.brokered));
       }
       return data;
     } catch (err) {

@@ -130,6 +130,17 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
           />
         </SettingRow>
 
+        <SettingRow label="Cinematic FX" hint="Bloom + vignette post-processing (WebGL)">
+          <OptionButtons
+            value={settings.postFx}
+            onSelect={(v) => change({ postFx: v })}
+            options={[
+              { value: true, label: 'ON' },
+              { value: false, label: 'OFF' },
+            ]}
+          />
+        </SettingRow>
+
         <SettingRow label="Engine Trail" hint="Ship exhaust particle density">
           <OptionButtons
             value={settings.trailQuality}

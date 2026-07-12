@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
 import { getChunkCoords, lerpFactorByDelta } from "../utils";
-import { getSettings } from "../settings.js";
+import { getSettings, onSettingsChange } from "../settings.js";
 import { startAmbient, stopAmbient, updateEngine, stopEngine, playSfx } from "../audio.js";
 import { ChunkSystem } from "../systems/ChunkSystem";
 import { TextureFactory } from "../graphics/TextureFactory.js";
@@ -86,6 +86,13 @@ export const UniverseSceneFactory = (props) => {
         .setScrollFactor(0)
         .setDepth(900);
 
+      // Cinematic post-processing (WebGL only): bloom makes every additive
+      // glow in the game - engine trails, anomaly reticles, explosions,
+      // beacons, the starfield - halo like film; vignette pulls the eye to
+      // center. Respects the settings toggle live.
+      this.applyPostFX();
+      this.unsubscribePostFX = onSettingsChange(() => this.applyPostFX());
+
       // Space drone (fades in on the first user gesture if audio is locked)
       startAmbient();
 
@@ -110,6 +117,13 @@ export const UniverseSceneFactory = (props) => {
       // shutdown() is never auto-called, so without this line none of the
       // scene's cleanup ever ran.
       this.events.once('shutdown', this.shutdown, this);
+
+      // Any focus loss (alt-tab, context menus, OS dialogs) can swallow
+      // keyup events and leave keys latched down - clear them whenever
+      // focus leaves the game
+      this._onBlur = () => this.input?.keyboard?.resetKeys();
+      this.game.events.on(Phaser.Core.Events.BLUR, this._onBlur);
+      this.events.once('shutdown', () => this.game.events.off(Phaser.Core.Events.BLUR, this._onBlur));
 
       // Hand React a reference to the LIVE scene. Phaser boots async, so
       // getScene() right after `new Phaser.Game()` returns null - this
@@ -578,6 +592,23 @@ export const UniverseSceneFactory = (props) => {
       this.playerLight.setPosition(this.player.x, this.player.y);
       this.boostLight.setPosition(this.player.x, this.player.y);
 
+      // Cinematic lookahead: the camera drifts toward where you're GOING,
+      // opening up screen space in the direction of travel (negative
+      // followOffset shifts the view ahead of the ship). Slow lerp so it
+      // reads as a cameraman anticipating, not a jitter.
+      const cam = this.cameras.main;
+      const v = this.player.body.velocity;
+      cam.followOffset.x = Phaser.Math.Linear(
+        cam.followOffset.x,
+        Phaser.Math.Clamp(-v.x * 0.14, -110, 110),
+        lerpFactorByDelta(0.035, delta)
+      );
+      cam.followOffset.y = Phaser.Math.Linear(
+        cam.followOffset.y,
+        Phaser.Math.Clamp(-v.y * 0.14, -110, 110),
+        lerpFactorByDelta(0.035, delta)
+      );
+
       this.hud.update(this.player);
       this.backgroundSystem.update();
       this.scanSystem.update(delta);
@@ -727,6 +758,26 @@ export const UniverseSceneFactory = (props) => {
 
 
     /**
+     * (Re)apply camera post-processing from settings. WebGL only - postFX
+     * is undefined under Canvas, and everything must fail soft.
+     */
+    applyPostFX() {
+      const cam = this.cameras.main;
+      if (!cam.postFX) return;
+      try {
+        cam.postFX.clear();
+        if (getSettings().postFx) {
+          // color, offsetX, offsetY, blurStrength, strength, steps
+          cam.postFX.addBloom(0xffffff, 1, 1, 0.9, 1.15, 6);
+          // x, y, radius, strength
+          cam.postFX.addVignette(0.5, 0.5, 0.92, 0.32);
+        }
+      } catch (err) {
+        console.warn("PostFX unavailable:", err.message);
+      }
+    }
+
+    /**
      * Session-local dev-console actions (DevPanel). Lives ON the scene so
      * the React side needs exactly one call with no per-action logic -
      * returns true/false so failures surface in the panel instead of
@@ -810,6 +861,7 @@ export const UniverseSceneFactory = (props) => {
       this.inputSystem?.destroy();
       this.civilizationSystem?.destroy();
       this.cosmicEventSystem?.destroy();
+      this.unsubscribePostFX?.();
       // Ability effects that alter global timescales must not outlive the scene
       this.worldTimeScale = 1;
       this.tweens.timeScale = 1;
