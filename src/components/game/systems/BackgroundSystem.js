@@ -22,11 +22,25 @@ export class BackgroundSystem {
   }
 
   create() {
-    this.layers = LAYERS.map((cfg) =>
-      this.scene.add.tileSprite(0, 0, LAYER_W, LAYER_H, TextureFactory.STARFIELD_KEYS[cfg.key])
+    this.layers = LAYERS.map((cfg) => {
+      const layer = this.scene.add.tileSprite(0, 0, LAYER_W, LAYER_H, TextureFactory.STARFIELD_KEYS[cfg.key])
         .setAlpha(cfg.alpha)
-        .setDepth(cfg.depth)
-    );
+        .setDepth(cfg.depth);
+
+      // Slow asynchronous breathing per layer - reads as starfield twinkle
+      // without per-star cost. Different periods keep the layers out of
+      // phase so the whole sky never pulses in unison.
+      this.scene.tweens.add({
+        targets: layer,
+        alpha: { from: cfg.alpha * 0.75, to: cfg.alpha },
+        duration: 2600 + cfg.key * 1400,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+
+      return layer;
+    });
   }
 
   update() {
@@ -40,7 +54,10 @@ export class BackgroundSystem {
   }
 
   destroy() {
-    this.layers.forEach((l) => l.destroy());
+    this.layers.forEach((l) => {
+      this.scene.tweens.killTweensOf(l);
+      l.destroy();
+    });
     this.layers = [];
   }
 }

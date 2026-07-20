@@ -164,7 +164,7 @@ export class PolarityBalanceScene extends MiniGameScene {
   registerBreach() {
     this.breaches++;
     this.breachText.setText(`BREACHES ${this.breaches} / ${this.maxBreaches}`);
-    this.cameras.main.shake(200, 0.01);
+    this.shake(200, 0.01);
     this.showFeedback('POLARITY BREACH!', MG_COLORS.critical, this.cameras.main.width / 2, 170);
 
     // Snap both poles back toward center so one breach doesn't cascade every frame

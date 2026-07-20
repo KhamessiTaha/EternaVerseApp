@@ -1,23 +1,36 @@
 import { useParams, useLocation } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import PhaserGame from "../components/PhaserGame";
-import { getGradeForAccuracy } from "../components/game/utils";
 import {
   getUniverse,
   simulateUniverse,
   resolveAnomaly,
   cleanupAnomalies,
   submitDiscoveries,
+  purchaseUpgrade,
+  contactCivilization,
+  devAction,
+  claimMission,
+  resolveMinorAnomaly,
+  claimEventReward,
 } from "../api/universeApi";
 import { Button, Eyebrow } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
+import { useToast } from "../components/ui/ToastProvider";
+import { ACHIEVEMENT_MAP } from "../components/game/content/achievements";
+import { playSfx } from "../components/game/audio";
+import { narrate, narrateOnce, pick, CURATOR } from "../components/game/narrator";
+import { progressOf } from "../components/game/ui/MissionsPanel";
+import { WelcomeBackPanel, buildDigest } from "../components/game/ui/WelcomeBackPanel";
 
 const GameplayPage = () => {
   const { id } = useParams();
   const location = useLocation();
+  const toast = useToast();
   const fromBigBang = location.state?.fromBigBang;
   const [universe, setUniverse] = useState(null);
   const [error, setError] = useState(null);
+  const [digest, setDigest] = useState(null);
   const [lastSimulation, setLastSimulation] = useState(Date.now());
   const simulationInProgress = useRef(false);
   const playerPositionRef = useRef({ x: 0, y: 0 });
@@ -27,12 +40,91 @@ const GameplayPage = () => {
     playerPositionRef.current = position;
   };
 
-  // Initial universe fetch
+  // Any server response can carry newAchievements (see backend
+  // utils/achievements.js) - surface each as a toast + jingle, in whatever
+  // action happened to trigger it.
+  const announceAchievements = (list) => {
+    if (!list?.length) return;
+    playSfx('minigameWin');
+    list.forEach((a) => {
+      const meta = ACHIEVEMENT_MAP[a.id];
+      toast(`Achievement unlocked: ${meta?.title || a.id}`, 'success', 6000);
+    });
+    const first = ACHIEVEMENT_MAP[list[0].id];
+    if (first) narrate(CURATOR.achievement(first.title));
+  };
+
+  // Live-notify the drama: new significantEvents arriving with any universe
+  // refresh (simulate ticks, contact responses...) become toasts, and the
+  // Curator comments on the ones worth commenting on.
+  const lastEventStampRef = useRef(null);
   useEffect(() => {
+    const events = universe?.significantEvents;
+    if (!events?.length) return;
+    const newestStamp = events[events.length - 1]?.timestamp;
+
+    if (lastEventStampRef.current === null) {
+      // First load: don't replay history
+      lastEventStampRef.current = newestStamp;
+      return;
+    }
+    if (newestStamp === lastEventStampRef.current) return;
+
+    const lastIdx = events.findIndex((e) => e.timestamp === lastEventStampRef.current);
+    const fresh = lastIdx >= 0 ? events.slice(lastIdx + 1) : events.slice(-3);
+    lastEventStampRef.current = newestStamp;
+
+    // Civ drama + milestones make good notifications; cap per tick so a big
+    // catch-up sim doesn't flood the corner of the screen
+    fresh
+      .filter((e) => e.type === 'civilization' || e.type === 'milestone' || e.type === 'war')
+      .slice(0, 2)
+      .forEach((e) => {
+        toast(e.description, e.type === 'milestone' ? 'success' : 'info', 7000);
+        if (e.type === 'war' || /holy war|worship|monument|tribute|denounc/i.test(e.description || '')) {
+          narrate(e.description);
+        }
+        // First war the player ever witnesses: teach the intervention options
+        if (e.type === 'war' && /erupts/i.test(e.description || '')) {
+          narrateOnce('war-explainer', CURATOR.war.explainer);
+        }
+      });
+  }, [universe?.significantEvents]);
+
+  // Objective-complete nudge: fires the moment an active mission's progress
+  // reaches its target, once per mission
+  const notifiedMissionsRef = useRef(new Set());
+  useEffect(() => {
+    if (!universe) return;
+    (universe.missions || [])
+      .filter((m) => m.status === 'active' && !notifiedMissionsRef.current.has(m.id))
+      .forEach((m) => {
+        const { done, needed } = progressOf(universe, m);
+        if (done >= needed) {
+          notifiedMissionsRef.current.add(m.id);
+          toast(`Objective complete: ${m.title} - press O to claim +${m.reward} RP`, 'success', 8000);
+          narrateOnce('first-mission-complete', pick(CURATOR.missionComplete));
+          playSfx('scanComplete');
+        }
+      });
+  }, [universe]);
+
+  // Initial universe fetch. The guard matters: GET /:id stamps the visit
+  // server-side, and React StrictMode double-runs effects in dev - without
+  // it the second fetch sees "you were here milliseconds ago" and the
+  // away-digest can never appear during development.
+  const fetchedRef = useRef(null);
+  useEffect(() => {
+    if (fetchedRef.current === id) return;
+    fetchedRef.current = id;
+
     const fetchUniverse = async () => {
       try {
         const uni = await getUniverse(id);
         setUniverse(uni);
+        // "While you were away" digest - only materializes after a real
+        // absence with something to report (buildDigest returns null otherwise)
+        setDigest(buildDigest(uni));
         console.log(`🌌 Universe loaded: ${uni.name}`);
         console.log(`   Galaxies: ${uni.currentState.galaxyCount}`);
         console.log(`   Stars: ${uni.currentState.starCount}`);
@@ -114,25 +206,25 @@ const GameplayPage = () => {
           }
         }
       } else {
-        // Procedural anomaly - update locally, scaled by minigame performance
-        // (same grade-tier multiplier the backend applies to real anomalies)
+        // MINOR anomaly (chunk-seeded). Server-validated like discoveries:
+        // real RP, real stability, real mission credit, persistent dedup -
+        // no longer a client-side illusion that respawned on reload.
         resolvedAnomaliesRef.current.add(anomaly.id);
-        console.log(`✅ Procedural anomaly resolved locally`);
-
-        const multiplier = getGradeForAccuracy(anomaly.gameResult?.accuracy ?? 70).stabilityMultiplier;
-        const boost = 0.005 * multiplier;
-
-        setUniverse(prev => ({
-          ...prev,
-          currentState: {
-            ...prev.currentState,
-            stabilityIndex: Math.min(1, (prev.currentState.stabilityIndex || 1) + boost)
-          },
-          metrics: {
-            ...prev.metrics,
-            playerInterventions: (prev.metrics?.playerInterventions || 0) + 1
+        try {
+          const data = await resolveMinorAnomaly(
+            id, anomaly.id, anomaly.severity, anomaly.gameResult?.accuracy ?? 70
+          );
+          if (data.ok && data.universe) {
+            setUniverse(data.universe);
+            announceAchievements(data.newAchievements);
+            console.log(`✅ Minor anomaly resolved (+${data.reward} RP)`);
           }
-        }));
+        } catch (apiErr) {
+          const errorMsg = apiErr.response?.data?.error || apiErr.message;
+          if (!errorMsg?.includes('already resolved')) {
+            console.error("❌ Failed to resolve minor anomaly:", errorMsg);
+          }
+        }
       }
     } catch (err) {
       console.error("❌ Unhandled error in anomaly resolution:", err);
@@ -167,9 +259,92 @@ const GameplayPage = () => {
       if (data.ok && data.research) {
         setUniverse((prev) => (prev ? { ...prev, research: data.research } : prev));
       }
+      announceAchievements(data.newAchievements);
     } catch {
       // Server dedup makes retries safe; flush on the next simulate tick.
       pendingDiscoveriesRef.current.push(discovery);
+    }
+  };
+
+  // Purchase a ship upgrade. No optimistic update: the server owns cost and
+  // validation, and the response carries the new upgrades + research balance.
+  // Returns the response so OutfittingPanel can surface a failure reason.
+  const handlePurchaseUpgrade = async (track) => {
+    try {
+      const data = await purchaseUpgrade(id, track);
+      if (data.ok) {
+        setUniverse((prev) => (prev ? { ...prev, upgrades: data.upgrades, research: data.research } : prev));
+        console.log(`🔧 Upgrade installed: ${track}`, data.upgrades);
+        announceAchievements(data.newAchievements);
+        narrateOnce('first-upgrade', pick(CURATOR.firstUpgrade));
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.response?.data?.error || "Purchase failed - try again" };
+    }
+  };
+
+  // First Contact action - server owns all effects/costs/rolls; the response
+  // carries the updated universe. Returns the payload so the panel can show
+  // the outcome message.
+  const handleContactAction = async (civId, action) => {
+    try {
+      const data = await contactCivilization(id, civId, action);
+      if (data.ok && data.universe) {
+        setUniverse(data.universe);
+        announceAchievements(data.newAchievements);
+        if (data.outcome === 'backfire') narrate(pick(CURATOR.backfire));
+        if (data.outcome === 'armed') narrate(pick(CURATOR.war.armed));
+        if (data.outcome === 'brokered') narrate(pick(CURATOR.war.brokered));
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.response?.data?.error || "Contact failed - try again" };
+    }
+  };
+
+  // Claim a completed mission - server validates completion and issues a
+  // replacement; the response carries the updated universe.
+  const handleClaimMission = async (missionId) => {
+    try {
+      const data = await claimMission(id, missionId);
+      if (data.ok && data.universe) {
+        setUniverse(data.universe);
+        announceAchievements(data.newAchievements);
+        if (Math.random() < 0.5) narrate(pick(CURATOR.claims));
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.response?.data?.error || "Claim failed - try again" };
+    }
+  };
+
+  // Live cosmic event rewards - server rate-limits per event kind, so a
+  // cooldown rejection is normal (event fired again too soon) and silent
+  const handleEventReward = async (kind) => {
+    try {
+      const data = await claimEventReward(id, kind);
+      if (data.ok && data.universe) {
+        setUniverse(data.universe);
+        toast(`+${data.reward} RP - ${data.title}`, 'success', 6000);
+      }
+    } catch (err) {
+      if (!err.response?.data?.cooldown) {
+        console.error("Event reward failed:", err.response?.data || err.message);
+      }
+    }
+  };
+
+  // Admin dev/test actions - server re-validates the admin flag per request
+  const handleDevAction = async (action, payload) => {
+    try {
+      const data = await devAction(id, action, payload);
+      if (data.ok && data.universe) {
+        setUniverse(data.universe);
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.response?.data?.error || "Dev action failed" };
     }
   };
 
@@ -205,6 +380,7 @@ const GameplayPage = () => {
         if (data.ok) {
           setUniverse(data.universe);
           setLastSimulation(Date.now());
+          announceAchievements(data.newAchievements);
 
           const stats = data.stats;
           console.log(`✅ Simulation complete:`);
@@ -352,7 +528,21 @@ const GameplayPage = () => {
         onAnomalyResolved={handleAnomalyResolved}
         onPlayerPositionUpdate={handlePlayerPositionUpdate}
         onDiscovery={handleDiscovery}
+        onPurchaseUpgrade={handlePurchaseUpgrade}
+        onContactAction={handleContactAction}
+        onDevAction={handleDevAction}
+        onClaimMission={handleClaimMission}
+        onEventReward={handleEventReward}
       />
+      {digest && (
+        <WelcomeBackPanel
+          digest={digest}
+          onClose={() => {
+            setDigest(null);
+            narrate(pick(CURATOR.welcomeBack));
+          }}
+        />
+      )}
       {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
     </>
   );

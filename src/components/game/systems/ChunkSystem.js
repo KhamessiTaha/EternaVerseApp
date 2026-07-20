@@ -41,12 +41,14 @@ export class ChunkSystem {
   }
 
   generateChunk(chunkX, chunkY) {
-    const chunk = { objects: [], anomalies: [] };
+    const chunk = { objects: [], anomalies: [], salvage: [] };
     const seed = this.scene.universe.seed ?? "seed";
 
     for (const descriptor of generateChunkObjects(seed, chunkX, chunkY)) {
       chunk.objects.push(this.renderObject(descriptor));
     }
+
+    this.generateSalvage(chunk, chunkX, chunkY, seed);
 
     // Procedural anomalies (unchanged behavior)
     const chunkSeed = seed + getChunkKey(chunkX, chunkY);
@@ -56,6 +58,36 @@ export class ChunkSystem {
     }
 
     return chunk;
+  }
+
+  // Salvage motes: session-only hull-repair collectibles (see SalvageSystem).
+  // Seeded per chunk so layouts are stable, but collection state is not
+  // persisted - motes respawn when a chunk regenerates, by design.
+  generateSalvage(chunk, chunkX, chunkY, seed) {
+    const rng = seedrandom(`${seed}#salvage#${getChunkKey(chunkX, chunkY)}`);
+    const count = 2 + Math.floor(rng() * 4); // 2-5 per chunk
+
+    for (let i = 0; i < count; i++) {
+      const x = chunkX * CHUNK_SIZE + rng() * CHUNK_SIZE;
+      const y = chunkY * CHUNK_SIZE + rng() * CHUNK_SIZE;
+
+      const gfx = this.scene.add.graphics({ x, y }).setDepth(3);
+      gfx.fillStyle(0xdfa73f, 0.9);
+      gfx.fillRect(-2.5, -2.5, 5, 5);
+      gfx.rotation = Math.PI / 4;
+
+      this.scene.tweens.add({
+        targets: gfx,
+        y: y + 6,
+        alpha: { from: 0.5, to: 0.95 },
+        duration: 1400 + rng() * 900,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+
+      chunk.salvage.push({ x, y, gfx, collected: false });
+    }
   }
 
   renderObject(descriptor) {
@@ -136,5 +168,9 @@ export class ChunkSystem {
       entry.marker?.destroy();
     }
     chunk.anomalies.forEach(a => this.anomalySystem.destroyAnomalyVisual(a));
+    chunk.salvage?.forEach((mote) => {
+      this.scene.tweens.killTweensOf(mote.gfx);
+      mote.gfx.destroy();
+    });
   }
 }

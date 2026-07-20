@@ -167,7 +167,7 @@ export class WaveformCollapseScene extends MiniGameScene {
       this.misses++;
       this.missText.setText(`DECOHERED ${this.misses} / ${this.maxMisses}`);
       this.showFeedback('DECOHERED', MG_COLORS.critical, this.collapseLineX, this.centerY - 90);
-      this.cameras.main.shake(120, 0.006);
+      this.shake(120, 0.006);
 
       if (this.misses >= this.maxMisses) {
         this.endGame(false);

@@ -130,7 +130,7 @@ export class CascadeReactionScene extends MiniGameScene {
 
     this.destroyPoint(point);
     this.showFeedback('CONTAINED', MG_COLORS.good, point.slot.x, point.slot.y - 40);
-    this.cameras.main.shake(60, 0.003);
+    this.shake(60, 0.003);
 
     if (this.contained >= this.containedTarget) {
       this.endGame(true);
@@ -148,7 +148,7 @@ export class CascadeReactionScene extends MiniGameScene {
 
     this.destroyPoint(point);
     this.showFeedback('CASCADE!', MG_COLORS.critical, point.slot.x, point.slot.y - 40);
-    this.cameras.main.shake(220, 0.012);
+    this.shake(220, 0.012);
 
     if (this.cascades >= this.maxCascades) {
       this.endGame(false);

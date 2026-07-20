@@ -8,6 +8,8 @@
 import Phaser from "phaser";
 import { SCAN_RANGE, SCAN_DURATION_MS, SCAN_CANCEL_RANGE, ANOMALY_TYPE_MAP } from "../constants";
 import { ANOMALY_SCAN_BASE } from "../world/researchValues.js";
+import { getShipModifiers } from "../content/upgradeCatalog.js";
+import { playSfx } from "../audio.js";
 
 export class ScanSystem {
   constructor(scene) {
@@ -72,17 +74,24 @@ export class ScanSystem {
     };
   }
 
+  // Scanner Array upgrade widens range and shortens channel time; read live
+  // from the scene's universe so a purchase applies immediately.
+  _mods() {
+    return getShipModifiers(this.scene.universe?.upgrades);
+  }
+
   tryStartScan() {
     if (this.active) return;
     const player = this.scene.player;
     let nearest = null;
-    let best = SCAN_RANGE;
+    let best = SCAN_RANGE * this._mods().scanRange;
     for (const c of this._candidates()) {
       const d = Phaser.Math.Distance.Between(player.x, player.y, c.x, c.y);
       if (d < best) { best = d; nearest = c; }
     }
     if (!nearest) return;
 
+    playSfx('scanStart');
     this.active = {
       target: nearest,
       elapsed: 0,
@@ -94,14 +103,18 @@ export class ScanSystem {
     if (!this.active) return;
     const { target, gfx } = this.active;
     const player = this.scene.player;
+    const mods = this._mods();
 
-    if (Phaser.Math.Distance.Between(player.x, player.y, target.x, target.y) > SCAN_CANCEL_RANGE) {
+    // Cancel range keeps the stock cancel/start ratio, scaled with the upgrade
+    const cancelRange = SCAN_RANGE * mods.scanRange * (SCAN_CANCEL_RANGE / SCAN_RANGE);
+    if (Phaser.Math.Distance.Between(player.x, player.y, target.x, target.y) > cancelRange) {
+      playSfx('scanCancel');
       this._cancel();
       return;
     }
 
     this.active.elapsed += delta;
-    const t = Math.min(1, this.active.elapsed / SCAN_DURATION_MS);
+    const t = Math.min(1, this.active.elapsed / (SCAN_DURATION_MS * mods.scanDuration));
 
     gfx.clear();
     gfx.lineStyle(1.5, 0x4ec9e0, 0.5);
@@ -121,6 +134,7 @@ export class ScanSystem {
     gfx.destroy();
     this.active = null;
 
+    playSfx('scanComplete');
     this.scannedIds.add(target.id);
 
     // Pulse effect

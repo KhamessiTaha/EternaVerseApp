@@ -206,7 +206,7 @@ export class StructuralRealignmentScene extends MiniGameScene {
     this.strikes++;
     this.strikeText.setText(`STRIKES ${this.strikes} / ${this.maxStrikes}`);
     this.showFeedback('MISALIGNED', MG_COLORS.critical, this.pointerX, this.pointerY);
-    this.cameras.main.shake(120, 0.006);
+    this.shake(120, 0.006);
 
     if (this.strikes >= this.maxStrikes) {
       this.endGame(false);

@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { CHUNK_SIZE } from '../constants';
+import { getSettings, onSettingsChange, MINIMAP_SIZES } from '../settings.js';
 
 const VOID_RAISED = '#0c0f1c';
 const LINE = '#1e2540';
@@ -7,15 +9,28 @@ const WARN = '#e0824a';
 const GOOD = '#4fd1a5';
 const INK_FAINT = '#565a72';
 
+// Kardashev type -> beacon color (mirrors CivilizationSystem.CIV_TYPE_COLORS)
+const CIV_COLORS = {
+  Type0: '#9497ad',
+  Type1: '#4fd1a5',
+  Type2: '#dfa73f',
+  Type3: '#8b7bd8',
+};
+
 export const MinimapPanel = ({ minimapData, onMapToggle }) => {
   const canvasRef = useRef(null);
+  // Radar size is a device setting, not scene state - read directly rather
+  // than trust minimapData.size, so it responds live to the settings panel.
+  const [size, setSize] = useState(MINIMAP_SIZES[getSettings().minimapSize] || MINIMAP_SIZES.medium);
+
+  useEffect(() => onSettingsChange((s) => setSize(MINIMAP_SIZES[s.minimapSize] || MINIMAP_SIZES.medium)), []);
 
   useEffect(() => {
     if (!minimapData || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const { player, currentChunk, loadedChunks, anomalies, size = 200 } = minimapData;
+    const { player, currentChunk, loadedChunks, anomalies, civs, events } = minimapData;
     const radius = size / 2;
 
     ctx.clearRect(0, 0, size, size);
@@ -29,7 +44,6 @@ export const MinimapPanel = ({ minimapData, onMapToggle }) => {
     ctx.fillStyle = VOID_RAISED;
     ctx.fillRect(0, 0, size, size);
 
-    const CHUNK_SIZE = 2000;
     const scale = size / (CHUNK_SIZE * 3);
     const centerX = radius;
     const centerY = radius;
@@ -82,6 +96,53 @@ export const MinimapPanel = ({ minimapData, onMapToggle }) => {
       });
     }
 
+    // Civilization beacons - diamonds, colored by Kardashev type
+    if (civs) {
+      civs.forEach((civ) => {
+        const cx = centerX + (civ.x - player.x) * scale;
+        const cy = centerY + (civ.y - player.y) * scale;
+        if (cx < 0 || cx > size || cy < 0 || cy > size) return;
+
+        ctx.fillStyle = CIV_COLORS[civ.type] || CIV_COLORS.Type0;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 3.5);
+        ctx.lineTo(cx + 3, cy);
+        ctx.lineTo(cx, cy + 3.5);
+        ctx.lineTo(cx - 3, cy);
+        ctx.closePath();
+        ctx.fill();
+      });
+    }
+
+    // Live cosmic events: pulsing 4-point star, kind-colored. Drawn at the
+    // radar edge (clamped) when out of range so it acts as a direction hint.
+    if (events) {
+      const EVENT_COLORS = { supernova: '#e0824a', comet: '#4ec9e0', derelict: '#9497ad' };
+      const pulse = 1 + Math.sin(Date.now() / 180) * 0.35;
+      events.forEach((ev) => {
+        let ex = (ev.x - player.x) * scale;
+        let ey = (ev.y - player.y) * scale;
+        const d = Math.sqrt(ex * ex + ey * ey);
+        const maxR = radius - 8;
+        if (d > maxR) { ex = (ex / d) * maxR; ey = (ey / d) * maxR; }
+        const px = centerX + ex, py = centerY + ey;
+        const r = 4 * pulse;
+
+        ctx.fillStyle = EVENT_COLORS[ev.kind] || ACCENT;
+        ctx.beginPath();
+        ctx.moveTo(px, py - r);
+        ctx.lineTo(px + r * 0.35, py - r * 0.35);
+        ctx.lineTo(px + r, py);
+        ctx.lineTo(px + r * 0.35, py + r * 0.35);
+        ctx.lineTo(px, py + r);
+        ctx.lineTo(px - r * 0.35, py + r * 0.35);
+        ctx.lineTo(px - r, py);
+        ctx.lineTo(px - r * 0.35, py - r * 0.35);
+        ctx.closePath();
+        ctx.fill();
+      });
+    }
+
     // Radial sweep grid lines
     ctx.strokeStyle = LINE;
     ctx.lineWidth = 1;
@@ -113,11 +174,10 @@ export const MinimapPanel = ({ minimapData, onMapToggle }) => {
     ctx.beginPath();
     ctx.arc(radius, radius, radius - 1, 0, Math.PI * 2);
     ctx.stroke();
-  }, [minimapData]);
+  }, [minimapData, size]);
 
   if (!minimapData) return null;
 
-  const size = minimapData.size || 96;
   const activeBackend = (minimapData.anomalies || []).filter((a) => a.isBackend).length;
 
   return (

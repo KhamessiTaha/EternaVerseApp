@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { useContext } from "react";
+import { useContext, lazy, Suspense } from "react";
 import { AuthContext } from "./context/AuthContext";
 import NavHeader from "./components/NavHeader";
 import Home from "./pages/Home";
@@ -8,15 +8,29 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import UniverseCreation from "./pages/UniverseCreation";
 import ProtectedRoute from "./components/ProtectedRoute";
-import BigBangPage from "./pages/BigBangPage";
-import GameplayPage from "./pages/GameplayPage";
+import { ToastProvider } from "./components/ui/ToastProvider";
 import './index.css';
 import './App.css';
+
+// Code-split the engine-heavy pages: Three.js (Big Bang cinematic) and
+// Phaser (gameplay) together dwarf the rest of the app - splitting them
+// keeps the landing/login/dashboard first paint fast.
+const BigBangPage = lazy(() => import("./pages/BigBangPage"));
+const GameplayPage = lazy(() => import("./pages/GameplayPage"));
+
+const EngineLoader = () => (
+  <div className="flex items-center justify-center h-full min-h-[60vh]">
+    <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-ink-faint animate-pulse">
+      Preparing the universe…
+    </p>
+  </div>
+);
 
 function App() {
   const { user } = useContext(AuthContext);
 
   return (
+    <ToastProvider>
     <Router>
       <div className="flex flex-col min-h-screen bg-void">
         {/* Global Navbar - Fixed height, doesn't flex */}
@@ -24,6 +38,7 @@ function App() {
 
         {/* Main Content Area - Takes remaining space */}
         <main className="flex-1 overflow-auto">
+          <Suspense fallback={<EngineLoader />}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
@@ -63,9 +78,11 @@ function App() {
               }
             />
           </Routes>
+          </Suspense>
         </main>
       </div>
     </Router>
+    </ToastProvider>
   );
 }
 

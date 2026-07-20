@@ -6,9 +6,11 @@
 // scale/rotation/alpha. Budget: well under 300ms on a mid-range machine.
 import seedrandom from "seedrandom";
 import { OBJECT_CLASSES } from "../world/researchValues.js";
+import { HULL_CATALOG, HULL_SHAPES } from "../content/hullCatalog.js";
 
 const TEX_SIZE = 256;
 const STAR_TEX_SIZE = 512;
+const HULL_TEX_SIZE = 256;
 
 const VARIANTS = { spiral: 3, barred: 2, elliptical: 3, irregular: 2, nebula: 3, quasar: 1, merger: 1 };
 
@@ -45,6 +47,85 @@ export class TextureFactory {
       for (let i = 0; i < count; i++) this._generate(family, i);
     }
     TextureFactory.STARFIELD_KEYS.forEach((key, i) => this._generateStarfield(key, i));
+    this._generateSpark();
+    HULL_CATALOG.forEach((hull) => this._generateHull(hull.id));
+  }
+
+  /** Texture key for a given hull id - drawn once, tinted per-player via setTint. */
+  static hullKey(hullId) {
+    return `evtex:hull:${hullId}`;
+  }
+
+  /**
+   * Ship hull silhouettes: vector-drawn (path fills, not raster art), one
+   * canvas per archetype, grayscale-with-gradient so a single setTint()
+   * recolors the whole hull accurately. Nose points toward the top of the
+   * canvas (+Y up in image space) to match the existing rotation
+   * convention (PlayerObject assumes forward = rotation - PI/2).
+   */
+  _generateHull(hullId) {
+    const key = TextureFactory.hullKey(hullId);
+    if (this.scene.textures.exists(key)) return;
+
+    const size = HULL_TEX_SIZE;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+
+    // Nose-bright-to-tail-dark shading reads as dimensional once tinted
+    const shade = ctx.createLinearGradient(0, size * 0.12, 0, size * 0.92);
+    shade.addColorStop(0, "#ffffff");
+    shade.addColorStop(1, "#9aa0b8");
+
+    const shape = HULL_SHAPES[hullId] || HULL_SHAPES.interceptor;
+
+    ctx.beginPath();
+    shape.points.forEach(([fx, fy], i) => {
+      const x = fx * size, y = fy * size;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = shade;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(20,22,38,0.55)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    const [ccx, ccy, cr] = shape.cockpit;
+    ctx.beginPath();
+    ctx.ellipse(ccx * size, ccy * size, cr * size * 0.55, cr * size, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(20,22,38,0.55)";
+    ctx.fill();
+
+    this.scene.textures.addCanvas(key, canvas);
+  }
+
+  /**
+   * Soft radial-gradient dot, white on transparent - the shared particle
+   * texture for explosions/sparks (anomaly resolution, ship destruction).
+   * Tinted per-emitter via Phaser's particle `tint`, so one texture covers
+   * every color. Using the ship sprite as a stand-in (the old approach) is
+   * what made past explosions read as "tiny ships flying everywhere."
+   */
+  _generateSpark() {
+    const key = "evtex:spark";
+    if (this.scene.textures.exists(key)) return;
+
+    const size = 64;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+
+    const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    grad.addColorStop(0, "rgba(255,255,255,1)");
+    grad.addColorStop(0.35, "rgba(255,255,255,0.7)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+
+    this.scene.textures.addCanvas(key, canvas);
   }
 
   keyFor(descriptor) {
@@ -178,19 +259,26 @@ export class TextureFactory {
 
   _generateStarfield(key, layerIndex) {
     if (this.scene.textures.exists(key)) return;
-    const rt = this.scene.make.renderTexture({ width: STAR_TEX_SIZE, height: STAR_TEX_SIZE }, false);
-    const g = this.scene.make.graphics({ add: false });
+    // These must be plain canvas textures, NOT the RenderTexture.saveTexture
+    // path used for the object sprites above: TileSprite (BackgroundSystem's
+    // parallax layers) cannot tile a dynamic texture in WebGL and renders
+    // Phaser's green "missing texture" grid across the whole screen instead.
+    const canvas = document.createElement("canvas");
+    canvas.width = STAR_TEX_SIZE;
+    canvas.height = STAR_TEX_SIZE;
+    const ctx = canvas.getContext("2d");
+
     const counts = [170, 110, 60][layerIndex] ?? 100;
     const maxR = [0.9, 1.3, 1.8][layerIndex] ?? 1;
     for (let i = 0; i < counts; i++) {
       const tintRoll = this.rng();
-      const color = tintRoll < 0.12 ? 0xbcd4ff : tintRoll < 0.2 ? 0xffe2b0 : 0xffffff;
-      g.fillStyle(color, 0.25 + this.rng() * 0.6);
-      g.fillCircle(this.rng() * STAR_TEX_SIZE, this.rng() * STAR_TEX_SIZE, 0.4 + this.rng() * maxR);
+      const rgb = tintRoll < 0.12 ? "188,212,255" : tintRoll < 0.2 ? "255,226,176" : "255,255,255";
+      ctx.fillStyle = `rgba(${rgb},${(0.25 + this.rng() * 0.6).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(this.rng() * STAR_TEX_SIZE, this.rng() * STAR_TEX_SIZE, 0.4 + this.rng() * maxR, 0, Math.PI * 2);
+      ctx.fill();
     }
-    rt.draw(g);
-    rt.saveTexture(key);
-    g.destroy();
-    rt.destroy();
+
+    this.scene.textures.addCanvas(key, canvas);
   }
 }

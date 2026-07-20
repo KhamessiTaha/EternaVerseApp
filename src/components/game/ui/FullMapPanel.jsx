@@ -9,6 +9,14 @@ const WARN = '#e0824a';
 const GOOD = '#4fd1a5';
 const INK = '#e9e7f2';
 
+// Kardashev type -> beacon color (mirrors CivilizationSystem.CIV_TYPE_COLORS)
+const CIV_COLORS = {
+  Type0: '#9497ad',
+  Type1: '#4fd1a5',
+  Type2: '#dfa73f',
+  Type3: '#8b7bd8',
+};
+
 export const FullMapPanel = ({ isOpen, onClose, fullMapData }) => {
   const canvasRef = useRef(null);
 
@@ -17,7 +25,7 @@ export const FullMapPanel = ({ isOpen, onClose, fullMapData }) => {
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const { player, currentChunk, loadedChunks, anomalies, resolvedAnomalies } = fullMapData;
+    const { player, currentChunk, loadedChunks, anomalies, resolvedAnomalies, civs, events } = fullMapData;
 
     const width = canvas.width;
     const height = canvas.height;
@@ -101,6 +109,66 @@ export const FullMapPanel = ({ isOpen, onClose, fullMapData }) => {
       });
     }
 
+    // Civilization beacons - diamonds, colored by Kardashev type
+    if (civs) {
+      civs.forEach((civ) => {
+        const cx = centerX + (civ.x - player.x) * scale;
+        const cy = centerY + (civ.y - player.y) * scale;
+        const color = CIV_COLORS[civ.type] || CIV_COLORS.Type0;
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 6);
+        ctx.lineTo(cx + 5, cy);
+        ctx.lineTo(cx, cy + 6);
+        ctx.lineTo(cx - 5, cy);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      });
+    }
+
+    // Live cosmic events: labeled pulsing markers
+    if (events) {
+      const EVENT_STYLE = {
+        supernova: { color: '#e0824a', label: 'DYING STAR' },
+        comet: { color: '#4ec9e0', label: 'COMET' },
+        derelict: { color: '#9497ad', label: 'DERELICT' },
+      };
+      const pulse = 1 + Math.sin(Date.now() / 180) * 0.3;
+      events.forEach((ev) => {
+        const style = EVENT_STYLE[ev.kind] || EVENT_STYLE.derelict;
+        const ex = centerX + (ev.x - player.x) * scale;
+        const ey = centerY + (ev.y - player.y) * scale;
+        const r = 6 * pulse;
+
+        ctx.fillStyle = style.color;
+        ctx.beginPath();
+        ctx.moveTo(ex, ey - r);
+        ctx.lineTo(ex + r * 0.35, ey - r * 0.35);
+        ctx.lineTo(ex + r, ey);
+        ctx.lineTo(ex + r * 0.35, ey + r * 0.35);
+        ctx.lineTo(ex, ey + r);
+        ctx.lineTo(ex - r * 0.35, ey + r * 0.35);
+        ctx.lineTo(ex - r, ey);
+        ctx.lineTo(ex - r * 0.35, ey - r * 0.35);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.font = '9px "IBM Plex Mono", monospace';
+        ctx.fillStyle = style.color;
+        ctx.textAlign = 'center';
+        ctx.fillText(style.label, ex, ey - 12);
+      });
+    }
+
     if (player) {
       ctx.save();
       ctx.translate(centerX, centerY);
@@ -161,6 +229,10 @@ export const FullMapPanel = ({ isOpen, onClose, fullMapData }) => {
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full border border-good" />
               Resolved
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rotate-45 bg-accent" />
+              Civilization
             </div>
             <div className="flex items-center gap-2 pt-1 border-t border-line">
               <span className="w-2 h-2 border border-line-bright" />

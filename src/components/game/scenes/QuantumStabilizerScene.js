@@ -137,7 +137,7 @@ export class QuantumStabilizerScene extends MiniGameScene {
     this.hits.push({ success: false, accuracy: 0 });
     this.failureText.setText(`FAILURES ${this.failures} / 3`);
     this.showFeedback('MISS', MG_COLORS.critical);
-    this.cameras.main.shake(100, 0.004);
+    this.shake(100, 0.004);
 
     if (this.failures >= 3) this.endGame(false);
   }

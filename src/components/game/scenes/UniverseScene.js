@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
 import { getChunkCoords, lerpFactorByDelta } from "../utils";
+import { getSettings, onSettingsChange } from "../settings.js";
+import { startAmbient, stopAmbient, updateEngine, stopEngine, playSfx } from "../audio.js";
 import { ChunkSystem } from "../systems/ChunkSystem";
 import { TextureFactory } from "../graphics/TextureFactory.js";
 import { BackgroundSystem } from "../systems/BackgroundSystem.js";
@@ -11,9 +13,17 @@ import { FullMapSystem } from "../systems/FullMapSystem";
 import { InputSystem } from "../systems/InputSystem";
 import { HUD } from "../systems/HUD";
 import { PlayerObject } from "../systems/PlayerObject";
+import { CivilizationSystem } from "../systems/CivilizationSystem";
+import { HazardSystem } from "../systems/HazardSystem";
+import { SalvageSystem } from "../systems/SalvageSystem";
+import { AbilitySystem } from "../systems/AbilitySystem";
+import { CosmicEventSystem } from "../systems/CosmicEventSystem";
+import { getLoadoutLocal, setLoadoutLocal } from "../loadoutStore.js";
+import { HULL_CATALOG } from "../content/hullCatalog.js";
+import { narrate, narrateOnce, pick, muse, CURATOR } from "../narrator.js";
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -25,6 +35,9 @@ export const UniverseSceneFactory = (props) => {
       this.onMinimapUpdate = onMinimapUpdate;
       this.onFullMapUpdate = onFullMapUpdate;
       this.onDiscovery = onDiscovery;
+      this.onCivContact = onCivContact;
+      this.onSceneReady = onSceneReady;
+      this.onEventReward = onEventReward;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -35,7 +48,7 @@ export const UniverseSceneFactory = (props) => {
     }
 
     preload() {
-      this.load.image("Player", "/assets/Player.png");
+      // Ship hulls are procedurally drawn (TextureFactory), not loaded assets.
     }
 
     create() {
@@ -61,6 +74,61 @@ export const UniverseSceneFactory = (props) => {
 
       this.renderFullMap();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
+      this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
+
+      // Relativity overlay: the universe visibly darkens as v approaches
+      // game-c (fewer photons catch up to you). Alpha driven per-frame from
+      // the Lorentz factor computed in update().
+      this.gamma = 1;
+      this.relativityOverlay = this.add
+        .rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0)
+        .setOrigin(0)
+        .setScrollFactor(0)
+        .setDepth(900);
+
+      // Cinematic post-processing (WebGL only): bloom makes every additive
+      // glow in the game - engine trails, anomaly reticles, explosions,
+      // beacons, the starfield - halo like film; vignette pulls the eye to
+      // center. Respects the settings toggle live.
+      this.applyPostFX();
+      this.unsubscribePostFX = onSettingsChange(() => this.applyPostFX());
+
+      // Space drone (fades in on the first user gesture if audio is locked)
+      startAmbient();
+
+      // The Curator greets you, once per session, by cosmic era
+      const phase = this.universe.currentState?.cosmicPhase;
+      this.time.delayedCall(2500, () => {
+        narrateOnce(`greet:${phase}`, CURATOR.greetings[phase] || CURATOR.greetings.fallback);
+      });
+
+      // Idle chatter: every ~2 minutes there's a decent chance the Curator
+      // simply says something (shuffle-bag, no repeats until exhausted) -
+      // the Solar 2 touch that makes the entity feel present, not scripted
+      this.time.addEvent({
+        delay: 115000,
+        loop: true,
+        callback: () => {
+          if (Math.random() < 0.65) muse();
+        },
+      });
+
+      // Phaser fires 'shutdown' as an EVENT - a method merely named
+      // shutdown() is never auto-called, so without this line none of the
+      // scene's cleanup ever ran.
+      this.events.once('shutdown', this.shutdown, this);
+
+      // Any focus loss (alt-tab, context menus, OS dialogs) can swallow
+      // keyup events and leave keys latched down - clear them whenever
+      // focus leaves the game
+      this._onBlur = () => this.input?.keyboard?.resetKeys();
+      this.game.events.on(Phaser.Core.Events.BLUR, this._onBlur);
+      this.events.once('shutdown', () => this.game.events.off(Phaser.Core.Events.BLUR, this._onBlur));
+
+      // Hand React a reference to the LIVE scene. Phaser boots async, so
+      // getScene() right after `new Phaser.Game()` returns null - this
+      // callback is the only reliable way for sceneRef to be real.
+      this.onSceneReady?.(this);
     }
 
     initSystems() {
@@ -70,16 +138,32 @@ export const UniverseSceneFactory = (props) => {
       this.scanSystem = new ScanSystem(this);
       this.scanSystem.seedScanned((this.universe.discoveries || []).map((d) => d.id));
       this.chunkSystem = new ChunkSystem(this, this.anomalySystem);
+      this.civilizationSystem = new CivilizationSystem(this);
+      this.hazardSystem = new HazardSystem(this);
+      this.salvageSystem = new SalvageSystem(this);
+      this.abilitySystem = new AbilitySystem(this);
+      this.cosmicEventSystem = new CosmicEventSystem(this);
       this.minimapSystem = new MinimapSystem(this);
       this.fullMapSystem = new FullMapSystem(this);
       this.inputSystem = new InputSystem(this);
       this.hud = new HUD(this);
 
       this.anomalySystem.syncBackendAnomalies();
+      // Server-side dedup history: minor anomalies resolved in past sessions
+      // must not re-render when their chunk regenerates
+      (this.universe.resolvedMinorAnomalies || []).forEach((id) =>
+        this.anomalySystem.resolvedAnomalies.add(id)
+      );
+      this.civilizationSystem.sync();
     }
 
     createPlayer() {
-      this.player = new PlayerObject(this, 0, 0, "Player");
+      const { hull, shipColor } = getLoadoutLocal();
+      this.player = new PlayerObject(this, 0, 0, TextureFactory.hullKey(hull));
+      this.player.applyLoadout(hull, shipColor);
+      // Spawn grace: no anomaly forces or damage for the first few seconds,
+      // so arriving in a hostile neighborhood never means instant pinball
+      this.player.invulnerableUntil = this.time.now + 4000;
 
       this.playerState = {
         boosting: false,
@@ -145,7 +229,8 @@ export const UniverseSceneFactory = (props) => {
       // Only notify if the minigame was won (anomalyResolved = true)
       if (result.impact.anomalyResolved) {
         console.log(`✓ Game result was successful, calling anomaly resolution handler`);
-        
+        narrateOnce('first-resolve', pick(CURATOR.firstResolve));
+
         // Trigger destruction animation and visual effects
         this.playAnomalyDestructionEffect(anomaly);
         
@@ -190,23 +275,11 @@ export const UniverseSceneFactory = (props) => {
 
         console.log(`🎆 Playing anomaly destruction effect at (${x.toFixed(0)}, ${y.toFixed(0)})`);
 
-        // Camera shake effect
-        this.cameras.main.shake(300, 0.008);
-
-        // Create particle burst for destruction
-        const particleBurst = this.add.particles(x, y, "Player", {
-          speed: { min: 80, max: 200 },
-          scale: { start: 0.03, end: 0 },
-          lifespan: 1000,
-          quantity: 30,
-          angle: { min: 0, max: 360 },
-          blendMode: "ADD"
-        });
-
-        // Remove particles after animation completes
-        this.time.delayedCall(1000, () => {
-          particleBurst.destroy();
-        });
+        playSfx('explosion');
+        // Cinematic containment-collapse burst (shake, shockwaves, spokes,
+        // sparks, flare) - visual.color was captured at creation time, more
+        // reliable than re-deriving it from anomaly.type here.
+        this.anomalySystem.playResolutionEffect(x, y, visual.color, anomaly.severity ?? visual.severity);
 
         // Destroy the visual anomaly
         this.anomalySystem.destroyAnomalyVisual(visual);
@@ -236,8 +309,275 @@ export const UniverseSceneFactory = (props) => {
       console.log(`⚠️ Minigame aborted for ${anomaly.type}`);
     }
 
+    /**
+     * Hull reached zero (HazardSystem). Staged detonation - white-hot core
+     * flash, dual shockwave rings, spinning debris shards, light flare -
+     * then emergency recovery at the origin with an invulnerability window.
+     */
+    /**
+     * Full ship-death cinematic: a beat of compression (implosion pulse +
+     * camera punch-in) before the hull ruptures into a layered eruption
+     * (core flash, three staggered plasma rings, shattered hull-plate
+     * debris, a hot spark burst, a secondary ember shower that lingers,
+     * and a drifting wreckage core) - then a warp-in recovery. Uses the
+     * shared 'evtex:spark' texture (tintable dot) throughout; the ship
+     * sprite is never used as a particle, which is what made the old
+     * version read as tiny ships flying apart instead of an explosion.
+     */
+    handleShipDestroyed() {
+      if (this.respawning) return;
+      this.respawning = true;
+
+      const x = this.player.x;
+      const y = this.player.y;
+      const baseZoom = this.cameras.main.zoom;
+
+      this.player.body.moves = false;
+      this.player.setVelocity(0, 0);
+
+      // --- Stage 0: compression beat. The ship itself animates through
+      // this (power-surge flicker, then collapses to nothing) instead of
+      // freezing solid, and the eruption is triggered from THAT tween's
+      // completion rather than an independent timer - one continuous
+      // handoff instead of two animations racing to the same deadline.
+      const implosion = this.add.graphics({ x, y }).setDepth(1998);
+      implosion.lineStyle(2, 0xffffff, 0.85);
+      implosion.strokeCircle(0, 0, 60);
+      this.tweens.add({
+        targets: implosion,
+        scaleX: 0.08, scaleY: 0.08,
+        alpha: { from: 0.85, to: 0.2 },
+        duration: 190,
+        ease: 'Cubic.easeIn',
+        onComplete: () => implosion.destroy(),
+      });
+      this.tweens.add({
+        targets: this.cameras.main,
+        zoom: baseZoom * 0.97,
+        duration: 190,
+        ease: 'Cubic.easeIn',
+      });
+
+      this.tweens.add({
+        targets: this.player,
+        alpha: { from: 1, to: 0.2 },
+        duration: 26,
+        yoyo: true,
+        repeat: 2,
+        onComplete: () => {
+          this.tweens.add({
+            targets: this.player,
+            alpha: 0,
+            duration: 55,
+            ease: 'Cubic.easeIn',
+            onComplete: () => this.detonateShip(x, y, baseZoom),
+          });
+        },
+      });
+    }
+
+    detonateShip(x, y, baseZoom) {
+      playSfx('explosion');
+      if (getSettings().cameraShake) {
+        this.cameras.main.shake(550, 0.026);
+      }
+      this.cameras.main.flash(120, 255, 255, 255);
+      this.time.delayedCall(80, () => this.cameras.main.flash(260, 255, 140, 70));
+
+      // Punch the zoom back out past baseline, then settle - sells weight
+      this.tweens.add({
+        targets: this.cameras.main,
+        zoom: baseZoom * 1.05,
+        duration: 160,
+        ease: 'Cubic.easeOut',
+        onComplete: () => {
+          this.tweens.add({ targets: this.cameras.main, zoom: baseZoom, duration: 380, ease: 'Sine.easeInOut' });
+        },
+      });
+
+      this.player.setVisible(false);
+
+      // White-hot core flash
+      const core = this.add.circle(x, y, 10, 0xffffff, 1)
+        .setDepth(1999).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: core, scale: 9, alpha: 0,
+        duration: 300, ease: 'Cubic.easeOut',
+        onComplete: () => core.destroy(),
+      });
+
+      // Triple shockwave: white-hot -> amber -> deep red, staggered so the
+      // burst reads as expanding rather than one flat pulse
+      [{ color: 0xffffff, scale: 5, dur: 380, delay: 0, width: 3 },
+       { color: 0xf5cf7a, scale: 8, dur: 560, delay: 90, width: 2.5 },
+       { color: 0xe0524a, scale: 12, dur: 820, delay: 200, width: 2 }].forEach((cfg) => {
+        const ring = this.add.graphics({ x, y }).setDepth(1998);
+        ring.lineStyle(cfg.width, cfg.color, 0.9);
+        ring.strokeCircle(0, 0, 20);
+        this.tweens.add({
+          targets: ring, scaleX: cfg.scale, scaleY: cfg.scale, alpha: 0,
+          duration: cfg.dur, delay: cfg.delay, ease: 'Cubic.easeOut',
+          onComplete: () => ring.destroy(),
+        });
+      });
+
+      // Shattered hull-plate debris - irregular polygons, not rectangles,
+      // tumbling outward with rotational overshoot for weight
+      const shardColors = [0xf5cf7a, 0xe0824a, 0x9497ad, 0xffffff, 0x8b7bd8];
+      for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2 + Math.random() * 0.4;
+        const dist = 100 + Math.random() * 220;
+        const s = 3 + Math.random() * 4;
+        const shard = this.add.graphics({ x, y }).setDepth(1998);
+        shard.fillStyle(shardColors[i % shardColors.length], 1);
+        shard.fillPoints([
+          { x: -s, y: -s * 0.5 }, { x: s * 0.6, y: -s }, { x: s, y: s * 0.4 }, { x: -s * 0.3, y: s },
+        ], true);
+        shard.rotation = Math.random() * Math.PI;
+        this.tweens.add({
+          targets: shard,
+          x: x + Math.cos(angle) * dist,
+          y: y + Math.sin(angle) * dist,
+          rotation: shard.rotation + (Math.random() - 0.5) * 14,
+          alpha: 0,
+          scale: 0.25,
+          duration: 700 + Math.random() * 450,
+          ease: 'Cubic.easeOut',
+          onComplete: () => shard.destroy(),
+        });
+      }
+
+      // Hot spark burst - tight, fast, additive
+      const sparks = this.add.particles(x, y, "evtex:spark", {
+        speed: { min: 200, max: 460 },
+        scale: { start: 0.55, end: 0 },
+        lifespan: { min: 300, max: 750 },
+        quantity: 34,
+        angle: { min: 0, max: 360 },
+        blendMode: "ADD",
+        tint: [0xffe2b0, 0xe0824a, 0xffffff],
+      });
+      this.time.delayedCall(850, () => sparks.destroy());
+
+      // Secondary ember shower - slower, drifts with gravity, lingers
+      // longer than the initial burst for a smoldering-wreckage feel
+      this.time.delayedCall(180, () => {
+        const embers = this.add.particles(x, y, "evtex:spark", {
+          speed: { min: 30, max: 110 },
+          scale: { start: 0.3, end: 0 },
+          lifespan: { min: 900, max: 1600 },
+          quantity: 16,
+          angle: { min: 0, max: 360 },
+          gravityY: 40,
+          blendMode: "ADD",
+          tint: [0xe0824a, 0xffe2b0],
+        });
+        this.time.delayedCall(1700, () => embers.destroy());
+      });
+
+      // Light flare that decays with the fireball
+      const flare = this.lights.addLight(x, y, 560, 0xffaa55, 4);
+      const flareProxy = { i: 4 };
+      this.tweens.add({
+        targets: flareProxy, i: 0, duration: 800, ease: 'Cubic.easeOut',
+        onUpdate: () => flare.setIntensity(flareProxy.i),
+        onComplete: () => this.lights.removeLight(flare),
+      });
+
+      // Drifting wreckage ember - a small dim glow that lingers and slowly
+      // fades, so the moment reads as "something was destroyed here" rather
+      // than an instant clean reset
+      const wreckDrift = { x: 0, y: 0 };
+      const wreck = this.add.circle(x, y, 4, 0xe0824a, 0.9).setDepth(1997).setBlendMode(Phaser.BlendModes.ADD);
+      const wreckLight = this.lights.addLight(x, y, 90, 0xe0824a, 1.2);
+      this.tweens.add({
+        targets: wreckDrift,
+        x: (Math.random() - 0.5) * 140,
+        y: (Math.random() - 0.5) * 140,
+        duration: 1600,
+        ease: 'Sine.easeOut',
+        onUpdate: () => {
+          wreck.setPosition(x + wreckDrift.x, y + wreckDrift.y);
+          wreckLight.setPosition(x + wreckDrift.x, y + wreckDrift.y);
+        },
+      });
+      this.tweens.add({
+        targets: [wreck], alpha: 0, duration: 1600, delay: 200, ease: 'Cubic.easeIn',
+        onComplete: () => { wreck.destroy(); this.lights.removeLight(wreckLight); },
+      });
+
+      // Notice, then recovery
+      const notice = this.add.text(x, y - 70,
+        'VESSEL DESTROYED\nEMERGENCY RECOVERY INITIATED', {
+          fontFamily: '"IBM Plex Mono", monospace',
+          fontSize: '14px',
+          color: '#e0524a',
+          align: 'center',
+        }).setOrigin(0.5).setAlpha(0).setDepth(2000);
+      this.tweens.add({ targets: notice, alpha: 1, y: y - 84, duration: 350, delay: 300 });
+
+      narrate(pick(CURATOR.deaths));
+
+      this.time.delayedCall(2000, () => {
+        notice.destroy();
+        this.player.setPosition(0, 0);
+        this.player.heal(100);
+        this.player.setVisible(true);
+        this.player.body.moves = true;
+        this.player.invulnerableUntil = this.time.now + 4000;
+        this.respawning = false;
+
+        // Recovery ring imploding onto the ship + arrival flash + blink
+        const arrival = this.add.graphics({ x: 0, y: 0 }).setDepth(1998);
+        arrival.lineStyle(2, 0x4fd1a5, 0.9);
+        arrival.strokeCircle(0, 0, 90);
+        this.tweens.add({
+          targets: arrival, scaleX: 0.1, scaleY: 0.1, alpha: 0,
+          duration: 450, ease: 'Cubic.easeIn',
+          onComplete: () => arrival.destroy(),
+        });
+        const arrivalFlash = this.add.circle(0, 0, 4, 0x4fd1a5, 1).setDepth(1999).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+          targets: arrivalFlash, scale: 12, alpha: 0, duration: 350, ease: 'Cubic.easeOut',
+          onComplete: () => arrivalFlash.destroy(),
+        });
+        this.tweens.add({
+          targets: this.player,
+          alpha: { from: 0.35, to: 1 },
+          duration: 250,
+          yoyo: true,
+          repeat: 7,
+          onComplete: () => this.player.setAlpha(1),
+        });
+      });
+    }
+
     update(time, delta) {
+      // Poll the loadout store: Hangar saves (from any panel, any tab
+      // state) apply on the next frame with no cross-boundary wiring
+      const lo = getLoadoutLocal();
+      if (this.player.hullId !== lo.hull || this.player.loadoutColor !== lo.shipColor) {
+        this.player.applyLoadout(lo.hull, lo.shipColor);
+      }
+
+      // --- SPECIAL RELATIVITY (game-c = 1900 u/s) ---
+      // beta/gamma from last frame's velocity, consumed everywhere this
+      // frame: InputSystem divides thrust by gamma (relativistic mass -
+      // acceleration falls toward zero as v->c, a natural soft light-speed
+      // wall), the ship length-contracts, and the universe darkens.
+      const C_GAME = 1900;
+      const beta = Math.min(0.99, this.player.body.velocity.length() / C_GAME);
+      this.gamma = 1 / Math.sqrt(1 - beta * beta);
+      this.relativityOverlay.setAlpha(
+        Phaser.Math.Linear(this.relativityOverlay.alpha,
+          Phaser.Math.Clamp((this.gamma - 1) * 0.9, 0, 0.55),
+          lerpFactorByDelta(0.08, delta))
+      );
+
       this.inputSystem.handlePlayerMovement(this.player, delta);
+      // Anomaly forces stack on top of the acceleration input just set
+      this.hazardSystem.update(time);
+      this.salvageSystem.update();
       this.applyBanking(delta);
 
       // Update player visuals and animations
@@ -252,9 +592,29 @@ export const UniverseSceneFactory = (props) => {
       this.playerLight.setPosition(this.player.x, this.player.y);
       this.boostLight.setPosition(this.player.x, this.player.y);
 
+      // Cinematic lookahead: the camera drifts toward where you're GOING,
+      // opening up screen space in the direction of travel (negative
+      // followOffset shifts the view ahead of the ship). Slow lerp so it
+      // reads as a cameraman anticipating, not a jitter.
+      const cam = this.cameras.main;
+      const v = this.player.body.velocity;
+      cam.followOffset.x = Phaser.Math.Linear(
+        cam.followOffset.x,
+        Phaser.Math.Clamp(-v.x * 0.14, -110, 110),
+        lerpFactorByDelta(0.035, delta)
+      );
+      cam.followOffset.y = Phaser.Math.Linear(
+        cam.followOffset.y,
+        Phaser.Math.Clamp(-v.y * 0.14, -110, 110),
+        lerpFactorByDelta(0.035, delta)
+      );
+
       this.hud.update(this.player);
       this.backgroundSystem.update();
       this.scanSystem.update(delta);
+
+      // Velocity-reactive engine hum
+      updateEngine(this.player.body.velocity.length() / 600, this.player.isBoosting || false);
 
       // Send HUD data to React
       if (this.onHUDUpdate) {
@@ -267,6 +627,9 @@ export const UniverseSceneFactory = (props) => {
         this.player,
         this.chunkSystem.loadedChunks
       );
+      this.civilizationSystem.handleInteraction(this.player);
+      this.civilizationSystem.update(time, delta); // hostile-civ missiles
+      this.cosmicEventSystem.update(time, delta);
 
       // Update minimap (now sends data to React)
       this.minimapSystem.update(
@@ -274,6 +637,8 @@ export const UniverseSceneFactory = (props) => {
         this.currentChunk,
         this.chunkSystem.loadedChunks,
         this.anomalySystem.backendAnomalies,
+        this.civilizationSystem.getMapMarkers(),
+        this.cosmicEventSystem.getMapMarkers(),
       );
       
       // Update full map (send data to React)
@@ -304,13 +669,18 @@ export const UniverseSceneFactory = (props) => {
       const speed = this.player.body.velocity.length();
       const isBoosting = this.player.isBoosting;
 
-      const baseScale = 0.05;
-      const speedScale = speed > 50 ? 0.055 : baseScale;
-      const boostScale = isBoosting ? 0.062 : speedScale;
+      // Kept in sync with PlayerObject's constructor scale (0.105) - see
+      // its comment for why 256px hull canvases land here.
+      const baseScale = 0.105;
+      const speedScale = speed > 50 ? 0.115 : baseScale;
+      const boostScale = isBoosting ? 0.13 : speedScale;
 
-      this.player.setScale(
-        Phaser.Math.Linear(this.player.scaleX, boostScale, lerpFactorByDelta(0.15, delta)),
-      );
+      const s = Phaser.Math.Linear(this.player.scaleX, boostScale, lerpFactorByDelta(0.15, delta));
+
+      // Length contraction for EVERY hull: scaleY = s / gamma, the real
+      // Lorentz factor (computed once per frame in update()). Subtle at
+      // cruise (~2% at 600 u/s), dramatic on a boosted Tachyon (~40%).
+      this.player.setScale(s, s / (this.gamma || 1));
 
       if (isBoosting) {
         this.cameraShakeIntensity = Phaser.Math.Linear(
@@ -350,7 +720,7 @@ export const UniverseSceneFactory = (props) => {
     }
 
     updateCameraShake() {
-      if (this.cameraShakeIntensity > 0.0001) {
+      if (this.cameraShakeIntensity > 0.0001 && getSettings().cameraShake) {
         this.cameras.main.shake(16, this.cameraShakeIntensity);
       }
     }
@@ -369,6 +739,7 @@ export const UniverseSceneFactory = (props) => {
         this.anomalySystem.renderBackendAnomalies(
           this.chunkSystem.loadedChunks,
         );
+        this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
       }
     }
 
@@ -380,13 +751,69 @@ export const UniverseSceneFactory = (props) => {
         this.chunkSystem.loadedChunks,
         this.anomalySystem.backendAnomalies,
         this.anomalySystem.resolvedAnomalies,
+        this.civilizationSystem.getMapMarkers(),
+        this.cosmicEventSystem.getMapMarkers(),
       );
     }
 
 
-    handleResize() {
+    /**
+     * (Re)apply camera post-processing from settings. WebGL only - postFX
+     * is undefined under Canvas, and everything must fail soft.
+     */
+    applyPostFX() {
+      const cam = this.cameras.main;
+      if (!cam.postFX) return;
+      try {
+        cam.postFX.clear();
+        if (getSettings().postFx) {
+          // color, offsetX, offsetY, blurStrength, strength, steps
+          cam.postFX.addBloom(0xffffff, 1, 1, 0.9, 1.15, 6);
+          // x, y, radius, strength
+          cam.postFX.addVignette(0.5, 0.5, 0.92, 0.32);
+        }
+      } catch (err) {
+        console.warn("PostFX unavailable:", err.message);
+      }
+    }
 
+    /**
+     * Session-local dev-console actions (DevPanel). Lives ON the scene so
+     * the React side needs exactly one call with no per-action logic -
+     * returns true/false so failures surface in the panel instead of
+     * vanishing into an optional-chain.
+     */
+    devAction(action) {
+      if (!this.player) return false;
+      switch (action) {
+        case 'damage-hull': {
+          const remaining = this.player.takeDamage(50);
+          if (remaining <= 0) this.handleShipDestroyed();
+          return true;
+        }
+        case 'destroy-ship':
+          this.player.takeDamage(1000);
+          this.handleShipDestroyed();
+          return true;
+        case 'repair-hull':
+          this.player.heal(100);
+          return true;
+        case 'cycle-hull': {
+          // Session-only: writes the local store this scene polls each
+          // frame - never the server, so real unlocks stay authoritative
+          const { hull, shipColor } = getLoadoutLocal();
+          const idx = HULL_CATALOG.findIndex((h) => h.id === hull);
+          setLoadoutLocal(HULL_CATALOG[(idx + 1) % HULL_CATALOG.length].id, shipColor);
+          return true;
+        }
+        default:
+          return false;
+      }
+    }
+
+    handleResize() {
       this.inputSystem.updateArrowPositions?.(this.scale.width, this.scale.height);
+      this.relativityOverlay?.setSize(this.scale.width, this.scale.height);
     }
 
     updateUIPositions() {
@@ -399,7 +826,12 @@ export const UniverseSceneFactory = (props) => {
       this.universe = newUniverse;
       this.anomalySystem.syncBackendAnomalies();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
+      (newUniverse.resolvedMinorAnomalies || []).forEach((id) =>
+        this.anomalySystem.resolvedAnomalies.add(id)
+      );
       this.scanSystem.seedScanned((newUniverse.discoveries || []).map((d) => d.id));
+      this.civilizationSystem.sync();
+      this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
     }
 
     shutdown() {
@@ -426,6 +858,15 @@ export const UniverseSceneFactory = (props) => {
       
       this.backgroundSystem?.destroy();
       this.scanSystem?.destroy();
+      this.inputSystem?.destroy();
+      this.civilizationSystem?.destroy();
+      this.cosmicEventSystem?.destroy();
+      this.unsubscribePostFX?.();
+      // Ability effects that alter global timescales must not outlive the scene
+      this.worldTimeScale = 1;
+      this.tweens.timeScale = 1;
+      stopEngine();
+      stopAmbient();
 
       // Remove lights
       if (this.playerLight) this.lights.removeLight(this.playerLight);

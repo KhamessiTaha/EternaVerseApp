@@ -1,4 +1,7 @@
 import Phaser from 'phaser';
+import { getSettings } from '../settings.js';
+import { TextureFactory } from '../graphics/TextureFactory.js';
+import { HULL_SHAPES } from '../content/hullCatalog.js';
 
 export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture) {
@@ -11,14 +14,21 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
     // Physics setup
     this.body.setDamping(true);
     this.body.setDrag(0.97);
-    this.body.setMaxVelocity(600);
+    // Generous per-axis cap only; actual top speed (including thruster
+    // upgrades, hull stats, AND the boosted speed cap) is the resultant-
+    // vector clamp in InputSystem. Must stay above the fastest possible
+    // combo: Tachyon boosted with Mk3 thrusters (~600*1.6*1.5*1.24 ≈ 1790).
+    this.body.setMaxVelocity(2200);
     this.body.setAngularDrag(0.96);
     this.body.setMass(1.2);
     this.body.useDamping = true;
     this.body.allowRotation = false;
     
-    // Visual state
-    this.setScale(0.05);
+    // Visual state - hull textures are 256px canvases (see TextureFactory),
+    // scale tuned to land around the same ~27px on-screen size the old
+    // 512px PNG had at 0.05. Kept in sync with updatePlayerThrusters'
+    // baseScale/speedScale/boostScale in UniverseScene.js.
+    this.setScale(0.105);
     this.setTint(0xffffff);
     this.setDepth(5);
     
@@ -36,13 +46,6 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
       
       // Spread angle in radians (how wide the flame cone is)
       spreadAngle: Math.PI / 12, // ~15 degrees spread
-      
-      // Thruster positions relative to ship center (local coordinates)
-      // Positive Y = toward back of ship, Negative Y = toward front
-      thrusterOffsets: {
-        left: { x: -9, y: 17 },   // Left thruster position
-        right: { x: 9, y: 17 }     // Right thruster position
-      },
       
       // Flame length multipliers
       minLength: 8,
@@ -66,6 +69,25 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
 
     this.lastTrailTime = 0;
     this.activeParticles = [];
+
+    // Hull loadout state - set properly via applyLoadout()
+    this.hullId = null;
+    this.loadoutColor = null;
+    this.thrusterFractions = HULL_SHAPES.interceptor.thrusters;
+  }
+
+  /**
+   * Swap hull texture, tint, and thruster geometry. Called at spawn and
+   * whenever the loadout store changes (UniverseScene polls it per frame),
+   * so Hangar saves apply live with no React->Phaser wiring involved.
+   */
+  applyLoadout(hullId, colorHex) {
+    this.hullId = hullId;
+    this.loadoutColor = colorHex;
+    this.setTexture(TextureFactory.hullKey(hullId));
+    this.setTint(parseInt(colorHex.replace('#', ''), 16));
+    const shape = HULL_SHAPES[hullId] || HULL_SHAPES.interceptor;
+    this.thrusterFractions = shape.thrusters || HULL_SHAPES.interceptor.thrusters;
   }
 
   /**
@@ -87,17 +109,20 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
    * Create engine trail particles
    */
   updateTrail(velocity, inputData) {
-    if (velocity < 40) return;
-    
+    const trailQuality = getSettings().trailQuality;
+    if (trailQuality === "off" || velocity < 40) return;
+
     const now = this.scene.time.now;
     if (now - this.lastTrailTime < this.flameConfig.trailInterval) return;
-    
+
     this.lastTrailTime = now;
-    
-    // Particle intensity
+
+    // Particle intensity (low quality halves the count and skips the
+    // outer-layer / sparkle particles below)
     const boostMultiplier = inputData.boosting ? 1.5 : 1;
     const velocityFactor = Math.min(velocity / 600, 1);
-    const particleCount = Math.floor(2 + velocityFactor * 4) * boostMultiplier;
+    let particleCount = Math.floor(2 + velocityFactor * 4) * boostMultiplier;
+    if (trailQuality === "low") particleCount = Math.max(1, Math.floor(particleCount / 2));
     
     // Colors - normal thrust matches the HUD's amber accent (starlight),
     // boost shifts to a cool cyan "overdrive" tone distinct from any UI status color
@@ -123,13 +148,21 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
       y: Math.sin(perpAngle)
     };
     
-    // Spawn particles from thruster positions
-    const thrusters = [
-      this.flameConfig.thrusterOffsets.left,
-      this.flameConfig.thrusterOffsets.right
-    ];
-    
-    thrusters.forEach(offset => {
+    // Spawn particles from the hull's actual engine positions (fractional
+    // texture coords from HULL_SHAPES, converted through displayWidth/Height
+    // so they track the current hull AND the live scale, including the
+    // Tachyon's relativistic contraction)
+    const emitters = this.thrusterFractions;
+    const perThruster = Math.max(1, Math.ceil(particleCount / emitters.length));
+
+    emitters.forEach(([fx, fy]) => {
+      const offset = {
+        x: (fx - 0.5) * this.displayWidth,
+        // Push the emit point slightly past the stern so the flame reads
+        // as exhaust, not as burning inside the hull
+        y: (fy - 0.5) * this.displayHeight + 6,
+      };
+
       // Rotate offset to world space
       const cos = Math.cos(shipRotation);
       const sin = Math.sin(shipRotation);
@@ -137,11 +170,11 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
         x: offset.x * cos - offset.y * sin,
         y: offset.x * sin + offset.y * cos
       };
-      
+
       const thrusterX = this.x + rotatedOffset.x;
       const thrusterY = this.y + rotatedOffset.y;
-      
-      for (let i = 0; i < particleCount / 2; i++) {
+
+      for (let i = 0; i < perThruster; i++) {
         const sideOffset = (Math.random() - 0.5) * this.flameConfig.trailSpread;
         const depthOffset = (Math.random() - 0.5) * 2;
         
@@ -157,16 +190,16 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
           midColor, 0.5, 2.5, 280, 'Quad'
         );
         
-        if (Math.random() > 0.4) {
+        if (trailQuality === "high" && Math.random() > 0.4) {
           this.createParticle(
             spawnX + trailDir.x * 2,
             spawnY + trailDir.y * 2,
             outerColor, 0.25, 3.5, 320, 'Cubic'
           );
         }
-        
+
         // Sparkles when boosting
-        if (isBoosting && Math.random() > 0.6) {
+        if (trailQuality === "high" && isBoosting && Math.random() > 0.6) {
           this.createParticle(
             spawnX + perpDir.x * sideOffset * 0.5,
             spawnY + perpDir.y * sideOffset * 0.5,
@@ -215,16 +248,20 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
    * Play damage feedback animation
    */
   playDamageAnimation() {
+    // Relative to the CURRENT scale - base scale varies per frame (speed/
+    // boost lerp in updatePlayerThrusters) and per hull (Tachyon contraction)
     this.scene.tweens.add({
       targets: this,
-      scaleX: { from: 0.05, to: 0.045 },
+      scaleX: { from: this.scaleX, to: this.scaleX * 0.9 },
       duration: 80,
       yoyo: true,
       repeat: 2,
       ease: 'Cubic.easeOut',
     });
-    
-    this.scene.cameras.main.shake(150, 0.005);
+
+    if (getSettings().cameraShake) {
+      this.scene.cameras.main.shake(150, 0.005);
+    }
   }
   
   /**
@@ -265,16 +302,24 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
   /**
    * Clean up
    */
-  destroy() {
-    // Clean up remaining active particles
-    this.activeParticles.forEach(particle => {
-      if (particle && !particle.isDestroyed) {
-        particle.destroy();
-      }
-    });
+  destroy(fromScene) {
+    // Only destroy our satellite display objects when the ship is destroyed
+    // INDIVIDUALLY. When fromScene is true the whole scene is tearing down
+    // and Phaser's DisplayList is already iterating-and-destroying every
+    // object - destroying siblings here mutates that list mid-iteration and
+    // crashes DisplayList.shutdown ("Cannot read properties of undefined"),
+    // leaving the game half-dead on the next launch.
+    if (!fromScene) {
+      this.activeParticles.forEach(particle => {
+        if (particle && !particle.isDestroyed) {
+          particle.destroy();
+        }
+      });
+      if (this.engineTrailContainer) this.engineTrailContainer.destroy();
+    }
     this.activeParticles = [];
+    this.engineTrailContainer = null;
 
-    if (this.engineTrailContainer) this.engineTrailContainer.destroy();
-    super.destroy();
+    super.destroy(fromScene);
   }
 }

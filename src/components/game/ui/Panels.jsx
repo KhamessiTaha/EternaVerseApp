@@ -109,12 +109,16 @@ export const Console = ({ universe, stats }) => {
   );
 };
 
+// Only the WORLD interaction keys live here - every panel hotkey is taught
+// by the ESC menu (each entry shows its key), so duplicating them in the
+// corner was clutter.
 export const ControlsHint = () => (
   <div className="text-[10px] text-ink-faint text-right leading-loose font-mono pointer-events-auto select-none">
     <div><Key>F</Key>resolve anomaly</div>
     <div><Key>V</Key>scan object</div>
-    <div><Key>C</Key>codex</div>
-    <div><Key>M</Key>full map</div>
+    <div><Key>G</Key>first contact</div>
+    <div><Key>SPACE</Key>ability</div>
     <div><Key>SHIFT</Key>boost</div>
+    <div><Key>ESC</Key>menu</div>
   </div>
 );

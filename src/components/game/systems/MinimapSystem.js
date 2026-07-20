@@ -3,7 +3,7 @@ export class MinimapSystem {
     this.scene = scene;
   }
 
-  update(player, currentChunk, loadedChunks, backendAnomalies) {
+  update(player, currentChunk, loadedChunks, backendAnomalies, civMarkers = [], eventMarkers = []) {
     if (this.scene.onMinimapUpdate) {
       this.scene.onMinimapUpdate({
         player: {
@@ -17,7 +17,10 @@ export class MinimapSystem {
         },
         loadedChunks: this.formatLoadedChunks(loadedChunks),
         anomalies: this.formatAnomalies(loadedChunks, backendAnomalies),
-        size: 96
+        civs: civMarkers,
+        events: eventMarkers
+        // Radar pixel size is a device setting rendered client-side by
+        // MinimapPanel (see settings.js MINIMAP_SIZES), not scene state.
       });
     }
   }

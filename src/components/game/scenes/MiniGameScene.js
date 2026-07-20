@@ -8,6 +8,8 @@
  */
 import Phaser from 'phaser';
 import { getGradeForAccuracy } from '../utils';
+import { getSettings } from '../settings.js';
+import { playSfx } from '../audio.js';
 
 // Shared observatory palette - keep in sync with tailwind.config.js tokens
 export const MG_COLORS = {
@@ -72,6 +74,16 @@ export class MiniGameScene extends Phaser.Scene {
   }
 
   /**
+   * Camera shake that respects the player's settings. Minigames should call
+   * this instead of this.cameras.main.shake directly.
+   */
+  shake(duration, intensity) {
+    if (getSettings().cameraShake) {
+      this.cameras.main.shake(duration, intensity);
+    }
+  }
+
+  /**
    * Grade a 0-100 accuracy/performance score into an S-F tier (thresholds
    * and stabilityMultiplier come from the shared GRADE_TIERS in game/utils.js).
    */
@@ -117,6 +129,13 @@ export class MiniGameScene extends Phaser.Scene {
    * object so rapid input doesn't stack duplicate texts.
    */
   showFeedback(text, color, x, y) {
+    // The feedback color already carries the semantics (good = success,
+    // critical = failure, warn = alert), so it doubles as the audio cue -
+    // every minigame gets hit/miss sounds without per-game wiring.
+    if (color === MG_COLORS.good) playSfx('minigameHit');
+    else if (color === MG_COLORS.critical) playSfx('minigameMiss');
+    else if (color === MG_COLORS.warn) playSfx('alert');
+
     if (this._feedbackTimer) {
       this.time.removeEvent(this._feedbackTimer);
       this._feedbackTimer = null;
@@ -167,6 +186,7 @@ export class MiniGameScene extends Phaser.Scene {
    * from grade + status, then hands off to the base MiniGame lifecycle.
    */
   finishGame(result) {
+    playSfx(result.status === 'success' ? 'minigameWin' : 'minigameLose');
     const grade = result.status === 'success' ? this.getGrade(result.accuracy) : this.getGrade(0);
 
     const baseBoost = 0.05 + (result.accuracy / 100) * 0.08;

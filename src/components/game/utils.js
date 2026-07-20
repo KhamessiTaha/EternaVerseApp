@@ -47,3 +47,29 @@ export const GRADE_TIERS = [
 
 export const getGradeForAccuracy = (accuracy) =>
   GRADE_TIERS.find((t) => accuracy >= t.min) || GRADE_TIERS[GRADE_TIERS.length - 1];
+
+// How a civ regards the player - mirrors the backend's contactSystem
+// civAttitude exactly (the server is authoritative; this renders beacons,
+// missiles, and panel copy). Keep the two in sync.
+export const civAttitude = (civ) => {
+  const r = civ.relationship || 0;
+  if ((civ.type === "Type0" || civ.type === "Type1") && r >= 0.45) return "worship";
+  if (r >= 0.25) return "friendly";
+  if (r <= -0.35 || ((civ.warlikeness ?? 0) > 0.75 && r < 0)) return "hostile";
+  if (r <= -0.15 || (civ.warlikeness ?? 0) > 0.6) return "wary";
+  return "neutral";
+};
+
+// Deterministic civilization display designation (e.g. "KX-482") - mirrors
+// the backend's utils/contactSystem.js civDesignation so Chronicle entries
+// and the First Contact panel agree on names.
+export const civDesignation = (id) => {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  h = Math.abs(h);
+  const letters = String.fromCharCode(65 + (h % 26)) + String.fromCharCode(65 + (Math.floor(h / 26) % 26));
+  return `${letters}-${100 + (h % 900)}`;
+};

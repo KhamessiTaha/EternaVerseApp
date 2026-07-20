@@ -26,11 +26,12 @@ export const createUniverse = async (universeData) => {
   }
 };
 
-// Get a single universe by id
+// Get a single universe by id. Also returns previousVisit ({at, age}) for
+// the "while you were away" digest - the server stamps the new visit.
 export const getUniverse = async (universeId) => {
   try {
     const res = await axios.get(`${API_URL}/${universeId}`, getAuthHeaders());
-    return res.data.universe;
+    return { ...res.data.universe, previousVisit: res.data.previousVisit };
   } catch (error) {
     console.error(
       "Error fetching universe:",
@@ -119,6 +120,136 @@ export const submitDiscoveries = async (universeId, discoveries) => {
   } catch (error) {
     console.error(
       "Error submitting discoveries:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
+// Resolve a MINOR (chunk-seeded) anomaly - server validates the
+// deterministic id, dedups, and computes rewards + mission credit.
+export const resolveMinorAnomaly = async (universeId, anomalyId, severity, accuracy) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/resolve-minor`,
+      { anomalyId, severity, accuracy },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error resolving minor anomaly:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
+// Claim a live cosmic event reward (supernova/comet/derelict) - the server
+// rate-limits per event kind.
+export const claimEventReward = async (universeId, kind) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/event-reward`,
+      { kind },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error claiming event reward:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
+// Claim a completed mission. The server validates completion against live
+// universe state and issues a replacement objective.
+export const claimMission = async (universeId, missionId) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/claim-mission`,
+      { missionId },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error claiming mission:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
+// Admin dev/test actions. The server re-checks the admin flag against the
+// database on every call - these 404 for regular players.
+export const devAction = async (universeId, action, payload = {}) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/dev/${action}`,
+      payload,
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      `Error in dev action ${action}:`,
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
+// First Contact action (observe / uplift / pacify). Costs, rewards, and the
+// uplift backfire roll are all server-side; the response carries the updated
+// universe plus an outcome message for the panel.
+export const contactCivilization = async (universeId, civId, action) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/contact-civilization`,
+      { civId, action },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error contacting civilization:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
+// Get the ML predictor's risk forecast (stability, anomaly emergence,
+// end-condition risks, action priorities) for the Chronicle's threat panel.
+export const getPredictions = async (universeId) => {
+  try {
+    const res = await axios.get(`${API_URL}/${universeId}/predictions`, getAuthHeaders());
+    return res.data.predictions;
+  } catch (error) {
+    console.error(
+      "Error fetching predictions:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
+// Purchase a ship upgrade with research points. The server validates cost,
+// level cap, and balance - the client only names the track.
+export const purchaseUpgrade = async (universeId, track) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/upgrade`,
+      { track },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error purchasing upgrade:",
       error.response?.data || error.message
     );
     throw error;
