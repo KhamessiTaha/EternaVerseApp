@@ -1,121 +1,36 @@
 graph TD
-    A[React Frontend App] -->|REST /api| B[Vercel Express Backend]
-    B --> C[Auth Service]
-    B --> D[User Profile Service]
-    B --> E[Universe Service]
-    B --> L[MongoDB Database]
+    A[Frontend React App] --> B[API Gateway]
+    B --> C[Universe Simulation Engine]
+    B --> D[ML Physics Predictor]
+    B --> E[User Management]
     
-    E --> F[Physics Engine]
-    E --> G[Anomaly Generator]
-    E --> H[End Conditions Checker]
-    E --> I[ML Predictor]
-    E --> J[Discovery Validator]
-    E --> K[Event Logger]
+    C --> F[Physics Engine]
+    C --> G[Quantum System]
+    C --> H[Anomaly Generator]
     
-    L --> M[Users Collection]
-    L --> N[Universes Collection]
+    D --> I[TensorFlow Model]
+    D --> J[Physics Formulas DB]
     
-    subgraph "Backend Modules"
-        C
-        D
-        E
+    F --> K[Constants Manager]
+    F --> L[Evolution Calculator]
+    
+    G --> M[Quantum State]
+    G --> N[Entanglement Sim]
+    
+    H --> O[Random Events]
+    H --> P[Chaos Theory]
+    
+    subgraph "Custom Physics ML Model"
+        I
+        J
+    end
+    
+    subgraph "Core Simulation"
         F
         G
         H
-        I
-        J
-        K
     end
     
-    subgraph "Storage"
-        M
-        N
+    subgraph "User Systems"
+        E
     end
-
-classDiagram
-    class App
-    class AuthProvider
-    class Login
-    class Register
-    class Dashboard
-    class GameplayPage
-    class UniverseCreation
-    class BigBangSimulation
-    class ProtectedRoute
-    class NavHeader
-    class PhaserGame
-    class TextureFactory
-    class MiniGameScene
-    class CascadeReactionScene
-    class ExpansionContainmentScene
-    class GravityWellScene
-    class PolarityBalanceScene
-    class QuantumStabilizerScene
-    class StructuralRealignmentScene
-    class WaveformCollapseScene
-    class AbilitySystem
-    class AnomalySystem
-    class BackgroundSystem
-    class ChunkSystem
-    class CivilizationSystem
-    class CosmicEventSystem
-    class FullMapSystem
-    class HazardSystem
-    class HUD
-    class InputSystem
-    class MinimapSystem
-    class PlayerObject
-    class SalvageSystem
-    class ScanSystem
-    class PhysicsEngine
-    class AnomalyGenerator
-    class EndConditions
-    class MLPredictor
-    class Universe
-    class User
-
-    App --> AuthProvider
-    App --> Dashboard
-    App --> GameplayPage
-    App --> Login
-    App --> Register
-    App --> UniverseCreation
-    App --> BigBangSimulation
-    App --> ProtectedRoute
-    App --> NavHeader
-
-    GameplayPage --> PhaserGame
-    PhaserGame --> TextureFactory
-    PhaserGame --> AnomalySystem
-    PhaserGame --> BackgroundSystem
-    PhaserGame --> ChunkSystem
-    PhaserGame --> CivilizationSystem
-    PhaserGame --> CosmicEventSystem
-    PhaserGame --> FullMapSystem
-    PhaserGame --> HazardSystem
-    PhaserGame --> HUD
-    PhaserGame --> InputSystem
-    PhaserGame --> MinimapSystem
-    PhaserGame --> PlayerObject
-    PhaserGame --> SalvageSystem
-    PhaserGame --> ScanSystem
-
-    MiniGameScene <|-- CascadeReactionScene
-    MiniGameScene <|-- ExpansionContainmentScene
-    MiniGameScene <|-- GravityWellScene
-    MiniGameScene <|-- PolarityBalanceScene
-    MiniGameScene <|-- QuantumStabilizerScene
-    MiniGameScene <|-- StructuralRealignmentScene
-    MiniGameScene <|-- WaveformCollapseScene
-    PhaserGame --> MiniGameScene
-
-    Universe --> PhysicsEngine
-    Universe --> AnomalyGenerator
-    Universe --> EndConditions
-    Universe --> MLPredictor
-    AuthProvider --> User
-    Universe --> User
-    PhysicsEngine --> Universe
-    AnomalyGenerator --> Universe
-    EndConditions --> Universe
-    MLPredictor --> Universe
