@@ -61,6 +61,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showPerformanceTelemetry, setShowPerformanceTelemetry] = useState(getSettings().performanceTelemetry);
   const [performanceMetrics, setPerformanceMetrics] = useState({ fps: 0, delta: 0 });
+  const [performanceHistory, setPerformanceHistory] = useState([]);
   const [loadout, setLoadout] = useState(null); // { hull, shipColor } - fetched once, applied at scene creation
 
   // Fetch the player's saved hull/color before the scene mounts: seed the
@@ -135,9 +136,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
     const updateMetrics = () => {
       const game = gameRef.current;
       if (game?.loop) {
-        setPerformanceMetrics({
-          fps: Math.round(game.loop.actualFps || 0),
-          delta: Number((game.loop.delta || 0).toFixed(1)),
+        const fps = Math.round(game.loop.actualFps || 0);
+        const delta = Number((game.loop.delta || 0).toFixed(1));
+        setPerformanceMetrics({ fps, delta });
+        setPerformanceHistory((prev) => {
+          const next = [...prev, delta];
+          return next.length > 16 ? next.slice(next.length - 16) : next;
         });
       }
       timeoutId = window.setTimeout(updateMetrics, 250);
@@ -340,11 +344,30 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       />
 
       {showPerformanceTelemetry && (
-        <div className="pointer-events-none absolute bottom-5 left-5 z-20 rounded border border-ink/20 bg-black/65 px-3 py-2 text-left text-[11px] font-mono text-ink">
-          <div className="font-semibold text-[12px] text-white/90">Performance</div>
-          <div>FPS: {performanceMetrics.fps}</div>
-          <div>Frame: {performanceMetrics.delta} ms</div>
-          <div className="text-ink-faint text-[10px]">Toggle in Settings</div>
+        <div className="pointer-events-none absolute bottom-5 left-5 z-20 w-[170px] rounded border border-ink/20 bg-black/70 px-3 py-2 text-left text-[11px] font-mono text-ink">
+          <div className="font-semibold text-[12px] text-white/90 mb-1">Performance</div>
+          <div className="grid gap-0.5">
+            <div>FPS: {performanceMetrics.fps}</div>
+            <div>Frame: {performanceMetrics.delta} ms</div>
+          </div>
+          <div className="mt-2 h-10 w-full overflow-hidden rounded border border-white/10 bg-white/5">
+            <div className="relative h-full w-full">
+              <div className="absolute bottom-0 left-0 flex h-full items-end gap-0.5 px-0.5">
+                {performanceHistory.map((dt, index) => {
+                  const height = Math.min(100, Math.max(8, 100 - dt));
+                  const shade = dt > 30 ? 'bg-red-400' : dt > 18 ? 'bg-amber-400' : 'bg-emerald-400';
+                  return (
+                    <div
+                      key={index}
+                      className={`${shade} inline-block h-[calc(${height}%)] w-1 rounded-sm`}
+                      style={{ height: `${height}%` }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <div className="text-ink-faint text-[10px] mt-1">Toggle in Settings</div>
         </div>
       )}
 
