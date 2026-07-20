@@ -92,10 +92,20 @@ export class TextureFactory {
     ctx.lineWidth = 3;
     ctx.stroke();
 
+    // Subtle metallic highlight along the hull silhouette
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
     const [ccx, ccy, cr] = shape.cockpit;
     ctx.beginPath();
     ctx.ellipse(ccx * size, ccy * size, cr * size * 0.55, cr * size, 0, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(20,22,38,0.55)";
+    ctx.fillStyle = "rgba(16,18,28,0.7)";
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.ellipse(ccx * size, ccy * size, cr * size * 0.42, cr * size * 0.8, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.16)";
     ctx.fill();
 
     this.scene.textures.addCanvas(key, canvas);
@@ -268,15 +278,53 @@ export class TextureFactory {
     canvas.height = STAR_TEX_SIZE;
     const ctx = canvas.getContext("2d");
 
-    const counts = [170, 110, 60][layerIndex] ?? 100;
-    const maxR = [0.9, 1.3, 1.8][layerIndex] ?? 1;
+    const counts = [220, 140, 75][layerIndex] ?? 100;
+    const maxR = [1.1, 1.6, 2.4][layerIndex] ?? 1;
+    const dustAlpha = [0.08, 0.05, 0.04][layerIndex] ?? 0.05;
+
+    // Faint background dust cloud layer for extra depth
+    const nebula = ctx.createRadialGradient(
+      STAR_TEX_SIZE * 0.3, STAR_TEX_SIZE * 0.25, 0,
+      STAR_TEX_SIZE * 0.5, STAR_TEX_SIZE * 0.5, STAR_TEX_SIZE * 0.95
+    );
+    nebula.addColorStop(0, `rgba(255,255,255,${dustAlpha * 0.8})`);
+    nebula.addColorStop(0.4, `rgba(150,180,255,${dustAlpha * 0.32})`);
+    nebula.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = nebula;
+    ctx.fillRect(0, 0, STAR_TEX_SIZE, STAR_TEX_SIZE);
+
     for (let i = 0; i < counts; i++) {
       const tintRoll = this.rng();
-      const rgb = tintRoll < 0.12 ? "188,212,255" : tintRoll < 0.2 ? "255,226,176" : "255,255,255";
-      ctx.fillStyle = `rgba(${rgb},${(0.25 + this.rng() * 0.6).toFixed(3)})`;
+      const rgb = tintRoll < 0.10 ? "188,212,255" : tintRoll < 0.22 ? "255,226,176" : "255,255,255";
+      const alpha = (0.25 + this.rng() * 0.6) * (layerIndex === 2 ? 0.9 : 1);
+      const radius = 0.5 + this.rng() * maxR;
+      const x = this.rng() * STAR_TEX_SIZE;
+      const y = this.rng() * STAR_TEX_SIZE;
+      ctx.fillStyle = `rgba(${rgb},${alpha.toFixed(3)})`;
       ctx.beginPath();
-      ctx.arc(this.rng() * STAR_TEX_SIZE, this.rng() * STAR_TEX_SIZE, 0.4 + this.rng() * maxR, 0, Math.PI * 2);
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
+
+      if (this.rng() < 0.09) {
+        ctx.fillStyle = `rgba(255,255,255,${(alpha * 0.75).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    if (layerIndex === 0) {
+      // Add a handful of rare bright sparkle stars
+      for (let i = 0; i < 24; i++) {
+        const x = this.rng() * STAR_TEX_SIZE;
+        const y = this.rng() * STAR_TEX_SIZE;
+        ctx.strokeStyle = "rgba(255,255,255,0.45)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y);
+        ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4);
+        ctx.stroke();
+      }
     }
 
     this.scene.textures.addCanvas(key, canvas);

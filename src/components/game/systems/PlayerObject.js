@@ -214,22 +214,26 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
    * Create an individual particle with animation
    */
   createParticle(x, y, color, startAlpha, startScale, duration, easeType) {
-    const particle = this.scene.add.graphics();
-    particle.setPosition(x, y);
+    const particle = this.scene.add.graphics({ x, y });
     particle.setDepth(2);
+    particle.setBlendMode(Phaser.BlendModes.ADD);
 
-    // Draw particle
+    const coreRadius = 1.8;
     particle.fillStyle(color, startAlpha);
-    particle.fillCircle(0, 0, 2);
+    particle.fillCircle(0, 0, coreRadius);
 
-    // Track particle
+    // Soft white glow core for a hotter, more luminous thrust look
+    particle.fillStyle(0xffffff, Math.min(0.55, startAlpha * 0.8));
+    particle.fillCircle(0, 0, coreRadius * 0.5);
+
+    // Track particle so it can be cleaned up if the player is destroyed
     this.activeParticles.push(particle);
 
-    // Animate
+    // Animate outward fade and shrink
     this.scene.tweens.add({
       targets: particle,
       alpha: 0,
-      scale: { from: startScale, to: startScale * 0.1 },
+      scale: { from: startScale, to: startScale * 0.06 },
       duration: duration,
       ease: `${easeType}.easeOut`,
       onComplete: () => {

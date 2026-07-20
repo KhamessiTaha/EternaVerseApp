@@ -68,15 +68,32 @@ export class AnomalySystem {
 
   createAnomaly(x, y, typeObj, severity, id, isBackend = false) {
     const radius = typeObj.baseRadius + severity * 2;
-    const ringAlpha = isBackend ? 0.95 : 0.6;
-    const coreAlpha = isBackend ? 0.9 : 0.55;
-    const glowAlpha = isBackend ? 0.22 : 0.12;
-    const lineWidth = isBackend ? 1.5 : 1;
-    const tickLength = radius * 0.35;
+    const ringAlpha = isBackend ? 0.95 : 0.65;
+    const coreAlpha = isBackend ? 0.96 : 0.68;
+    const glowAlpha = isBackend ? 0.24 : 0.16;
+    const lineWidth = isBackend ? 1.75 : 1.2;
+    const tickLength = radius * 0.33;
 
-    // Reticle-style marker (hollow ring + cardinal ticks + small pulsing
-    // core) instead of a solid glowing orb - reads as an instrument contact,
-    // not a video-game pickup.
+    // Soft halo + ambient bloom for the anomaly. This is the main visual
+    // signature players will track through the world.
+    const halo = this.scene.add.graphics({ x, y })
+      .fillStyle(typeObj.color, glowAlpha)
+      .fillCircle(0, 0, radius * 2.3)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(8);
+
+    const pulse = this.scene.add.graphics({ x, y })
+      .lineStyle(2, typeObj.color, ringAlpha * 0.9)
+      .strokeCircle(0, 0, radius * 1.4)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(9);
+
+    const accent = this.scene.add.graphics({ x, y })
+      .lineStyle(1.2, 0xffffff, ringAlpha * 0.14)
+      .strokeEllipse(0, 0, radius * 1.18, radius * 0.72)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(8);
+
     const entity = this.scene.add.graphics({ x, y }).setDepth(10);
     entity.lineStyle(lineWidth, typeObj.color, ringAlpha);
     entity.strokeCircle(0, 0, radius);
@@ -90,19 +107,14 @@ export class AnomalySystem {
       );
     });
     entity.fillStyle(typeObj.color, coreAlpha);
-    entity.fillCircle(0, 0, radius * 0.22);
+    entity.fillCircle(0, 0, radius * 0.26);
 
     // Danger ring: hull damage inside this radius (HazardSystem) - faint,
-    // but a player who's been burned once learns to read it
-    entity.lineStyle(1, 0xe0524a, isBackend ? 0.3 : 0.22);
-    entity.strokeCircle(0, 0, dangerRadius(severity));
-
-    // Soft glow
-    const glow = this.scene.add.graphics({ x, y })
-      .fillStyle(typeObj.color, glowAlpha)
-      .fillCircle(0, 0, radius * 1.6)
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setDepth(9);
+    // but a player who's been burned once learns to read it.
+    const danger = this.scene.add.graphics({ x, y })
+      .lineStyle(1, 0xe0524a, isBackend ? 0.32 : 0.26)
+      .strokeCircle(0, 0, dangerRadius(severity))
+      .setDepth(7);
 
     // Pulsing animation - whole reticle breathes, glow breathes on its own cadence
     this.scene.tweens.add({
@@ -117,19 +129,37 @@ export class AnomalySystem {
     });
 
     this.scene.tweens.add({
-      targets: glow,
-      scaleX: { from: 1, to: 1.25 },
-      scaleY: { from: 1, to: 1.25 },
-      alpha: { from: 0.5, to: 0.85 },
-      duration: 1800 + severity * 200,
+      targets: pulse,
+      scaleX: { from: 1, to: 1.45 },
+      scaleY: { from: 1, to: 1.45 },
+      alpha: { from: 0.65, to: 0.1 },
+      duration: 1400 + severity * 150,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+
+    this.scene.tweens.add({
+      targets: accent,
+      rotation: Math.PI * 2,
+      duration: 6800 + severity * 220,
+      repeat: -1,
+      ease: "Linear",
+    });
+
+    this.scene.tweens.add({
+      targets: halo,
+      scaleX: { from: 0.95, to: 1.1 },
+      scaleY: { from: 0.95, to: 1.1 },
+      alpha: { from: glowAlpha * 1.15, to: glowAlpha * 0.75 },
+      duration: 1900 + severity * 170,
       yoyo: true,
       repeat: -1,
       ease: "Sine.easeInOut",
     });
 
     // Light source
-    const baseIntensity = isBackend ? 1.1 : 0.7;
-    const light = this.scene.lights.addLight(x, y, radius * 10, typeObj.color, baseIntensity);
+    const baseIntensity = isBackend ? 1.3 : 0.8;
+    const light = this.scene.lights.addLight(x, y, radius * 12, typeObj.color, baseIntensity);
     const lightProxy = { i: baseIntensity };
 
     this.scene.tweens.add({
@@ -172,7 +202,7 @@ export class AnomalySystem {
       category: typeObj.category,
       color: typeObj.color,
       severity, radius,
-      entity, glow, light, lightProxy,
+      entity, pulse, halo, accent, danger, light, lightProxy,
       interactionText,
       inRange: false,
       resolved: false,
@@ -196,26 +226,23 @@ export class AnomalySystem {
 
   destroyAnomalyVisual(anomaly) {
     // Stop all tweens targeting this anomaly's graphics
-    if (anomaly.entity) {
-      this.scene.tweens.getTweensOf(anomaly.entity).forEach(tween => tween.stop());
-    }
-    if (anomaly.glow) {
-      this.scene.tweens.getTweensOf(anomaly.glow).forEach(tween => tween.stop());
-    }
-    if (anomaly.lightProxy) {
-      // Stop tweens targeting the light proxy
-      this.scene.tweens.getTweensOf(anomaly.lightProxy).forEach(tween => tween.stop());
-    }
-    
-    // Destroy graphics objects
+    [anomaly.entity, anomaly.pulse, anomaly.halo, anomaly.accent, anomaly.danger, anomaly.lightProxy].forEach((target) => {
+      if (target) {
+        this.scene.tweens.getTweensOf(target).forEach((tween) => tween.stop());
+      }
+    });
+
+    // Destroy graphics objects and cleanup lights
     anomaly.entity?.destroy();
-    anomaly.glow?.destroy();
+    anomaly.pulse?.destroy();
+    anomaly.halo?.destroy();
+    anomaly.accent?.destroy();
+    anomaly.danger?.destroy();
     if (anomaly.light) this.scene.lights.removeLight(anomaly.light);
     anomaly.interactionText?.destroy();
   }
 
   handleInteraction(player, loadedChunks) {
-    let nearest = null;
     let minDist = Infinity;
 
     const checkAnomaly = (anom) => {
@@ -231,7 +258,6 @@ export class AnomalySystem {
 
       if (anom.inRange && dist < minDist) {
         minDist = dist;
-        nearest = anom;
       }
     };
 
