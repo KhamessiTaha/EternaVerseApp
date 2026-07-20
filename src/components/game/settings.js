@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS = {
   flightModel: "newtonian", // "newtonian" (full inertia) | "assisted" (lateral grip + auto-brake)
   turnSensitivity: 1.0,     // 0.2 - 2.0 multiplier on rotation accel + max turn rate
   cameraShake: true,        // all camera shake effects (boost rumble, hits, breaches)
+  graphicsQuality: "high", // "low" | "medium" | "high" - overall rendering detail
   trailQuality: "high",     // "off" | "low" | "high" - ship engine trail particles
   masterVolume: 0.8,        // 0 - 1, scales everything
   sfxVolume: 1.0,           // 0 - 1, one-shot effects + engine hum

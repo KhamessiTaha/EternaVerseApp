@@ -19,28 +19,33 @@ export class BackgroundSystem {
   constructor(scene) {
     this.scene = scene;
     this.layers = [];
+    this.quality = 'high';
   }
 
-  create() {
+  create(quality = 'high') {
+    this.quality = quality;
     this.layers = LAYERS.map((cfg) => {
       const layer = this.scene.add.tileSprite(0, 0, LAYER_W, LAYER_H, TextureFactory.STARFIELD_KEYS[cfg.key])
         .setAlpha(cfg.alpha)
         .setDepth(cfg.depth);
 
-      // Slow asynchronous breathing per layer - reads as starfield twinkle
-      // without per-star cost. Different periods keep the layers out of
-      // phase so the whole sky never pulses in unison.
-      this.scene.tweens.add({
-        targets: layer,
-        alpha: { from: cfg.alpha * 0.75, to: cfg.alpha },
-        duration: 2600 + cfg.key * 1400,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.easeInOut",
-      });
+      if (quality !== 'low') {
+        // Slow asynchronous breathing per layer - reads as starfield twinkle
+        // without per-star cost. Different periods keep the layers out of
+        // phase so the whole sky never pulses in unison.
+        this.scene.tweens.add({
+          targets: layer,
+          alpha: { from: cfg.alpha * 0.75, to: cfg.alpha },
+          duration: 2600 + cfg.key * 1400,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      }
 
       return layer;
     });
+    this.configureQuality(quality);
   }
 
   update() {
@@ -49,7 +54,27 @@ export class BackgroundSystem {
     const cy = cam.worldView.centerY;
     this.layers.forEach((layer, i) => {
       layer.setPosition(cx, cy);
-      layer.setTilePosition(cam.scrollX * LAYERS[i].factor, cam.scrollY * LAYERS[i].factor);
+      if (this.quality === 'low') {
+        layer.setTilePosition(cam.scrollX * LAYERS[i].factor * 0.7, cam.scrollY * LAYERS[i].factor * 0.7);
+      } else {
+        layer.setTilePosition(cam.scrollX * LAYERS[i].factor, cam.scrollY * LAYERS[i].factor);
+      }
+    });
+  }
+
+  configureQuality(quality = 'high') {
+    this.quality = quality;
+    this.layers.forEach((layer, i) => {
+      if (quality === 'low') {
+        layer.setAlpha(LAYERS[i].alpha * 0.55);
+        layer.setVisible(i === 0);
+      } else if (quality === 'medium') {
+        layer.setAlpha(LAYERS[i].alpha * 0.8);
+        layer.setVisible(i !== 2);
+      } else {
+        layer.setAlpha(LAYERS[i].alpha);
+        layer.setVisible(true);
+      }
     });
   }
 

@@ -87,11 +87,15 @@ export class CosmicEventSystem {
   // ---------------------------------------------------------- supernova
 
   _spawnSupernova(time, x, y, dir) {
+    const lowQuality = this.scene.graphicsQualityLow;
+    const glowAlpha = lowQuality ? 0.18 : 0.3;
+    const lightIntensity = this.scene.graphicsQualityHigh ? 2 : this.scene.graphicsQualityMedium ? 1.4 : 0;
+
     const core = this.scene.add.circle(x, y, 12, 0xfff2d5, 1)
       .setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
-    const glow = this.scene.add.circle(x, y, 30, 0xffca7a, 0.3)
+    const glow = this.scene.add.circle(x, y, 30, 0xffca7a, glowAlpha)
       .setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
-    const light = this.scene.lights.addLight(x, y, 700, 0xffd9a0, 2);
+    const light = lightIntensity > 0 ? this.scene.lights.addLight(x, y, 700, 0xffd9a0, lightIntensity) : null;
     const label = this._label(x, y, "", "#e0824a");
 
     this.active = {
@@ -111,7 +115,9 @@ export class CosmicEventSystem {
     const throb = 1 + panic * 1.6 + Math.sin(time / (120 - panic * 80)) * 0.25 * (1 + panic);
     e.core.setScale(throb);
     e.glow.setScale(throb * (1 + panic));
-    e.light.setIntensity(2 + panic * 3);
+    if (e.light) {
+      e.light.setIntensity(2 + panic * 3);
+    }
 
     e.label.setText(
       `DYING STAR\nT-${remaining}s${e.captured ? " · DATA ACQUIRED" : " · APPROACH TO SCAN"}`
@@ -170,6 +176,8 @@ export class CosmicEventSystem {
 
   _spawnComet(time, x, y, dir) {
     const p = this.scene.player;
+    const lowQuality = this.scene.graphicsQualityLow;
+    const mediumQuality = this.scene.graphicsQualityMedium;
     // Aim to pass NEAR the player (offset so it crosses, not hits)
     const aimX = p.x + (Math.random() - 0.5) * 1200;
     const aimY = p.y + (Math.random() - 0.5) * 1200;
@@ -177,21 +185,24 @@ export class CosmicEventSystem {
 
     const head = this.scene.add.circle(x, y, 7, 0xdff6ff, 1)
       .setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
-    const light = this.scene.lights.addLight(x, y, 300, 0x9fe6f0, 1.5);
-    const tail = this.scene.add.particles(x, y, "evtex:spark", {
-      speed: { min: 10, max: 40 },
-      scale: { start: 0.35, end: 0 },
-      lifespan: { min: 500, max: 1100 },
-      frequency: 45,
-      blendMode: "ADD",
-      tint: [0x9fe6f0, 0xffffff],
-    });
+    const light = !lowQuality ? this.scene.lights.addLight(x, y, 300, 0x9fe6f0, mediumQuality ? 1 : 1.5) : null;
+    const tail = lowQuality
+      ? this.scene.add.circle(x, y, 6, 0x9fe6f0, 0.25).setDepth(5).setBlendMode(Phaser.BlendModes.ADD)
+      : this.scene.add.particles(x, y, "evtex:spark", {
+        speed: { min: 10, max: 40 },
+        scale: { start: 0.35, end: 0 },
+        lifespan: { min: 500, max: 1100 },
+        frequency: mediumQuality ? 90 : 45,
+        blendMode: "ADD",
+        tint: [0x9fe6f0, 0xffffff],
+      });
     const label = this._label(x, y, "COMET\nSKIM THE HEAD TO SAMPLE", "#4ec9e0");
 
     this.active = {
       kind: "comet", x, y, head, tail, light, label,
       vx: Math.cos(angle) * 95, vy: Math.sin(angle) * 95,
       endAt: time + 65000, sampled: false, motes: [], lastMoteAt: 0,
+      lowQuality,
     };
     narrate(CURATOR.events.comet(dir));
   }
@@ -204,12 +215,17 @@ export class CosmicEventSystem {
     e.x += e.vx * dt;
     e.y += e.vy * dt;
     e.head.setPosition(e.x, e.y);
-    e.tail.setPosition(e.x, e.y);
-    e.light.setPosition(e.x, e.y);
+    if (e.tail?.setPosition) {
+      e.tail.setPosition(e.x, e.y);
+    }
+    if (e.light) {
+      e.light.setPosition(e.x, e.y);
+    }
     e.label.setPosition(e.x, e.y - 46);
 
     // Shed a hull-repair mote in the wake every ~700ms
-    if (time - e.lastMoteAt > 700) {
+    const moteInterval = e.lowQuality ? 1400 : 700;
+    if (time - e.lastMoteAt > moteInterval) {
       e.lastMoteAt = time;
       const gfx = this.scene.add.graphics({ x: e.x, y: e.y }).setDepth(3);
       gfx.fillStyle(0x9fe6f0, 0.9);
@@ -246,9 +262,12 @@ export class CosmicEventSystem {
     if (time >= e.endAt) {
       e.motes.forEach((m) => { if (!m.collected) { this.scene.tweens.killTweensOf(m.gfx); m.gfx.destroy(); } });
       e.head.destroy();
-      e.tail.destroy();
+      if (e.tail) {
+        if (e.tail.destroy) e.tail.destroy();
+        else if (e.tail.setVisible) e.tail.setVisible(false);
+      }
       e.label.destroy();
-      this.scene.lights.removeLight(e.light);
+      if (e.light) this.scene.lights.removeLight(e.light);
       this._finish();
     }
   }
@@ -256,10 +275,11 @@ export class CosmicEventSystem {
   // ----------------------------------------------------------- derelict
 
   _spawnDerelict(time, x, y, dir) {
+    const lowQuality = this.scene.graphicsQualityLow;
+    const light = !lowQuality ? this.scene.lights.addLight(x, y, 220, 0x9497ad, 0.8) : null;
     const hulk = this.scene.add.image(x, y, TextureFactory.hullKey("hauler"))
       .setScale(0.11).setTint(0x6a7086).setAlpha(0.9)
       .setRotation(Math.random() * Math.PI * 2).setDepth(4);
-    const light = this.scene.lights.addLight(x, y, 220, 0x9497ad, 0.8);
     const label = this._label(x, y, "DERELICT HULK\nHOLD POSITION ALONGSIDE TO SALVAGE", "#9497ad");
     const ring = this.scene.add.graphics({ x, y }).setDepth(999);
 

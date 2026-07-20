@@ -110,7 +110,7 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
    */
   updateTrail(velocity, inputData) {
     const trailQuality = getSettings().trailQuality;
-    if (trailQuality === "off" || velocity < 40) return;
+    if (trailQuality === "off" || velocity < 40 || this.scene.graphicsQualityLow) return;
 
     const now = this.scene.time.now;
     if (now - this.lastTrailTime < this.flameConfig.trailInterval) return;
@@ -122,7 +122,7 @@ export class PlayerObject extends Phaser.Physics.Arcade.Sprite {
     const boostMultiplier = inputData.boosting ? 1.5 : 1;
     const velocityFactor = Math.min(velocity / 600, 1);
     let particleCount = Math.floor(2 + velocityFactor * 4) * boostMultiplier;
-    if (trailQuality === "low") particleCount = Math.max(1, Math.floor(particleCount / 2));
+    if (trailQuality === "low" || this.scene.graphicsQualityMedium) particleCount = Math.max(1, Math.floor(particleCount / 2));
     
     // Colors - normal thrust matches the HUD's amber accent (starlight),
     // boost shifts to a cool cyan "overdrive" tone distinct from any UI status color

@@ -141,6 +141,18 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
           />
         </SettingRow>
 
+        <SettingRow label="Graphics Quality" hint="Lower this if browser FPS drops">
+          <OptionButtons
+            value={settings.graphicsQuality}
+            onSelect={(v) => change({ graphicsQuality: v })}
+            options={[
+              { value: 'low', label: 'LOW' },
+              { value: 'medium', label: 'MEDIUM' },
+              { value: 'high', label: 'HIGH' },
+            ]}
+          />
+        </SettingRow>
+
         <SettingRow label="Engine Trail" hint="Ship exhaust particle density">
           <OptionButtons
             value={settings.trailQuality}

@@ -76,6 +76,7 @@ export class AnomalySystem {
 
     // Soft halo + ambient bloom for the anomaly. This is the main visual
     // signature players will track through the world.
+    const isLowQuality = this.scene.graphicsQualityLow;
     const halo = this.scene.add.graphics({ x, y })
       .fillStyle(typeObj.color, glowAlpha)
       .fillCircle(0, 0, radius * 2.3)
@@ -88,7 +89,7 @@ export class AnomalySystem {
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(9);
 
-    const accent = this.scene.add.graphics({ x, y })
+    const accent = isLowQuality ? null : this.scene.add.graphics({ x, y })
       .lineStyle(1.2, 0xffffff, ringAlpha * 0.14)
       .strokeEllipse(0, 0, radius * 1.18, radius * 0.72)
       .setBlendMode(Phaser.BlendModes.ADD)
@@ -138,13 +139,15 @@ export class AnomalySystem {
       ease: "Sine.easeInOut",
     });
 
-    this.scene.tweens.add({
-      targets: accent,
-      rotation: Math.PI * 2,
-      duration: 6800 + severity * 220,
-      repeat: -1,
-      ease: "Linear",
-    });
+    if (accent) {
+      this.scene.tweens.add({
+        targets: accent,
+        rotation: Math.PI * 2,
+        duration: 6800 + severity * 220,
+        repeat: -1,
+        ease: "Linear",
+      });
+    }
 
     this.scene.tweens.add({
       targets: halo,
@@ -159,20 +162,22 @@ export class AnomalySystem {
 
     // Light source
     const baseIntensity = isBackend ? 1.3 : 0.8;
-    const light = this.scene.lights.addLight(x, y, radius * 12, typeObj.color, baseIntensity);
-    const lightProxy = { i: baseIntensity };
+    const light = isLowQuality ? null : this.scene.lights.addLight(x, y, radius * 12, typeObj.color, baseIntensity);
+    const lightProxy = light ? { i: baseIntensity } : null;
 
-    this.scene.tweens.add({
-      targets: lightProxy,
-      i: { from: baseIntensity, to: baseIntensity * 1.6 },
-      duration: 2000 + severity * 300,
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.easeInOut",
-      onUpdate: () => {
-        if (light?.setIntensity) light.setIntensity(lightProxy.i);
-      },
-    });
+    if (lightProxy) {
+      this.scene.tweens.add({
+        targets: lightProxy,
+        i: { from: baseIntensity, to: baseIntensity * 1.6 },
+        duration: 2000 + severity * 300,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+        onUpdate: () => {
+          if (light?.setIntensity) light.setIntensity(lightProxy.i);
+        },
+      });
+    }
 
     // Interaction label - instrument tag, monospace, no solid neon-on-black box
     const hexColor = `#${typeObj.color.toString(16).padStart(6, "0")}`;

@@ -121,9 +121,12 @@ export class ChunkSystem {
     // NOTE: the old implementation leaked these lights on chunk unload -
     // they are now tracked per-object and removed in cleanupChunk.
     let light = null;
-    if (isPhenomenon || (descriptor.category === "galaxy" && descriptor.scale > 0.65)) {
-      const color = descriptor.objectClass === "quasar" ? 0x9fe6f0 : 0xffe2b0;
-      light = this.scene.lights.addLight(descriptor.x, descriptor.y, 140 * descriptor.scale + 60, color, 0.35);
+    if (!this.scene.graphicsQualityLow) {
+      const lightThreshold = this.scene.graphicsQualityMedium ? 0.75 : 0.65;
+      if (isPhenomenon || (descriptor.category === "galaxy" && descriptor.scale > lightThreshold)) {
+        const color = descriptor.objectClass === "quasar" ? 0x9fe6f0 : 0xffe2b0;
+        light = this.scene.lights.addLight(descriptor.x, descriptor.y, 140 * descriptor.scale + 60, color, 0.35);
+      }
     }
 
     const entry = { descriptor, image, light };

@@ -58,11 +58,12 @@ export const UniverseSceneFactory = (props) => {
       this.textureFactory.generateAll();
 
       this.backgroundSystem = new BackgroundSystem(this);
-      this.backgroundSystem.create();
+      this.backgroundSystem.create(getSettings().graphicsQuality);
 
       this.initSystems();
       this.createPlayer();
       this.initLighting();
+      this.applyGraphicsQuality();
 
       this.currentChunk = getChunkCoords(this.player.x, this.player.y);
       this.chunkSystem.loadNearbyChunks(
@@ -99,7 +100,9 @@ export const UniverseSceneFactory = (props) => {
       // beacons, the starfield - halo like film; vignette pulls the eye to
       // center. Respects the settings toggle live.
       this.applyPostFX();
+      this.applyGraphicsQuality();
       this.unsubscribePostFX = onSettingsChange(() => this.applyPostFX());
+      this.unsubscribeQuality = onSettingsChange(() => this.applyGraphicsQuality());
 
       // Space drone (fades in on the first user gesture if audio is locked)
       startAmbient();
@@ -790,6 +793,35 @@ export const UniverseSceneFactory = (props) => {
       }
     }
 
+    applyGraphicsQuality() {
+      const quality = getSettings().graphicsQuality || 'high';
+      this.graphicsQuality = quality;
+      this.graphicsQualityLow = quality === 'low';
+      this.graphicsQualityMedium = quality === 'medium';
+      this.graphicsQualityHigh = quality === 'high';
+
+      if (this.graphicsQualityLow) {
+        if (this.lights.active) {
+          this.lights.disable();
+        }
+      } else {
+        if (!this.lights.active) {
+          this.lights.enable().setAmbientColor(0x0a0a0a);
+        }
+      }
+
+      if (this.playerLight) {
+        const intensity = this.graphicsQualityHigh ? 2.5 : 1.6;
+        this.playerLight.setIntensity(intensity);
+      }
+      if (this.boostLight) {
+        const baseBoost = this.graphicsQualityHigh ? 1 : 0.7;
+        this.boostLight.setIntensity(baseBoost);
+      }
+
+      this.backgroundSystem?.configureQuality(quality);
+    }
+
     /**
      * Session-local dev-console actions (DevPanel). Lives ON the scene so
      * the React side needs exactly one call with no per-action logic -
@@ -875,6 +907,7 @@ export const UniverseSceneFactory = (props) => {
       this.civilizationSystem?.destroy();
       this.cosmicEventSystem?.destroy();
       this.unsubscribePostFX?.();
+      this.unsubscribeQuality?.();
       // Ability effects that alter global timescales must not outlive the scene
       this.worldTimeScale = 1;
       this.tweens.timeScale = 1;
