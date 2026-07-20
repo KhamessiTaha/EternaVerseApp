@@ -47,7 +47,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [minimapData, setMinimapData] = useState(null);
   const [fullMapData, setFullMapData] = useState(null);
   const [isFullMapOpen, setIsFullMapOpen] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [discoveryToast, setDiscoveryToast] = useState(null);
   const [isCodexOpen, setIsCodexOpen] = useState(false);
   const [isOutfittingOpen, setIsOutfittingOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -81,7 +81,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
     playSfx('discovery', discovery.rarity);
     narrateOnce('first-scan', pick(CURATOR.firstScan));
     if (discovery.rarity === 'exceptional') narrate(pick(CURATOR.exceptional));
-    setToast({ discovery, key: Date.now() });
+    setDiscoveryToast({ discovery, key: Date.now() });
     onDiscovery?.(discovery);
   };
 
@@ -311,7 +311,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       />
 
       {/* Discovery toast + Codex + Outfitting overlays */}
-      <DiscoveryToast toast={toast} />
+      <DiscoveryToast toast={discoveryToast} />
       <CodexPanel
         isOpen={isCodexOpen}
         onClose={() => setIsCodexOpen(false)}
