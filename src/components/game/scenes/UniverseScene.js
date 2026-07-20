@@ -23,7 +23,7 @@ import { HULL_CATALOG } from "../content/hullCatalog.js";
 import { narrate, narrateOnce, pick, muse, CURATOR } from "../narrator.js";
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onHint } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -38,6 +38,7 @@ export const UniverseSceneFactory = (props) => {
       this.onCivContact = onCivContact;
       this.onSceneReady = onSceneReady;
       this.onEventReward = onEventReward;
+      this.onHint = onHint;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -76,8 +77,15 @@ export const UniverseSceneFactory = (props) => {
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
       this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
 
+      if (this.onHint) {
+        this.onHint(
+          'Welcome back. Fly toward a glowing reticle and press F to resolve an anomaly. Use V to scan and G to contact civilizations.',
+          'info',
+          9000,
+        );
+      }
+
       // Relativity overlay: the universe visibly darkens as v approaches
-      // game-c (fewer photons catch up to you). Alpha driven per-frame from
       // the Lorentz factor computed in update().
       this.gamma = 1;
       this.relativityOverlay = this.add
@@ -203,6 +211,11 @@ export const UniverseSceneFactory = (props) => {
       // Scan completions flow out to React (toast + backend submission)
       this.events.on('scan:complete', ({ discovery }) => {
         this.onDiscovery?.(discovery);
+      });
+
+      // Provide in-game hints and onboarding feedback for interactions
+      this.events.on('hint', ({ message, variant, duration }) => {
+        this.onHint?.(message, variant, duration);
       });
     }
 

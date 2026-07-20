@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useContext } from "react";
 import Phaser from "phaser";
 import { AuthContext } from "../context/AuthContext";
+import { useToast } from "./ui/ToastProvider";
 import { UniverseSceneFactory } from "./game/scenes/UniverseScene";
 import { QuantumStabilizerScene } from "./game/scenes/QuantumStabilizerScene";
 import { GravityWellScene } from "./game/scenes/GravityWellScene";
@@ -32,6 +33,12 @@ import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
 const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward }) => {
   const { user } = useContext(AuthContext);
+  const toast = useToast();
+
+  const showHint = (message, variant = 'info', duration = 6000) => {
+    if (!toast) return;
+    toast(message, variant, duration);
+  };
   const isAdmin = !!user?.isAdmin;
   const gameRef = useRef(null);
   const sceneRef = useRef(null);
@@ -187,7 +194,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       // null, which left sceneRef dead for every consumer. The scene calls
       // this from create(), when it actually exists.
       onSceneReady: (scene) => { sceneRef.current = scene; },
-      onEventReward
+      onEventReward,
+      onHint: showHint,
     });
 
     const container = document.getElementById("phaser-container");

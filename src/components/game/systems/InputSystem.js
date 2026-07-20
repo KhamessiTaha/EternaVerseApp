@@ -208,6 +208,11 @@ export class InputSystem {
       this.scene.scene.launch(gameScene, { anomaly: nearestAnomaly });
     } else {
       console.log('[Input] No anomalies nearby');
+      this.scene.events.emit('hint', {
+        message: 'No anomaly within range. Fly toward a glowing reticle and press F to resolve it.',
+        variant: 'info',
+        duration: 7000,
+      });
     }
   }
 
