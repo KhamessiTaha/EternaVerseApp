@@ -31,3 +31,91 @@ graph TD
         M
         N
     end
+
+classDiagram
+    class App
+    class AuthProvider
+    class Login
+    class Register
+    class Dashboard
+    class GameplayPage
+    class UniverseCreation
+    class BigBangSimulation
+    class ProtectedRoute
+    class NavHeader
+    class PhaserGame
+    class TextureFactory
+    class MiniGameScene
+    class CascadeReactionScene
+    class ExpansionContainmentScene
+    class GravityWellScene
+    class PolarityBalanceScene
+    class QuantumStabilizerScene
+    class StructuralRealignmentScene
+    class WaveformCollapseScene
+    class AbilitySystem
+    class AnomalySystem
+    class BackgroundSystem
+    class ChunkSystem
+    class CivilizationSystem
+    class CosmicEventSystem
+    class FullMapSystem
+    class HazardSystem
+    class HUD
+    class InputSystem
+    class MinimapSystem
+    class PlayerObject
+    class SalvageSystem
+    class ScanSystem
+    class PhysicsEngine
+    class AnomalyGenerator
+    class EndConditions
+    class MLPredictor
+    class Universe
+    class User
+
+    App --> AuthProvider
+    App --> Dashboard
+    App --> GameplayPage
+    App --> Login
+    App --> Register
+    App --> UniverseCreation
+    App --> BigBangSimulation
+    App --> ProtectedRoute
+    App --> NavHeader
+
+    GameplayPage --> PhaserGame
+    PhaserGame --> TextureFactory
+    PhaserGame --> AnomalySystem
+    PhaserGame --> BackgroundSystem
+    PhaserGame --> ChunkSystem
+    PhaserGame --> CivilizationSystem
+    PhaserGame --> CosmicEventSystem
+    PhaserGame --> FullMapSystem
+    PhaserGame --> HazardSystem
+    PhaserGame --> HUD
+    PhaserGame --> InputSystem
+    PhaserGame --> MinimapSystem
+    PhaserGame --> PlayerObject
+    PhaserGame --> SalvageSystem
+    PhaserGame --> ScanSystem
+
+    MiniGameScene <|-- CascadeReactionScene
+    MiniGameScene <|-- ExpansionContainmentScene
+    MiniGameScene <|-- GravityWellScene
+    MiniGameScene <|-- PolarityBalanceScene
+    MiniGameScene <|-- QuantumStabilizerScene
+    MiniGameScene <|-- StructuralRealignmentScene
+    MiniGameScene <|-- WaveformCollapseScene
+    PhaserGame --> MiniGameScene
+
+    Universe --> PhysicsEngine
+    Universe --> AnomalyGenerator
+    Universe --> EndConditions
+    Universe --> MLPredictor
+    AuthProvider --> User
+    Universe --> User
+    PhysicsEngine --> Universe
+    AnomalyGenerator --> Universe
+    EndConditions --> Universe
+    MLPredictor --> Universe
