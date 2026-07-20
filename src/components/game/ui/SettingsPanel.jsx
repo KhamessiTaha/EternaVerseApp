@@ -141,6 +141,17 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
           />
         </SettingRow>
 
+        <SettingRow label="Performance Telemetry" hint="Show FPS and frame latency while playing">
+          <OptionButtons
+            value={settings.performanceTelemetry}
+            onSelect={(v) => change({ performanceTelemetry: v })}
+            options={[
+              { value: true, label: 'ON' },
+              { value: false, label: 'OFF' },
+            ]}
+          />
+        </SettingRow>
+
         <SettingRow label="Graphics Quality" hint="Lower this if browser FPS drops">
           <OptionButtons
             value={settings.graphicsQuality}

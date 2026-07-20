@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS = {
   cameraShake: true,        // all camera shake effects (boost rumble, hits, breaches)
   graphicsQuality: "high", // "low" | "medium" | "high" - overall rendering detail
   trailQuality: "high",     // "off" | "low" | "high" - ship engine trail particles
+  performanceTelemetry: false, // FPS / render latency overlay
   masterVolume: 0.8,        // 0 - 1, scales everything
   sfxVolume: 1.0,           // 0 - 1, one-shot effects + engine hum
   ambientVolume: 0.5,       // 0 - 1, the deep-space drone

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useContext } from "react";
 import Phaser from "phaser";
 import { AuthContext } from "../context/AuthContext";
+import { getSettings, onSettingsChange } from "./game/settings.js";
 import { useToast } from "./ui/ToastProvider";
 import { UniverseSceneFactory } from "./game/scenes/UniverseScene";
 import { QuantumStabilizerScene } from "./game/scenes/QuantumStabilizerScene";
@@ -58,6 +59,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [isHangarOpen, setIsHangarOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showPerformanceTelemetry, setShowPerformanceTelemetry] = useState(getSettings().performanceTelemetry);
+  const [performanceMetrics, setPerformanceMetrics] = useState({ fps: 0, delta: 0 });
   const [loadout, setLoadout] = useState(null); // { hull, shipColor } - fetched once, applied at scene creation
 
   // Fetch the player's saved hull/color before the scene mounts: seed the
@@ -117,6 +120,32 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const handleFullMapUpdate = (data) => {
     setFullMapData(data);
   };
+
+  useEffect(() => {
+    const unsubscribe = onSettingsChange((settings) => {
+      setShowPerformanceTelemetry(settings.performanceTelemetry);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!showPerformanceTelemetry) return;
+
+    let timeoutId;
+    const updateMetrics = () => {
+      const game = gameRef.current;
+      if (game?.loop) {
+        setPerformanceMetrics({
+          fps: Math.round(game.loop.actualFps || 0),
+          delta: Number((game.loop.delta || 0).toFixed(1)),
+        });
+      }
+      timeoutId = window.setTimeout(updateMetrics, 250);
+    };
+
+    updateMetrics();
+    return () => window.clearTimeout(timeoutId);
+  }, [showPerformanceTelemetry]);
 
   // Map toggle handler
   const handleMapToggle = () => {
@@ -309,6 +338,15 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         onClose={handleMapToggle}
         fullMapData={fullMapData}
       />
+
+      {showPerformanceTelemetry && (
+        <div className="pointer-events-none absolute bottom-5 left-5 z-20 rounded border border-ink/20 bg-black/65 px-3 py-2 text-left text-[11px] font-mono text-ink">
+          <div className="font-semibold text-[12px] text-white/90">Performance</div>
+          <div>FPS: {performanceMetrics.fps}</div>
+          <div>Frame: {performanceMetrics.delta} ms</div>
+          <div className="text-ink-faint text-[10px]">Toggle in Settings</div>
+        </div>
+      )}
 
       {/* Discovery toast + Codex + Outfitting overlays */}
       <DiscoveryToast toast={discoveryToast} />
