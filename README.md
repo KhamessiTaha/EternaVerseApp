@@ -4,7 +4,7 @@
 
 > 🔒 **Proprietary — commercial project in active development.** This repository is published for portfolio and demonstration purposes. The source is **not** open for reuse, redistribution, or self-hosting. See [copyright](#copyright).
 
-**▶ Live demo:** _add your deployed URL here_
+**▶ Play it:** [eterna-verse-app.vercel.app](https://eterna-verse-app.vercel.app/)
 
 <!-- Add screenshots / a short GIF here — Big Bang cinematic, flight + an anomaly resolve, first contact, the Chronicle. -->
 
