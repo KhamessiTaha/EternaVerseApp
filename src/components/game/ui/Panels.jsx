@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { formatNumber } from '../utils';
 import { getStabilityColorKey, getCosmicPhaseLabel, formatTrend } from './statusHelpers';
 import { StatLine, Meter, StatusPill, SectionTitle, Key, icons } from './primitives';
+import { getSettings, onSettingsChange } from '../settings';
 
 const STATUS_COLOR = { running: 'good', paused: 'warn', ended: 'critical' };
 
@@ -109,16 +111,30 @@ export const Console = ({ universe, stats }) => {
   );
 };
 
+// Movement keys mirror InputSystem's KEY_LAYOUTS (azerty/qwerty) - kept as a
+// local copy since InputSystem doesn't export the presets, and this is the
+// only other place that needs to render them.
+const MOVE_LAYOUTS = {
+  azerty: "ZQSD",
+  qwerty: "WASD",
+};
+
 // Only the WORLD interaction keys live here - every panel hotkey is taught
 // by the ESC menu (each entry shows its key), so duplicating them in the
 // corner was clutter.
-export const ControlsHint = () => (
-  <div className="text-[10px] text-ink-faint text-right leading-loose font-mono pointer-events-auto select-none">
-    <div><Key>F</Key>resolve anomaly</div>
-    <div><Key>V</Key>scan object</div>
-    <div><Key>G</Key>first contact</div>
-    <div><Key>SPACE</Key>ability</div>
-    <div><Key>SHIFT</Key>boost</div>
-    <div><Key>ESC</Key>menu</div>
-  </div>
-);
+export const ControlsHint = () => {
+  const [layout, setLayout] = useState(getSettings().keyboardLayout);
+  useEffect(() => onSettingsChange(() => setLayout(getSettings().keyboardLayout)), []);
+
+  return (
+    <div className="text-[10px] text-ink-faint text-right leading-loose font-mono pointer-events-auto select-none">
+      <div><Key>{MOVE_LAYOUTS[layout] || MOVE_LAYOUTS.azerty}</Key>move</div>
+      <div><Key>F</Key>resolve anomaly</div>
+      <div><Key>V</Key>scan object</div>
+      <div><Key>G</Key>first contact</div>
+      <div><Key>SPACE</Key>ability</div>
+      <div><Key>SHIFT</Key>boost</div>
+      <div><Key>ESC</Key>menu</div>
+    </div>
+  );
+};

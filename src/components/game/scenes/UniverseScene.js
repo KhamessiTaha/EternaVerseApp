@@ -22,6 +22,11 @@ import { getLoadoutLocal, setLoadoutLocal } from "../loadoutStore.js";
 import { HULL_CATALOG } from "../content/hullCatalog.js";
 import { narrate, narrateOnce, pick, muse, CURATOR } from "../narrator.js";
 
+// Module-level, not per-scene: survives remounts (leaving and re-entering a
+// universe within the same tab) so the full orientation toast only ever
+// shows once per browser session, same lifetime as narrator.js's `said` set.
+let welcomeHintShown = false;
+
 export const UniverseSceneFactory = (props) => {
   const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onHint } = props;
 
@@ -78,11 +83,12 @@ export const UniverseSceneFactory = (props) => {
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
       this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
 
-      if (this.onHint) {
+      if (this.onHint && !welcomeHintShown) {
+        welcomeHintShown = true;
         this.onHint(
-          'Welcome back. Fly toward a glowing reticle and press F to resolve an anomaly. Use V to scan and G to contact civilizations.',
+          'Your movement keys fly you (see the hint, bottom-right). Fly toward a glowing reticle and press F to resolve an anomaly, V to scan, G for first contact. ESC opens objectives and everything else.',
           'info',
-          9000,
+          10000,
         );
       }
 
