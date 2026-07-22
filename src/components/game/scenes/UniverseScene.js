@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
 import { getChunkCoords, lerpFactorByDelta } from "../utils";
+import { STABILITY_CRITICAL_THRESHOLD } from "../constants";
 import { getSettings, onSettingsChange } from "../settings.js";
 import { startAmbient, stopAmbient, updateEngine, stopEngine, playSfx } from "../audio.js";
 import { ChunkSystem } from "../systems/ChunkSystem";
@@ -100,6 +101,16 @@ export const UniverseSceneFactory = (props) => {
         .setOrigin(0)
         .setScrollFactor(0)
         .setDepth(900);
+
+      // Cosmic-instability klaxon: a red vignette that pulses while the
+      // universe's stability reservoir sits in the critical band. Alpha is
+      // driven each frame in update() from the live universe state.
+      this.crisisOverlay = this.add
+        .rectangle(0, 0, this.scale.width, this.scale.height, 0xe0524a, 0)
+        .setOrigin(0)
+        .setScrollFactor(0)
+        .setDepth(901)
+        .setBlendMode(Phaser.BlendModes.SCREEN);
 
       // Cinematic post-processing (WebGL only): bloom makes every additive
       // glow in the game - engine trails, anomaly reticles, explosions,
@@ -596,6 +607,17 @@ export const UniverseSceneFactory = (props) => {
           lerpFactorByDelta(0.08, delta))
       );
 
+      // --- COSMIC INSTABILITY OVERLAY ---
+      // Pulse a red vignette while stability is critical; fade out otherwise.
+      const stability = this.universe?.currentState?.stabilityIndex ?? 1;
+      const inCrisis = (this.universe?.status === "running") && stability < STABILITY_CRITICAL_THRESHOLD;
+      const crisisTarget = inCrisis
+        ? 0.12 + 0.10 * (0.5 + 0.5 * Math.sin(time / 260))
+        : 0;
+      this.crisisOverlay.setAlpha(
+        Phaser.Math.Linear(this.crisisOverlay.alpha, crisisTarget, lerpFactorByDelta(0.06, delta))
+      );
+
       this.inputSystem.handlePlayerMovement(this.player, delta);
       // Anomaly forces stack on top of the acceleration input just set
       this.hazardSystem.update(time);
@@ -865,6 +887,7 @@ export const UniverseSceneFactory = (props) => {
     handleResize() {
       this.inputSystem.updateArrowPositions?.(this.scale.width, this.scale.height);
       this.relativityOverlay?.setSize(this.scale.width, this.scale.height);
+      this.crisisOverlay?.setSize(this.scale.width, this.scale.height);
     }
 
     updateUIPositions() {

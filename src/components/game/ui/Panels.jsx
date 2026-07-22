@@ -35,7 +35,16 @@ export const PrimaryInstrument = ({ universe }) => {
         <div className="text-[9px] tracking-wider uppercase text-ink-faint mt-1.5">Universe Age</div>
       </div>
 
-      <Meter label="Stability" value={stability} color={getStabilityColorKey(universe)} />
+      <div className="relative">
+        <Meter label="Stability" value={stability} color={getStabilityColorKey(universe)} />
+        {typeof cs.stabilityCeiling === 'number' && cs.stabilityCeiling < 0.995 && (
+          <div
+            className="absolute bottom-0 w-px h-2 bg-ink-faint/70"
+            style={{ left: `${Math.min(100, cs.stabilityCeiling * 100)}%` }}
+            title={`Ceiling ${Math.round(cs.stabilityCeiling * 100)}% — cosmic health caps recovery`}
+          />
+        )}
+      </div>
       <Meter label="Cosmic Hlth" value={cosmicHealth} color="good" />
     </div>
   );
