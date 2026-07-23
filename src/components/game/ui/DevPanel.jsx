@@ -6,9 +6,12 @@
 import { useState } from 'react';
 
 const ACTIONS = [
+  // Small increments: a stability crisis resolves in ~15-30 steps, so 50/200
+  // jumps blow past the whole drain->critical->collapse arc in one shot. These
+  // let you walk it and resolve anomalies between jumps.
+  { label: 'Fast-forward 3 steps', action: 'fast-forward', payload: { steps: 3 } },
   { label: 'Fast-forward 10 steps', action: 'fast-forward', payload: { steps: 10 } },
-  { label: 'Fast-forward 50 steps', action: 'fast-forward', payload: { steps: 50 } },
-  { label: 'Fast-forward 200 steps', action: 'fast-forward', payload: { steps: 200 } },
+  { label: 'Fast-forward 30 steps', action: 'fast-forward', payload: { steps: 30 } },
   { label: 'Grant 500 RP', action: 'grant-research', payload: { points: 500 } },
   { label: 'Grant 5000 RP', action: 'grant-research', payload: { points: 5000 } },
   { label: 'Spawn 3 anomalies nearby', action: 'spawn-anomalies', payload: { count: 3 } },
@@ -33,16 +36,32 @@ export const DevPanel = ({ isOpen, onClose, onDevAction, onClientAction }) => {
 
   if (!isOpen) return null;
 
+  // Fast-forward returns the stability trajectory so a jump's effect on the
+  // reservoir is visible without opening the meter - "0.850 -> 0.494 (-0.356)".
+  const formatFastForward = (data) => {
+    const s = data.stability;
+    const delta = s.after - s.before;
+    const sign = delta >= 0 ? '+' : '';
+    const trajectory = `${s.before.toFixed(3)} → ${s.after.toFixed(3)} (${sign}${delta.toFixed(3)})`;
+    const crisis = `crit ${s.criticalSteps}/${s.crisisWindow}`;
+    const end = data.ended ? ` · 💥 ${data.endCondition}` : '';
+    return `FF ${data.steps} · stability ${trajectory} · ceiling ${s.ceiling.toFixed(2)} · anomalies ${s.activeAnomalies} · ${crisis}${end}`;
+  };
+
   const run = async (action, payload) => {
     if (busy) return;
     setBusy(true);
     try {
       const data = await onDevAction(action, payload);
-      setLastResult(
-        data?.ok
-          ? `OK · ${action} ${JSON.stringify(payload)}`
-          : `FAILED · ${data?.error || 'unknown error'}`
-      );
+      if (data?.ok && data.stability) {
+        setLastResult(formatFastForward(data));
+      } else {
+        setLastResult(
+          data?.ok
+            ? `OK · ${action} ${JSON.stringify(payload)}`
+            : `FAILED · ${data?.error || 'unknown error'}`
+        );
+      }
     } finally {
       setBusy(false);
     }
