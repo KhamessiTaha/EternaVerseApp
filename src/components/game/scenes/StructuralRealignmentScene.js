@@ -18,12 +18,12 @@ import Phaser from 'phaser';
 import MiniGameScene, { MG_COLORS } from './MiniGameScene.js';
 
 const THEME_COLOR = 0x7d8ba8; // structural steel-blue
-const K = 0.6;      // spring stiffness
-const DAMP = 5.0;   // velocity damping (settles instead of oscillating forever)
+const K = 0.4;      // spring stiffness (gentle - guides, doesn't yank)
+const DAMP = 6.5;   // velocity damping (nodes mostly stay where you drop them)
 const NODE_R = 11;
-const GRAB_R = 26;
-const WIN_STRESS = 7;   // mean |len - rest| (px) considered "aligned"
-const HOLD_TO_WIN = 0.5; // seconds it must stay aligned to lock
+const GRAB_R = 28;
+const WIN_STRESS = 9;   // mean |len - rest| (px) considered "aligned"
+const HOLD_TO_WIN = 0.4; // seconds it must stay aligned to lock
 
 export class StructuralRealignmentScene extends MiniGameScene {
   constructor() {
@@ -35,9 +35,13 @@ export class StructuralRealignmentScene extends MiniGameScene {
     const severity = Math.max(1, Math.min(5, this.anomaly?.severity || 2));
     this.severity = severity;
 
-    this.ringCount = Math.min(8, 4 + severity);
-    this.timeLimit = 28 - severity * 2.2;
-    this.scramble = 55 + severity * 16;
+    this.ringCount = Math.min(7, 3 + severity);
+    this.timeLimit = 32 - severity * 2;
+    this.scramble = 45 + severity * 12;
+    // Guidance ramp: low severity shows where every node belongs; high severity
+    // is the blind untangle. This is the difficulty axis, not just node count.
+    this.showGhosts = severity <= 3;      // ringed target markers
+    this.showConnectors = severity <= 2;  // line from each node to its marker
 
     this.elapsed = 0;
     this.alignedTime = 0;
@@ -57,15 +61,30 @@ export class StructuralRealignmentScene extends MiniGameScene {
     this.createHeader(
       'STRUCTURAL REALIGNMENT',
       THEME_COLOR,
-      `Severity ${this.anomaly?.severity || '?'} · Drag the nodes until every link turns green`
+      `Severity ${this.anomaly?.severity || '?'} · Realign the lattice — turn every link green`
     );
-    this.add.text(this.cx, 116, 'the springs pull toward their rest length — untangle the lattice and it locks', {
-      fontFamily: '"IBM Plex Mono", monospace', fontSize: '11px', color: '#565a72',
+    const help = this.showConnectors
+      ? 'drag each node onto its ringed marker — the guide line turns green when it lands'
+      : this.showGhosts
+        ? 'drag the nodes onto their ringed markers until every link turns green'
+        : 'no markers — read the links: green = at rest length, red = badly stressed';
+    this.add.text(this.cx, 116, help, {
+      fontFamily: '"IBM Plex Mono", monospace', fontSize: '11px', color: '#dfa73f',
     }).setOrigin(0.5);
 
     this.buildLattice();
 
     this.linkGfx = this.add.graphics();
+    this.ghostGfx = this.add.graphics(); // node -> marker guide lines (dynamic)
+
+    // Static target markers show where each free node belongs (low severity)
+    if (this.showGhosts) {
+      this.nodes.forEach((n) => {
+        if (n.anchor) return;
+        this.add.circle(n.tx, n.ty, NODE_R + 3, 0x000000, 0).setStrokeStyle(1, MG_COLORS.accent, 0.4);
+      });
+    }
+
     this.nodeGfx = this.nodes.map((n) => {
       const glow = this.add.circle(n.x, n.y, NODE_R + 5, THEME_COLOR, 0).setBlendMode(Phaser.BlendModes.ADD);
       const dot = this.add.circle(n.x, n.y, NODE_R, n.anchor ? MG_COLORS.accent : MG_COLORS.voidRaised)
@@ -202,6 +221,17 @@ export class StructuralRealignmentScene extends MiniGameScene {
   }
 
   render() {
+    // Guide lines from each free node to its marker (lowest severities)
+    this.ghostGfx.clear();
+    if (this.showConnectors) {
+      for (const n of this.nodes) {
+        if (n.anchor) continue;
+        const landed = Math.hypot(n.x - n.tx, n.y - n.ty) < 12;
+        this.ghostGfx.lineStyle(1, landed ? MG_COLORS.good : MG_COLORS.accent, landed ? 0.55 : 0.3);
+        this.ghostGfx.lineBetween(n.x, n.y, n.tx, n.ty);
+      }
+    }
+
     this.linkGfx.clear();
     let greenCount = 0;
     for (const e of this.edges) {
