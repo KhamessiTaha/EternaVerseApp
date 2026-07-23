@@ -24,8 +24,8 @@ const N_EXP = 5;          // fusion power exponent (T^5) vs T^4 cooling
 const DET = 2.0;          // detonation temperature (supernova breach)
 const QUENCH = 0.35;      // quench temperature (core-collapse breach)
 const BAND = [0.82, 1.18]; // stable green band around the ideal T=1
-const CTRL = 2.0;         // player control authority (per second)
-const NOISE = 0.25;       // fusion fluctuation amplitude
+const CTRL = 1.8;         // player control authority (per second)
+const NOISE = 0.13;       // fusion fluctuation amplitude
 
 function randn() {
   // cheap ~gaussian (sum of uniforms), std ≈ 1
@@ -42,9 +42,12 @@ export class CascadeReactionScene extends MiniGameScene {
     const severity = Math.max(1, Math.min(5, this.anomaly?.severity || 2));
     this.severity = severity;
 
-    this.coolK = 0.8 + severity * 0.12; // runaway speed
-    this.coreCount = Math.min(6, 2 + severity);
-    this.survivalTarget = 11 + severity * 1.2;
+    // Slow runaway: an unattended core drifts gently, so one operator can
+    // round-robin several. Difficulty comes from core COUNT, not raw speed -
+    // a fast runaway made 5+ cores literally unholdable by a lone player.
+    this.coolK = 0.34 + severity * 0.06;
+    this.coreCount = Math.min(5, 2 + severity);
+    this.survivalTarget = 11 + severity;
     this.maxBreaches = 3;
 
     this.cores = Array.from({ length: this.coreCount }, () => ({ T: 1.0, cd: 0 }));
@@ -194,6 +197,21 @@ export class CascadeReactionScene extends MiniGameScene {
       g.ring.setStrokeStyle(2, state, inBand ? 0.5 : 0.95).setRadius(radius + 8);
       g.tick.y = this.tempToY(T);
       g.tick.setFillStyle(state);
+    }
+
+    // Draw the eye to the core nearest a breach (that isn't already focused),
+    // so triage doesn't depend on scanning all cores every moment.
+    let crit = -1;
+    let worst = 0.24;
+    for (let i = 0; i < this.coreCount; i++) {
+      const d = Math.abs(this.cores[i].T - 1);
+      if (d > worst) { worst = d; crit = i; }
+    }
+    if (crit >= 0 && crit !== this.focus) {
+      const pulse = 0.5 + 0.5 * Math.sin(this.time.now / 110);
+      const g = this.coreGfx[crit];
+      g.ring.setStrokeStyle(3, MG_COLORS.critical, 0.4 + 0.55 * pulse);
+      g.glow.setFillStyle(MG_COLORS.critical, 0.12 + 0.28 * pulse);
     }
 
     // Move the focus bracket to the selected core
