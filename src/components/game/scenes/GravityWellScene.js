@@ -86,8 +86,13 @@ export class GravityWellScene extends MiniGameScene {
     this.createHeader(
       'GRAVITY WELL CONTAINMENT',
       THEME_COLOR,
-      `Severity ${this.anomaly?.severity || '?'} · Thrust to circularize — prograde raises the far side`
+      `Severity ${this.anomaly?.severity || '?'} · Circularize into the green ring`
     );
+
+    // Control legend - orbit-relative, matches the live status guidance
+    this.add.text(cx, 116, '↑ prograde   ↓ retrograde   ← radial in   → radial out', {
+      fontFamily: '"IBM Plex Mono", monospace', fontSize: '11px', color: '#dfa73f',
+    }).setOrigin(0.5);
 
     // Containment wall (escape boundary) and accretion radius (collapse boundary)
     this.add.circle(cx, cy, this.Rout, THEME_COLOR, 0).setStrokeStyle(2, THEME_COLOR, 0.55);
@@ -107,7 +112,7 @@ export class GravityWellScene extends MiniGameScene {
     this.probeGraphics = this.add.circle(cx, cy, 7, MG_COLORS.good);
 
     // Readouts
-    this.breachText = this.add.text(cx, 126, `BREACHES 0 / ${this.maxBreaches}`, {
+    this.breachText = this.add.text(cx, 142, `BREACHES 0 / ${this.maxBreaches}`, {
       fontFamily: '"IBM Plex Mono", monospace', fontSize: '13px', color: '#e0524a',
     }).setOrigin(0.5);
 
@@ -141,13 +146,22 @@ export class GravityWellScene extends MiniGameScene {
     let ax = -aMag * (this.probe.x / r);
     let ay = -aMag * (this.probe.y / r);
 
-    // --- Player thrust -----------------------------------------------------
+    // --- Player thrust (orbit-relative, NOT screen-relative) ---------------
+    // Prograde/retrograde/radial are defined off the probe's current motion
+    // and position, so the on-screen "thrust prograde" guidance always maps to
+    // the same key no matter where the probe is in its orbit. (Absolute arrow
+    // keys fought the rotating prograde direction and made this near-unplayable.)
+    const spd = Math.sqrt(this.vel.x * this.vel.x + this.vel.y * this.vel.y) || 1;
+    const proX = this.vel.x / spd;        // prograde: along motion
+    const proY = this.vel.y / spd;
+    const radX = this.probe.x / (r || 1); // radial: away from center
+    const radY = this.probe.y / (r || 1);
     let tx = 0;
     let ty = 0;
-    if (this.keys.LEFT.isDown) tx -= 1;
-    if (this.keys.RIGHT.isDown) tx += 1;
-    if (this.keys.UP.isDown) ty -= 1;
-    if (this.keys.DOWN.isDown) ty += 1;
+    if (this.keys.UP.isDown)    { tx += proX; ty += proY; } // prograde  → raises far side
+    if (this.keys.DOWN.isDown)  { tx -= proX; ty -= proY; } // retrograde → lowers far side
+    if (this.keys.RIGHT.isDown) { tx += radX; ty += radY; } // radial out
+    if (this.keys.LEFT.isDown)  { tx -= radX; ty -= radY; } // radial in
     if (tx !== 0 || ty !== 0) {
       const len = Math.sqrt(tx * tx + ty * ty);
       ax += (tx / len) * this.thrust;
