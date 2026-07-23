@@ -30,11 +30,30 @@ const CLIENT_ACTIONS = [
   { label: 'Next ship hull (session-only, ignores unlocks)', action: 'cycle-hull' },
 ];
 
+// Launch any anomaly minigame directly at a chosen severity - feel/difficulty
+// testing without hunting a matching anomaly. No server resolve (no reward).
+const MINIGAMES = [
+  { label: 'Gravity Well (orbital)', key: 'GravityWellScene' },
+  { label: 'Waveform Collapse (quantum)', key: 'WaveformCollapseScene' },
+  { label: 'Cascade Reaction (stellar)', key: 'CascadeReactionScene' },
+  { label: 'Polarity Balance (electromagnetic)', key: 'PolarityBalanceScene' },
+  { label: 'Expansion Containment (cosmological)', key: 'ExpansionContainmentScene' },
+  { label: 'Structural Realignment (structural)', key: 'StructuralRealignmentScene' },
+];
+
 export const DevPanel = ({ isOpen, onClose, onDevAction, onClientAction }) => {
   const [busy, setBusy] = useState(false);
   const [lastResult, setLastResult] = useState(null);
+  const [severity, setSeverity] = useState(3);
 
   if (!isOpen) return null;
+
+  const launchMinigame = (key) => {
+    const ok = onClientAction?.(`launch-minigame:${key}:${severity}`);
+    // Close the panel so the full-screen minigame is actually visible.
+    if (ok) onClose?.();
+    else setLastResult(`FAILED · ${key} - scene not ready, hard-refresh the tab`);
+  };
 
   // Fast-forward returns the stability trajectory so a jump's effect on the
   // reservoir is visible without opening the meter - "0.850 -> 0.494 (-0.356)".
@@ -112,6 +131,35 @@ export const DevPanel = ({ isOpen, onClose, onDevAction, onClientAction }) => {
               className="font-mono text-[11px] tracking-wider px-4 py-2 border border-line text-ink-dim hover:text-ink hover:border-line-bright text-left transition-colors"
             >
               {a.label}
+            </button>
+          ))}
+
+          <div className="font-mono text-[9px] uppercase tracking-wider text-ink-faint mt-3 mb-1">
+            Launch minigame (feel / difficulty test)
+          </div>
+          <div className="flex items-center gap-1 mb-1">
+            <span className="font-mono text-[10px] text-ink-faint mr-1">Severity</span>
+            {[1, 2, 3, 4, 5].map((s) => (
+              <button
+                key={s}
+                onClick={() => setSeverity(s)}
+                className={`font-mono text-[11px] px-2.5 py-1 border transition-colors ${
+                  severity === s
+                    ? 'border-accent text-accent'
+                    : 'border-line text-ink-dim hover:border-line-bright'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          {MINIGAMES.map((mg) => (
+            <button
+              key={mg.key}
+              onClick={() => launchMinigame(mg.key)}
+              className="font-mono text-[11px] tracking-wider px-4 py-2 border border-line text-ink-dim hover:text-ink hover:border-line-bright text-left transition-colors"
+            >
+              {mg.label} · sev {severity}
             </button>
           ))}
 

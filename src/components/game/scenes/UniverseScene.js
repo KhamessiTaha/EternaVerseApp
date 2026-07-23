@@ -858,6 +858,19 @@ export const UniverseSceneFactory = (props) => {
      */
     devAction(action) {
       if (!this.player) return false;
+
+      // Dev-only: launch any anomaly minigame directly at a chosen severity,
+      // for feel/difficulty testing without hunting a matching anomaly. The
+      // fake anomaly has no id, so handleMinigameComplete no-ops (no server
+      // resolve, no reward) - purely a mechanic playground.
+      if (action.startsWith('launch-minigame:')) {
+        const [, sceneKey, sevStr] = action.split(':');
+        const severity = Phaser.Math.Clamp(Number(sevStr) || 3, 1, 5);
+        this.events.emit('minigame:start', { anomaly: { severity } });
+        this.scene.launch(sceneKey, { anomaly: { severity, category: 'dev' } });
+        return true;
+      }
+
       switch (action) {
         case 'damage-hull': {
           const remaining = this.player.takeDamage(50);
