@@ -1,17 +1,27 @@
 /**
- * Polarity Balance Mini-Game
+ * Polarity Balance Mini-Game  —  real Lorentz-force magnetic confinement.
  *
- * An electromagnetic anomaly (magnetic reversal) is destabilizing both
- * magnetic poles at once. Keep North (W/S) and South (UP/DOWN) each inside
- * their target band while random reversal pulses knock them around - the
- * two poles are lightly coupled, so correcting one nudges the other. A
- * genuine divided-attention dual-task, distinct from the single continuous
- * 2D balance of the Gravity Well.
+ * An electromagnetic anomaly has spat out a charged probe that moves at
+ * constant speed and won't stop. Your only tool is the containment field's
+ * POLARITY: a magnetic field perpendicular to the plane curves the probe via
+ * the Lorentz force F = qv×B, always perpendicular to its motion, bending it
+ * into a circular arc (cyclotron motion) whose radius is r = mv/qB.
+ *
+ *   ← field one way  -> curve counter-clockwise
+ *   → field the other -> curve clockwise
+ *   neither           -> B = 0, the probe coasts in a straight line
+ *
+ * Thread the probe through the glowing flux nodes to drain the anomaly, using
+ * nothing but polarity to steer, while the containment wall stays lethal — the
+ * probe can't brake, so every approach is an arc you have to plan. The
+ * mechanic IS the physics: real cyclotron steering, no scripted timing.
  */
 import Phaser from 'phaser';
 import MiniGameScene, { MG_COLORS } from './MiniGameScene.js';
 
 const THEME_COLOR = 0x4ec9e0; // electromagnetic cyan
+const NODE_R = 20;            // flux-node collection radius
+const PROBE_R = 7;
 
 export class PolarityBalanceScene extends MiniGameScene {
   constructor() {
@@ -20,156 +30,151 @@ export class PolarityBalanceScene extends MiniGameScene {
 
   init(data) {
     super.init(data);
-
     const severity = Math.max(1, Math.min(5, this.anomaly?.severity || 2));
+    this.severity = severity;
 
-    this.north = 50;
-    this.south = 50;
-    this.targetMin = 35;
-    this.targetMax = 65;
-    this.hardMin = 10;
-    this.hardMax = 90;
+    this.speed = 150 + severity * 15;                 // px/s, constant
+    this.turnRadius = 44 + severity * 5;              // cyclotron radius
+    this.omega = this.speed / this.turnRadius;        // angular rate under field
+    this.nodesTarget = 4 + severity;
+    this.parTime = this.nodesTarget * 2.2;
 
-    this.nudgeAmount = 55;
-    this.coupling = 0.18;
-
-    this.pulseInterval = 2.6 - severity * 0.15;
-    this.timeSincePulse = 0;
-    this.pulseStrength = 10 + severity * 3;
-
-    this.survivalTarget = 12 + severity * 1.1;
-    this.elapsed = 0;
-    this.breaches = 0;
     this.maxBreaches = 3;
-
-    this.syncSamples = [];
+    this.breaches = 0;
+    this.collected = 0;
+    this._breachCd = 0;
+    this.elapsed = 0;
     this.gameOver = false;
   }
 
   create() {
     super.create();
-
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
-    const cy = height / 2 + 10;
+    this.cx = width / 2;
+    this.cy = height / 2 + 24;
+    this.rBound = Math.min(208, height / 2 - 70);
 
     this.createHeader(
       'POLARITY BALANCE',
       THEME_COLOR,
-      `Severity ${this.anomaly?.severity || '?'} · W/S = North pole · UP/DOWN = South pole`
+      `Severity ${this.anomaly?.severity || '?'} · Steer with the field · reach every flux node`
     );
-
-    const gaugeHeight = 220;
-    const gaugeWidth = 46;
-    const northX = width / 2 - 90;
-    const southX = width / 2 + 90;
-
-    this.northGauge = this.createGauge(northX, cy, gaugeWidth, gaugeHeight, 'NORTH');
-    this.southGauge = this.createGauge(southX, cy, gaugeWidth, gaugeHeight, 'SOUTH');
-
-    const barWidth = 240;
-    const barY = height - 70;
-    this.add.rectangle(width / 2, barY, barWidth, 6, MG_COLORS.line).setOrigin(0.5);
-    this.progressFill = this.add.rectangle(width / 2 - barWidth / 2, barY, 0, 6, THEME_COLOR).setOrigin(0, 0.5);
-    this.progressBarWidth = barWidth;
-
-    this.add.text(width / 2, barY + 16, 'SYNC TIME', {
-      fontFamily: '"IBM Plex Mono", monospace',
-      fontSize: '10px',
-      color: '#565a72',
+    this.add.text(this.cx, 116, '← field out (curve left)     → field in (curve right)     release = coast straight', {
+      fontFamily: '"IBM Plex Mono", monospace', fontSize: '11px', color: '#dfa73f',
     }).setOrigin(0.5);
 
-    this.breachText = this.add.text(width / 2, 130, `BREACHES 0 / ${this.maxBreaches}`, {
-      fontFamily: '"IBM Plex Mono", monospace',
-      fontSize: '13px',
-      color: '#e0524a',
+    this.collectText = this.add.text(this.cx - 120, 142, `NODES 0 / ${this.nodesTarget}`, {
+      fontFamily: '"IBM Plex Mono", monospace', fontSize: '13px', color: '#4fd1a5',
+    }).setOrigin(0, 0.5);
+    this.breachText = this.add.text(this.cx + 120, 142, `BREACHES 0 / ${this.maxBreaches}`, {
+      fontFamily: '"IBM Plex Mono", monospace', fontSize: '13px', color: '#e0524a',
+    }).setOrigin(1, 0.5);
+
+    // Containment wall
+    this.wall = this.add.circle(this.cx, this.cy, this.rBound, THEME_COLOR, 0.03).setStrokeStyle(2, THEME_COLOR, 0.5);
+
+    // Field polarity indicator (⊙ out of page / ⊗ into page)
+    this.fieldText = this.add.text(this.cx, this.cy + this.rBound + 26, '', {
+      fontFamily: '"IBM Plex Mono", monospace', fontSize: '13px', color: '#565a72',
     }).setOrigin(0.5);
 
-    this.keys = this.input.keyboard.addKeys('W,S,UP,DOWN');
+    // Probe (world coords relative to center)
+    this.probe = { x: 0, y: 0, th: -Math.PI / 2 };
+    this.trail = [];
+    this.maxTrail = 70;
+    this.trailGraphics = this.add.graphics();
+    this.probeGlow = this.add.circle(this.cx, this.cy, 15, THEME_COLOR, 0.3).setBlendMode(Phaser.BlendModes.ADD);
+    this.probeDot = this.add.circle(this.cx, this.cy, PROBE_R, MG_COLORS.ink);
+
+    // First flux node
+    this.node = this.add.circle(0, 0, NODE_R * 0.55, MG_COLORS.good, 0.9);
+    this.nodeGlow = this.add.circle(0, 0, NODE_R, MG_COLORS.good, 0.25).setBlendMode(Phaser.BlendModes.ADD);
+    this.spawnNode();
+
+    this.keys = this.input.keyboard.addKeys('LEFT,RIGHT');
   }
 
-  createGauge(x, y, w, h, label) {
-    this.add.rectangle(x, y, w, h, MG_COLORS.voidRaised).setStrokeStyle(1, MG_COLORS.line);
-
-    const bandTop = y - h / 2 + (h * (100 - this.targetMax)) / 100;
-    const bandHeight = (h * (this.targetMax - this.targetMin)) / 100;
-    this.add.rectangle(x, bandTop + bandHeight / 2, w, bandHeight, THEME_COLOR, 0.15)
-      .setStrokeStyle(1, THEME_COLOR, 0.5);
-
-    const fill = this.add.rectangle(x, y + h / 2, w - 6, 0, THEME_COLOR).setOrigin(0.5, 1);
-
-    this.add.text(x, y - h / 2 - 14, label, {
-      fontFamily: '"IBM Plex Mono", monospace',
-      fontSize: '11px',
-      color: '#9497ad',
-    }).setOrigin(0.5);
-
-    return { x, y, w, h, fill };
-  }
-
-  updateGaugeFill(gauge, value) {
-    const ratio = Phaser.Math.Clamp(value, 0, 100) / 100;
-    gauge.fill.height = gauge.h * ratio;
-    gauge.fill.y = gauge.y + gauge.h / 2;
-
-    const inBand = value >= this.targetMin && value <= this.targetMax;
-    const critical = value <= this.hardMin || value >= this.hardMax;
-    gauge.fill.fillColor = inBand ? MG_COLORS.good : critical ? MG_COLORS.critical : THEME_COLOR;
+  spawnNode() {
+    const a = Math.random() * Math.PI * 2;
+    // Up to 0.8 R: some nodes hug the wall, making the approach genuinely risky.
+    const rr = (0.25 + Math.random() * 0.55) * this.rBound;
+    this.nodePos = { x: Math.cos(a) * rr, y: Math.sin(a) * rr };
+    this.node.setPosition(this.cx + this.nodePos.x, this.cy + this.nodePos.y);
+    this.nodeGlow.setPosition(this.cx + this.nodePos.x, this.cy + this.nodePos.y);
   }
 
   update(time, delta) {
     if (this.gameOver) return;
-    const dt = delta / 1000;
+    const dt = Math.min(delta / 1000, 0.04);
     this.elapsed += dt;
-    this.timeSincePulse += dt;
+    if (this._breachCd > 0) this._breachCd -= dt;
 
-    if (this.timeSincePulse >= this.pulseInterval) {
-      this.timeSincePulse = 0;
-      const pulse = (Math.random() - 0.5) * 2 * this.pulseStrength;
-      this.north = Phaser.Math.Clamp(this.north + pulse, 0, 100);
-      this.south = Phaser.Math.Clamp(this.south - pulse * 0.6, 0, 100);
+    // Lorentz steering: field polarity sets the turn direction; none = straight.
+    const left = this.keys.LEFT.isDown;
+    const right = this.keys.RIGHT.isDown;
+    if (left && !right) this.probe.th -= this.omega * dt;
+    else if (right && !left) this.probe.th += this.omega * dt;
+
+    this.probe.x += Math.cos(this.probe.th) * this.speed * dt;
+    this.probe.y += Math.sin(this.probe.th) * this.speed * dt;
+
+    // Containment wall (lethal)
+    const r = Math.hypot(this.probe.x, this.probe.y);
+    if (r > this.rBound - PROBE_R) {
+      if (this._breachCd <= 0) this.registerBreach();
+      // Reflect inward so one graze isn't an instant cascade
+      const ang = Math.atan2(this.probe.y, this.probe.x);
+      this.probe.x = Math.cos(ang) * (this.rBound - PROBE_R - 2);
+      this.probe.y = Math.sin(ang) * (this.rBound - PROBE_R - 2);
+      this.probe.th = ang + Math.PI + (Math.random() - 0.5) * 0.4; // head back inward
     }
 
-    let northDelta = 0;
-    let southDelta = 0;
-    if (this.keys.W.isDown) northDelta -= this.nudgeAmount * dt;
-    if (this.keys.S.isDown) northDelta += this.nudgeAmount * dt;
-    if (this.keys.UP.isDown) southDelta -= this.nudgeAmount * dt;
-    if (this.keys.DOWN.isDown) southDelta += this.nudgeAmount * dt;
-
-    this.north = Phaser.Math.Clamp(this.north + northDelta - southDelta * this.coupling, 0, 100);
-    this.south = Phaser.Math.Clamp(this.south + southDelta - northDelta * this.coupling, 0, 100);
-
-    this.updateGaugeFill(this.northGauge, this.north);
-    this.updateGaugeFill(this.southGauge, this.south);
-
-    const northSync = this.north >= this.targetMin && this.north <= this.targetMax ? 1 : 0;
-    const southSync = this.south >= this.targetMin && this.south <= this.targetMax ? 1 : 0;
-    this.syncSamples.push((northSync + southSync) / 2);
-
-    if (this.north <= this.hardMin || this.north >= this.hardMax || this.south <= this.hardMin || this.south >= this.hardMax) {
-      this.registerBreach();
+    // Flux-node collection
+    if (Math.hypot(this.probe.x - this.nodePos.x, this.probe.y - this.nodePos.y) < NODE_R + PROBE_R) {
+      this.collected++;
+      this.collectText.setText(`NODES ${this.collected} / ${this.nodesTarget}`);
+      // Positive feedback color triggers the 'hit' audio cue via the base class.
+      this.showFeedback('+FLUX', MG_COLORS.good, this.cx + this.nodePos.x, this.cy + this.nodePos.y - 26);
+      if (this.collected >= this.nodesTarget) { this.endGame(true); return; }
+      this.spawnNode();
     }
 
-    const progress = Math.min(1, this.elapsed / this.survivalTarget);
-    this.progressFill.width = this.progressBarWidth * progress;
+    this.render(left, right);
+  }
 
-    if (this.elapsed >= this.survivalTarget) {
-      this.endGame(true);
-    } else if (this.breaches >= this.maxBreaches) {
-      this.endGame(false);
-    }
+  render(left, right) {
+    const px = this.cx + this.probe.x;
+    const py = this.cy + this.probe.y;
+    this.probeDot.setPosition(px, py);
+    this.probeGlow.setPosition(px, py);
+
+    // Trail traces the cyclotron arcs
+    this.trail.push({ x: px, y: py });
+    if (this.trail.length > this.maxTrail) this.trail.shift();
+    this.trailGraphics.clear();
+    this.trailGraphics.lineStyle(2, THEME_COLOR, 0.55);
+    this.trailGraphics.beginPath();
+    this.trail.forEach((p, i) => (i === 0 ? this.trailGraphics.moveTo(p.x, p.y) : this.trailGraphics.lineTo(p.x, p.y)));
+    this.trailGraphics.strokePath();
+
+    // Wall glows red when the probe is close to escaping
+    const r = Math.hypot(this.probe.x, this.probe.y);
+    const near = r > this.rBound * 0.82;
+    this.wall.setStrokeStyle(2, near ? MG_COLORS.critical : THEME_COLOR, near ? 0.9 : 0.5);
+
+    if (left && !right) this.fieldText.setText('⊙ FIELD OUT — curving left').setColor('#4ec9e0');
+    else if (right && !left) this.fieldText.setText('⊗ FIELD IN — curving right').setColor('#4ec9e0');
+    else this.fieldText.setText('— NO FIELD — coasting straight').setColor('#565a72');
   }
 
   registerBreach() {
     this.breaches++;
+    this._breachCd = 0.7;
     this.breachText.setText(`BREACHES ${this.breaches} / ${this.maxBreaches}`);
-    this.shake(200, 0.01);
-    this.showFeedback('POLARITY BREACH!', MG_COLORS.critical, this.cameras.main.width / 2, 170);
-
-    // Snap both poles back toward center so one breach doesn't cascade every frame
-    this.north = 50 + (this.north - 50) * 0.3;
-    this.south = 50 + (this.south - 50) * 0.3;
+    this.shake(180, 0.01);
+    this.showFeedback('CONTAINMENT BREACH!', MG_COLORS.critical, this.cx, this.cy - this.rBound - 22);
+    if (this.breaches >= this.maxBreaches) this.endGame(false);
   }
 
   endGame(success) {
@@ -177,11 +182,9 @@ export class PolarityBalanceScene extends MiniGameScene {
     this.gameOver = true;
     this.input.keyboard.off('keydown-ESC');
 
-    const avg = this.syncSamples.length > 0
-      ? this.syncSamples.reduce((a, b) => a + b, 0) / this.syncSamples.length
-      : 0;
-    const accuracy = Math.round(Phaser.Math.Clamp(avg * 100, 0, 100));
-    const score = Math.max(0, Math.round(accuracy * 12 - this.breaches * 150));
+    const timePenalty = Math.max(0, this.elapsed - this.parTime);
+    const accuracy = Math.round(Phaser.Math.Clamp(100 - this.breaches * 15 - timePenalty * 1.5, 0, 100));
+    const score = Math.max(0, Math.round(this.collected * 70 + accuracy * 6 - this.breaches * 130));
 
     this.finishGame({
       status: success ? 'success' : 'failed',
@@ -189,14 +192,14 @@ export class PolarityBalanceScene extends MiniGameScene {
       score,
       themeColor: THEME_COLOR,
       statLines: [
-        { label: 'Sync Time', value: `${this.elapsed.toFixed(1)}s / ${this.survivalTarget.toFixed(1)}s` },
-        { label: 'Avg. Sync', value: `${accuracy}%` },
+        { label: 'Flux Nodes', value: `${this.collected} / ${this.nodesTarget}` },
+        { label: 'Time', value: `${this.elapsed.toFixed(1)}s (par ${this.parTime.toFixed(0)}s)` },
         { label: 'Breaches', value: `${this.breaches} / ${this.maxBreaches}` },
         { label: 'Score', value: score },
       ],
       flavorText: success
-        ? 'Dipole field re-synchronized - polarity holding steady.'
-        : 'Poles decoupled - magnetic field reversal runaway.',
+        ? 'Flux drained — the field held and the polarity anomaly collapsed.'
+        : 'The probe escaped confinement — magnetic reversal ran away.',
     });
   }
 }
