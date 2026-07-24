@@ -113,7 +113,7 @@ export const Console = ({ universe, stats }) => {
           <StatLine label="Research" value={`${universe?.research?.points ?? 0} RP`} valueClass="text-accent" />
           <StatLine label="Discovered" value={stats.discovered} />
           <StatLine label="Resolved" value={stats.resolved} />
-          <StatLine label="Backend Active" value={activeBackendAnomalies} valueClass="text-warn" />
+          <StatLine label="Critical Active" value={activeBackendAnomalies} valueClass="text-warn" />
         </ConsoleSection>
       )}
     </div>

@@ -220,11 +220,11 @@ export const FullMapPanel = ({ isOpen, onClose, fullMapData }) => {
           <div className="space-y-1.5 text-[10px] text-ink-dim">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-warn" />
-              Backend anomaly
+              Critical anomaly
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-ink-faint" />
-              Procedural anomaly
+              Minor anomaly
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full border border-good" />
