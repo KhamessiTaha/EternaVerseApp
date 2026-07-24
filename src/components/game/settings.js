@@ -12,7 +12,11 @@ const STORAGE_KEY = "eternaverse:settings";
 
 export const DEFAULT_SETTINGS = {
   keyboardLayout: "azerty", // "azerty" (ZQSD, the original bindings) | "qwerty" (WASD)
-  flightModel: "newtonian", // "newtonian" (full inertia) | "assisted" (lateral grip + auto-brake)
+  // "direct" (arrow-key arcade: go where you point, ship auto-faces, snappy) is
+  // the default so new players aren't dropped into a hard flight sim.
+  // "assisted" (lateral grip + auto-brake) and "newtonian" (full inertia) are the
+  // rotate-then-thrust models for players who want the sim feel.
+  flightModel: "direct", // "direct" | "assisted" | "newtonian"
   turnSensitivity: 1.0,     // 0.2 - 2.0 multiplier on rotation accel + max turn rate
   cameraShake: true,        // all camera shake effects (boost rumble, hits, breaches)
   graphicsQuality: "high", // "low" | "medium" | "high" - overall rendering detail

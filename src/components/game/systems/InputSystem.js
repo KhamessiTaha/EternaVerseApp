@@ -156,6 +156,12 @@ export class InputSystem {
       map: Phaser.Input.Keyboard.KeyCodes.M,
       fix: Phaser.Input.Keyboard.KeyCodes.F,
       scan: Phaser.Input.Keyboard.KeyCodes.V,
+      // Arrow keys drive the "direct" arcade flight model (layout-independent).
+      // In direct mode the WASD/ZQSD movement cluster also works directionally.
+      arrowUp: Phaser.Input.Keyboard.KeyCodes.UP,
+      arrowDown: Phaser.Input.Keyboard.KeyCodes.DOWN,
+      arrowLeft: Phaser.Input.Keyboard.KeyCodes.LEFT,
+      arrowRight: Phaser.Input.Keyboard.KeyCodes.RIGHT,
     });
 
     this.mapKey = this.keys.map;
@@ -321,6 +327,14 @@ export class InputSystem {
     // a physically honest soft wall at the speed of light.
     mods.thrust /= this.scene.gamma || 1;
 
+    // Direct/arcade model gets its own self-contained routine (go-where-you-
+    // point, auto-facing, strong damping). The rotate-then-thrust models
+    // (newtonian/assisted) fall through to the code below.
+    if (getSettings().flightModel === "direct") {
+      this._handleDirectMovement(player, delta, mods, hullStats);
+      return;
+    }
+
     // --- SMOOTH ROTATION WITH ACCELERATION ---
     // Turn sensitivity (settings) scales both how fast rotation ramps up and
     // its cap, so the whole turn feel shifts together. Hull turn rating
@@ -454,6 +468,92 @@ export class InputSystem {
 
       v.x = forward * brake * fx + latX * grip;
       v.y = forward * brake * fy + latY * grip;
+    }
+  }
+
+  /**
+   * DIRECT / ARCADE flight model (the beginner-friendly default).
+   *
+   * You press a direction (arrow keys, or the WASD/ZQSD cluster) and the ship
+   * accelerates that way in screen space and rotates to FACE its motion - no
+   * separate "aim the nose, then thrust" step. Releasing the keys glides to a
+   * quick stop. SHIFT still boosts. This shares the boost-energy economy and
+   * the top-speed cap with the sim models so upgrades/HUD behave identically.
+   */
+  _handleDirectMovement(player, delta, mods, hullStats) {
+    // No manual rotation input in this model - keep rotationVelocity at 0 so
+    // UniverseScene.applyBanking doesn't inherit a stale value from a prior
+    // sim-mode session and bank the ship indefinitely.
+    this.rotationVelocity = 0;
+
+    // Directional input: arrow keys OR the movement cluster (in this mode the
+    // thrust/brake/turn keys are just up/down/left/right).
+    let dx = 0;
+    let dy = 0;
+    if (this.keys.arrowUp.isDown || this.keys.thrust.isDown) dy -= 1;
+    if (this.keys.arrowDown.isDown || this.keys.brake.isDown) dy += 1;
+    if (this.keys.arrowLeft.isDown || this.keys.left.isDown) dx -= 1;
+    if (this.keys.arrowRight.isDown || this.keys.right.isDown) dx += 1;
+
+    const hasInput = dx !== 0 || dy !== 0;
+
+    const isBoosting = this.keys.boost.isDown && this.boostEnergy > 0 && !this.boostLocked && hasInput;
+    const thrustMultiplier = isBoosting ? this.params.BOOST_MULTIPLIER : 1;
+
+    if (hasInput) {
+      const len = Math.sqrt(dx * dx + dy * dy);
+      const ux = dx / len;
+      const uy = dy / len;
+
+      const thrust = this.params.THRUST * mods.thrust * thrustMultiplier;
+      player.setAcceleration(ux * thrust, uy * thrust);
+
+      // Rotate the sprite to face travel direction. The ship's "forward" is
+      // rotation - PI/2, so the facing rotation is atan2(dir) + PI/2. Turn
+      // toward it smoothly (snappy but not instant), scaled by turn settings.
+      const sensitivity = (getSettings().turnSensitivity || 1) * (hullStats.turn || 1);
+      const targetRotation = Math.atan2(uy, ux) + Math.PI / 2;
+      const turnStep = 0.35 * sensitivity * (delta / (1000 / 60));
+      player.rotation = Phaser.Math.Angle.RotateTo(player.rotation, targetRotation, turnStep);
+    } else {
+      player.setAcceleration(0, 0);
+    }
+
+    // Strong damping so "let go = stop": velocity bleeds off fast when no
+    // direction is held, and mildly while thrusting so the ship stays
+    // responsive and reaches a controllable terminal speed instead of drifting.
+    const dragFactor = hasInput ? 0.985 : 0.86;
+    const v = player.body.velocity;
+    v.x = decayByDelta(v.x, dragFactor, delta);
+    v.y = decayByDelta(v.y, dragFactor, delta);
+
+    // --- BOOST ENERGY MANAGEMENT (shared economy with the sim models) ---
+    if (isBoosting) {
+      this.boostEnergy = Math.max(0, this.boostEnergy - scaleByDelta(this.params.BOOST_COST, delta));
+    } else if (this.boostEnergy < 100) {
+      this.boostEnergy = Math.min(100, this.boostEnergy + scaleByDelta(this.boostRechargeRate * mods.boostRecharge, delta));
+    }
+
+    if (this.boostEnergy <= 0) {
+      if (!this.boostLocked) {
+        playSfx('boostDepleted');
+        narrateOnce('boost-locked', pick(CURATOR.boostLocked));
+      }
+      this.boostLocked = true;
+    } else if (this.boostLocked && this.boostEnergy >= this.params.BOOST_LOCKOUT_THRESHOLD) {
+      this.boostLocked = false;
+    }
+
+    player.boostEnergy = this.boostEnergy;
+    player.boostLocked = this.boostLocked;
+    player.isBoosting = isBoosting;
+
+    // Resultant-speed cap (same authority as the sim models; boost raises it).
+    const maxSpeed = this.params.MAX_SPEED * mods.maxSpeed *
+      (isBoosting ? this.params.BOOST_SPEED_MULTIPLIER : 1);
+    const speed = v.length();
+    if (speed > maxSpeed) {
+      v.setLength(Math.max(maxSpeed, decayByDelta(speed, 0.985, delta)));
     }
   }
 

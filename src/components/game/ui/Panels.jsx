@@ -132,12 +132,21 @@ const MOVE_LAYOUTS = {
 // by the ESC menu (each entry shows its key), so duplicating them in the
 // corner was clutter.
 export const ControlsHint = () => {
-  const [layout, setLayout] = useState(getSettings().keyboardLayout);
-  useEffect(() => onSettingsChange(() => setLayout(getSettings().keyboardLayout)), []);
+  const [input, setInput] = useState(() => {
+    const s = getSettings();
+    return { layout: s.keyboardLayout, flightModel: s.flightModel };
+  });
+  useEffect(() => onSettingsChange((s) => setInput({ layout: s.keyboardLayout, flightModel: s.flightModel })), []);
+
+  // Direct (arcade) flight is driven by arrow keys; the sim models use the
+  // rotate-then-thrust cluster from the keyboard layout.
+  const moveKeys = input.flightModel === 'direct'
+    ? 'ARROWS'
+    : (MOVE_LAYOUTS[input.layout] || MOVE_LAYOUTS.azerty);
 
   return (
     <div className="text-[10px] text-ink-faint text-right leading-loose font-mono pointer-events-auto select-none">
-      <div><Key>{MOVE_LAYOUTS[layout] || MOVE_LAYOUTS.azerty}</Key>move</div>
+      <div><Key>{moveKeys}</Key>move</div>
       <div><Key>F</Key>resolve anomaly</div>
       <div><Key>V</Key>scan object</div>
       <div><Key>G</Key>first contact</div>

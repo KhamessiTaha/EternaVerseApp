@@ -91,13 +91,14 @@ export const SettingsPanel = ({ isOpen, onClose }) => {
           />
         </SettingRow>
 
-        <SettingRow label="Flight Model" hint="Assisted grips sideways drift and auto-brakes when you release thrust">
+        <SettingRow label="Flight Model" hint="Direct: arrow keys, go where you point (easiest). Assisted/Newtonian: aim the nose then thrust, with more inertia">
           <OptionButtons
             value={settings.flightModel}
             onSelect={(v) => change({ flightModel: v })}
             options={[
-              { value: 'newtonian', label: 'NEWTONIAN' },
+              { value: 'direct', label: 'DIRECT' },
               { value: 'assisted', label: 'ASSISTED' },
+              { value: 'newtonian', label: 'NEWTONIAN' },
             ]}
           />
         </SettingRow>
