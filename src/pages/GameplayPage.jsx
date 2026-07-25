@@ -9,6 +9,7 @@ import {
   submitDiscoveries,
   purchaseUpgrade,
   contactCivilization,
+  respondPetition,
   devAction,
   claimMission,
   resolveMinorAnomaly,
@@ -22,6 +23,7 @@ import { playSfx } from "../components/game/audio";
 import { narrate, narrateOnce, pick, CURATOR } from "../components/game/narrator";
 import { progressOf } from "../components/game/ui/MissionsPanel";
 import { WelcomeBackPanel, buildDigest } from "../components/game/ui/WelcomeBackPanel";
+import { PetitionPanel } from "../components/game/ui/PetitionPanel";
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -303,6 +305,50 @@ const GameplayPage = () => {
     }
   };
 
+  // Civilizations petition the player (utils/petitionSystem.js). New petitions
+  // arrive on the universe object after a sim tick / on load; announce each
+  // once and surface the oldest unanswered one in a dialog.
+  const seenPetitionsRef = useRef(new Set());
+  const dismissedPetitionsRef = useRef(new Set());
+  const [petition, setPetition] = useState(null);
+
+  useEffect(() => {
+    if (!universe) return;
+    const list = (universe.civilizations || [])
+      .filter((c) => c.petition && !c.extinct)
+      .map((c) => ({ civId: c.id, personality: c.personality, ...c.petition }));
+
+    for (const p of list) {
+      if (!seenPetitionsRef.current.has(p.id)) {
+        seenPetitionsRef.current.add(p.id);
+        toast(`${p.civName} calls out to you`, 'info', 8000);
+        narrate(pick(CURATOR.petition));
+      }
+    }
+
+    setPetition((prev) => {
+      if (prev && list.some((p) => p.id === prev.id)) {
+        return list.find((p) => p.id === prev.id); // keep open, refreshed
+      }
+      // otherwise open the oldest active petition the player hasn't deferred
+      return list.find((p) => !dismissedPetitionsRef.current.has(p.id)) || null;
+    });
+  }, [universe, toast]);
+
+  const handlePetitionResponse = async (civId, petitionId, optionId) => {
+    try {
+      const data = await respondPetition(id, civId, petitionId, optionId);
+      if (data.ok && data.universe) {
+        setUniverse(data.universe);
+        announceAchievements(data.newAchievements);
+        if (data.message) toast(data.message, 'info', 7000);
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.response?.data?.error || "Response failed - try again" };
+    }
+  };
+
   // Claim a completed mission - server validates completion and issues a
   // replacement; the response carries the updated universe.
   const handleClaimMission = async (missionId) => {
@@ -540,6 +586,16 @@ const GameplayPage = () => {
           onClose={() => {
             setDigest(null);
             narrate(pick(CURATOR.welcomeBack));
+          }}
+        />
+      )}
+      {petition && !digest && (
+        <PetitionPanel
+          petition={petition}
+          onRespond={handlePetitionResponse}
+          onClose={() => {
+            dismissedPetitionsRef.current.add(petition.id);
+            setPetition(null);
           }}
         />
       )}

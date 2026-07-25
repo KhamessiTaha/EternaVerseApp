@@ -222,6 +222,24 @@ export const contactCivilization = async (universeId, civId, action) => {
   }
 };
 
+// Answer a civilization's petition. optionId is one of the petition's options.
+export const respondPetition = async (universeId, civId, petitionId, optionId) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/respond-petition`,
+      { civId, petitionId, optionId },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error responding to petition:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Get the ML predictor's risk forecast (stability, anomaly emergence,
 // end-condition risks, action priorities) for the Chronicle's threat panel.
 export const getPredictions = async (universeId) => {

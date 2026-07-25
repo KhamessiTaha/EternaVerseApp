@@ -200,6 +200,12 @@ export const CURATOR = {
     "I kept notes while you were gone. I always keep notes. Welcome back, warden.",
     "The universe managed without you. Barely, I'd say, but I'm biased toward flattery.",
   ],
+  petition: [
+    "A civilization is calling out to you. They think you're listening. You might as well prove them right.",
+    "Someone down there wants a decision from the sky. How it feels, to be prayed to and petitioned at once.",
+    "A world has a request for its god. Do try to answer before they give up on you.",
+    "They're hailing you, warden. Whatever you choose, they'll build a story around it. They always do.",
+  ],
   events: {
     supernova: (dir) => pick([
       `A star to the ${dir} has begun its death spiral. Ninety seconds, give or take. Front-row seats are... educational. Briefly.`,

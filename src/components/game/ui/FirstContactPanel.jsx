@@ -22,6 +22,17 @@ const ATTITUDE_INFO = {
     line: 'They fire on your vessel on sight. Approach at your own risk.' },
 };
 
+// Disposition assigned server-side (utils/petitionSystem.js); flavors the
+// petitions this civ raises. Shown so the personality is visible even before
+// they call out to you.
+const PERSONALITY_INFO = {
+  militant: { label: 'MILITANT', cls: 'text-critical border-critical/40' },
+  devout: { label: 'DEVOUT', cls: 'text-[#f5cf7a] border-[#f5cf7a]/40' },
+  scholarly: { label: 'SCHOLARLY', cls: 'text-accent border-accent/40' },
+  mercantile: { label: 'MERCANTILE', cls: 'text-good border-good/40' },
+  insular: { label: 'INSULAR', cls: 'text-ink-dim border-line-bright' },
+};
+
 const TYPE_INFO = {
   Type0: { label: 'TYPE 0 · PRE-PLANETARY', color: 'text-ink-dim border-line-bright' },
   Type1: { label: 'TYPE I · PLANETARY', color: 'text-good border-good/40' },
@@ -141,6 +152,11 @@ export const FirstContactPanel = ({ civId, onClose, universe, onAction }) => {
               <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 border ${attitude.cls}`}>
                 {attitude.label}
               </span>
+              {civ.personality && PERSONALITY_INFO[civ.personality] && (
+                <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 border ${PERSONALITY_INFO[civ.personality].cls}`}>
+                  {PERSONALITY_INFO[civ.personality].label}
+                </span>
+              )}
             </div>
             <p className="text-ink-faint text-[10px] font-mono tracking-wider uppercase mt-0.5">
               First Contact Protocol
