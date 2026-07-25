@@ -39,3 +39,31 @@ export const CODEX_ENTRIES = {
 export const getCodexEntry = (objectClass) =>
   CODEX_ENTRIES[objectClass] ??
   "An uncataloged phenomenon. Observational data insufficient - further study required.";
+
+// The real physics you use to CONTAIN each anomaly - one per type, matched to
+// its minigame. This is the payoff that ties the mechanic back to the science:
+// having just played it, here is why it was real.
+export const CODEX_CONTAINMENT = {
+  blackHoleMerger:
+    "Contained by orbital insertion: thread a probe into a stable circular orbit just outside the accretion radius, matching v = √(GM/r). Thrust prograde to raise the far side of the orbit, retrograde to lower it — you never point at the target, you shape the orbit around it.",
+  darkMatterClump:
+    "Dark matter answers to nothing but gravity, so gravity is your only lever. Ride a stable orbit at the balance radius where orbital motion and infall exactly cancel, and hold it there while the density spike bleeds off.",
+  darkEnergySurge:
+    "Contained by steering the local expansion rate back onto its cosmological track — injecting or withdrawing dark energy to keep the scale factor following the Friedmann history, never collapsing to a Crunch nor running away to a Rip.",
+  supernovaChain:
+    "Contained by managing each core's thermonuclear equilibrium: fusion power climbs as T⁵, so a core left too hot runs away to detonation and too cold quenches to collapse. You supply the thermostat each core has lost, catching every excursion in time.",
+  quantumFluctuation:
+    "Contained by measurement: collapse the superposition into its stable eigenstate. The outcome is probabilistic (|ψ|²), so you shape the wave packet to load the odds — but squeezing it to raise the peak probability spreads its momentum, and it drifts faster.",
+  quantumTunneling:
+    "The same measurement discipline as a vacuum fluctuation: repeatedly collapse the tunneling amplitude into the bound state before it leaks through the barrier. Localize the packet to raise your odds, and pay for it in momentum spread.",
+  galacticCollision:
+    "Contained by relaxing the disrupted structure to its rest configuration — a mass-spring lattice where every link seeks its natural length. Untangle it from its stressed state and the elastic forces snap it taut at minimum energy.",
+  cosmicVoid:
+    "Treated as a strained spacetime lattice: the underdense region has pulled the surrounding structure out of equilibrium. Realign the network of nodes until every link returns to its rest tension.",
+  cosmicString:
+    "A one-dimensional defect under mountainous tension. Contained by realigning the strained lattice around it into its minimum-energy geometry, distributing the string's stress across the whole network.",
+  magneticReversal:
+    "Contained with the Lorentz force: a charged probe curves via F = qv×B as it crosses the reversing field. Flip the field polarity to steer it, sweeping up the loose flux nodes without letting it break confinement.",
+};
+
+export const getCodexContainment = (objectClass) => CODEX_CONTAINMENT[objectClass] ?? null;
