@@ -54,7 +54,10 @@ export class TextureFactory {
     for (const [family, paths] of Object.entries(CUSTOM_ASSETS)) {
       (paths || []).forEach((path, i) => {
         const key = customTextureKey(family, i);
-        if (!scene.textures.exists(key)) scene.load.image(key, path);
+        // Absolute from the site root - the game runs at /gameplay/:id, so a
+        // relative path would 404 against the route and fall back to procedural.
+        const url = path.startsWith("/") ? path : `/${path}`;
+        if (!scene.textures.exists(key)) scene.load.image(key, url);
       });
     }
   }
