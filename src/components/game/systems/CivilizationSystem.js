@@ -10,6 +10,7 @@ import { getChunkCoords, getChunkKey, civDesignation, civAttitude } from "../uti
 import { playSfx } from "../audio.js";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
+import { civVisibleAt, civLocation, civHostStructureAt } from "../world/civPlacement.js";
 import { narrateOnce, pick, CURATOR } from "../narrator.js";
 
 // Kardashev type -> beacon color (matches the escalation feel: mundane ->
@@ -113,24 +114,66 @@ export class CivilizationSystem {
 
   renderVisible(loadedChunks) {
     const player = this.scene.player;
+    const seed = this.scene.worldSeed?.() ?? this.scene.universe?.seed ?? "seed";
+    const world = this.scene.world ?? { scale: "galactic", path: [] };
 
     for (const beacon of this.beacons.values()) {
-      const { x, y } = beacon.data.location;
+      // A civ only appears at the scale + descent path it actually inhabits
+      // (Cosmic Scales Phase 2). Its beacon position is derived per-civ.
+      beacon.visible = civVisibleAt(seed, beacon.data, world);
+      if (!beacon.visible) {
+        if (beacon.visual) { this.destroyVisual(beacon.visual); beacon.visual = null; }
+        continue;
+      }
+
+      const { x, y } = civLocation(beacon.data);
+      beacon.loc = { x, y };
 
       if (!beacon.visual) {
         const chunk = getChunkCoords(x, y);
         if (loadedChunks.has(getChunkKey(chunk.chunkX, chunk.chunkY))) {
-          beacon.visual = this.createBeacon(beacon.data);
+          beacon.visual = this.createBeacon(beacon.data, beacon.loc);
         }
       } else if (player && Phaser.Math.Distance.Between(player.x, player.y, x, y) > CULL_DISTANCE) {
         this.destroyVisual(beacon.visual);
         beacon.visual = null;
       }
     }
+
+    this._renderHostMarkers(loadedChunks, seed, world);
   }
 
-  createBeacon(civ) {
-    const { x, y } = civ.location;
+  // Mark descendable structures (galaxies at galactic, stars at stellar) that
+  // contain a civ living deeper, so descent is purposeful rather than blind.
+  _renderHostMarkers(loadedChunks, seed, world) {
+    (this._hostMarkers || []).forEach((m) => { this.scene.tweens.killTweensOf(m); m.destroy(); });
+    this._hostMarkers = [];
+
+    const hostIds = new Set();
+    for (const beacon of this.beacons.values()) {
+      const id = civHostStructureAt(seed, beacon.data, world);
+      if (id) hostIds.add(id);
+    }
+    if (hostIds.size === 0) return;
+
+    for (const chunk of loadedChunks.values()) {
+      for (const entry of chunk.objects) {
+        if (!hostIds.has(entry.descriptor.id)) continue;
+        const { x, y } = entry.descriptor;
+        const marker = this.scene.add.graphics({ x, y }).setDepth(7);
+        marker.lineStyle(1.5, 0x4fd1a5, 0.9);
+        marker.strokeCircle(0, 0, 22);
+        this.scene.tweens.add({
+          targets: marker, scaleX: 1.5, scaleY: 1.5, alpha: { from: 0.9, to: 0.2 },
+          duration: 1500, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+        });
+        this._hostMarkers.push(marker);
+      }
+    }
+  }
+
+  createBeacon(civ, loc) {
+    const { x, y } = loc ?? civ.location;
     const color = CIV_TYPE_COLORS[civ.type] ?? CIV_TYPE_COLORS.Type0;
     const attitude = civAttitude(civ);
 
@@ -221,12 +264,14 @@ export class CivilizationSystem {
     }
   }
 
-  /** Nearest contactable civilization within range, as plain data. */
+  /** Nearest contactable civilization within range, as plain data. Only civs
+   *  rendered at the current scale (with a live beacon) are contactable. */
   findNearest(player, range = 300) {
     let nearest = null;
     let best = range;
     for (const beacon of this.beacons.values()) {
-      const { x, y } = beacon.data.location;
+      if (!beacon.visual) continue;
+      const { x, y } = beacon.loc ?? beacon.data.location;
       const d = Phaser.Math.Distance.Between(player.x, player.y, x, y);
       if (d < best) {
         best = d;
@@ -236,13 +281,15 @@ export class CivilizationSystem {
     return nearest;
   }
 
-  /** Beacon positions for the map layers. */
+  /** Beacon positions for the map layers - only civs present at this scale. */
   getMapMarkers() {
-    return Array.from(this.beacons.values()).map((b) => ({
-      x: b.data.location.x,
-      y: b.data.location.y,
-      type: b.data.type,
-    }));
+    return Array.from(this.beacons.values())
+      .filter((b) => b.visible)
+      .map((b) => ({
+        x: (b.loc ?? b.data.location).x,
+        y: (b.loc ?? b.data.location).y,
+        type: b.data.type,
+      }));
   }
 
   destroyVisual(visual) {
@@ -276,8 +323,9 @@ export class CivilizationSystem {
     // Launches
     if (!paused && !invulnerable && !ceasefire && this.missiles.length < MAX_MISSILES) {
       for (const beacon of this.beacons.values()) {
+        if (!beacon.visual) continue; // only civs present at this scale fire
         if (civAttitude(beacon.data) !== "hostile" || beacon.data.type === "Type0") continue;
-        const { x, y } = beacon.data.location;
+        const { x, y } = beacon.loc ?? beacon.data.location;
         if (Phaser.Math.Distance.Between(player.x, player.y, x, y) > MISSILE_RANGE) continue;
 
         if (!beacon.nextMissileAt) {

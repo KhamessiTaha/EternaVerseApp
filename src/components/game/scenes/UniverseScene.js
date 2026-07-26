@@ -681,10 +681,10 @@ export const UniverseSceneFactory = (props) => {
         this.player,
         this.chunkSystem.loadedChunks
       );
-      // Civ diplomacy + cosmic events are galactic-scale gameplay - dormant
-      // while the player is descended into a galaxy/system (Cosmic Scales).
+      // Contact works at any scale (civs are placed per scale); hostile-civ
+      // missiles and cosmic events remain galactic-scale gameplay for now.
+      this.civilizationSystem.handleInteraction(this.player);
       if (this.world.scale === "galactic") {
-        this.civilizationSystem.handleInteraction(this.player);
         this.civilizationSystem.update(time, delta); // hostile-civ missiles
         this.cosmicEventSystem.update(time, delta);
       }
@@ -794,12 +794,12 @@ export const UniverseSceneFactory = (props) => {
       ) {
         this.currentChunk = nextChunk;
         this.chunkSystem.loadNearbyChunks(nextChunk.chunkX, nextChunk.chunkY);
-        // Backend anomalies + civ beacons live at galactic (x,y); only render
-        // them when we're actually at the galactic scale (Cosmic Scales).
+        // Backend anomalies stay at the galactic scale; civilizations are
+        // placed per-scale and render at whatever scale they inhabit.
         if (this.world.scale === "galactic") {
           this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
-          this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
         }
+        this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
       }
     }
 
@@ -893,10 +893,12 @@ export const UniverseSceneFactory = (props) => {
       this.currentChunk = getChunkCoords(x, y);
       this.chunkSystem.loadNearbyChunks(this.currentChunk.chunkX, this.currentChunk.chunkY);
 
+      // Anomalies stay galactic; civs render at every scale (they're placed by
+      // Kardashev type - Cosmic Scales Phase 2).
       if (this.world.scale === "galactic") {
         this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
-        this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
       }
+      this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
       this.renderFullMap();
       this._updateBreadcrumb();
       this.cameras.main.flash(220, 12, 15, 28);
