@@ -155,8 +155,10 @@ export class MiniGameScene extends Phaser.Scene {
         fontStyle: 'bold',
         color: hexColor(color),
       }
-    ).setOrigin(0.5).setDepth(100);
+    ).setOrigin(0.5).setDepth(100).setScale(1.35);
 
+    // Quick scale-punch so hits and misses register with a snap.
+    this.tweens.add({ targets: this._feedbackText, scale: 1, duration: 160, ease: 'Back.easeOut' });
     this.tweens.add({
       targets: this._feedbackText,
       y: (y ?? this.cameras.main.height / 2 - 140) - 18,
@@ -209,57 +211,80 @@ export class MiniGameScene extends Phaser.Scene {
     this.showResultScreen(fullResult);
   }
 
+  // A quick radial spray of additive motes - the celebratory pop on a win.
+  _burst(x, y, color, count = 16) {
+    for (let i = 0; i < count; i++) {
+      const ang = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+      const dist = 55 + Math.random() * 130;
+      const dot = this.add.circle(x, y, 2 + Math.random() * 3, color, 0.9)
+        .setDepth(203).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: dot,
+        x: x + Math.cos(ang) * dist,
+        y: y + Math.sin(ang) * dist,
+        alpha: 0,
+        scale: 0.2,
+        duration: 480 + Math.random() * 320,
+        ease: 'Cubic.easeOut',
+        onComplete: () => dot.destroy(),
+      });
+    }
+  }
+
   showResultScreen(result) {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
+    const centerY = height / 2;
+    const success = result.status === 'success';
     const themeColor = result.themeColor ?? MG_COLORS.accent;
 
-    this.add.rectangle(0, 0, width, height, MG_COLORS.void, 0.88).setOrigin(0, 0).setDepth(200);
+    // Overlay fades in fast; a colored flash punches on top of it.
+    const overlay = this.add.rectangle(0, 0, width, height, MG_COLORS.void, 0.9).setOrigin(0, 0).setDepth(200).setAlpha(0);
+    this.tweens.add({ targets: overlay, alpha: 1, duration: 170, ease: 'Quad.easeOut' });
+    const flash = this.add.rectangle(0, 0, width, height, success ? themeColor : MG_COLORS.critical, 0.42)
+      .setOrigin(0, 0).setDepth(201).setBlendMode(Phaser.BlendModes.SCREEN);
+    this.tweens.add({ targets: flash, alpha: 0, duration: success ? 320 : 240, ease: 'Quad.easeOut', onComplete: () => flash.destroy() });
+    this.shake(success ? 160 : 340, success ? 0.008 : 0.015);
 
-    const centerY = height / 2;
-    const titleText = result.status === 'success' ? 'CONTAINED' : 'CONTAINMENT FAILED';
-    const titleColor = result.status === 'success' ? MG_COLORS.good : MG_COLORS.critical;
+    const titleText = success ? 'CONTAINED' : 'CONTAINMENT FAILED';
+    const titleColor = success ? MG_COLORS.good : MG_COLORS.critical;
+    const title = this.add.text(width / 2, centerY - 130, titleText, {
+      fontFamily: '"IBM Plex Mono", monospace', fontSize: '30px', fontStyle: 'bold', color: hexColor(titleColor),
+    }).setOrigin(0.5).setDepth(202).setAlpha(0);
+    this.tweens.add({ targets: title, alpha: 1, y: { from: centerY - 142, to: centerY - 130 }, delay: 110, duration: 300, ease: 'Back.easeOut' });
+    if (!success) {
+      // failure title stutters in
+      this.tweens.add({ targets: title, alpha: { from: 1, to: 0.4 }, yoyo: true, repeat: 2, delay: 110, duration: 60 });
+    }
 
-    this.add.text(width / 2, centerY - 130, titleText, {
-      fontFamily: '"IBM Plex Mono", monospace',
-      fontSize: '30px',
-      fontStyle: 'bold',
-      color: hexColor(titleColor),
-    }).setOrigin(0.5).setDepth(201);
-
-    if (result.status === 'success') {
-      this.add.text(width / 2, centerY - 82, result.grade, {
-        fontFamily: '"IBM Plex Mono", monospace',
-        fontSize: '52px',
-        fontStyle: 'bold',
-        color: hexColor(result.gradeColor),
-      }).setOrigin(0.5).setDepth(201);
+    if (success) {
+      const grade = this.add.text(width / 2, centerY - 80, result.grade, {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: '54px', fontStyle: 'bold', color: hexColor(result.gradeColor),
+      }).setOrigin(0.5).setDepth(202).setAlpha(0).setScale(2.6);
+      this.tweens.add({
+        targets: grade, alpha: 1, scale: 1, delay: 220, duration: 360, ease: 'Back.easeOut',
+        onComplete: () => this._burst(width / 2, centerY - 80, result.gradeColor ?? themeColor),
+      });
     }
 
     (result.statLines || []).forEach((line, i) => {
       const y = centerY - 10 + i * 26;
-      this.add.text(width / 2 - 90, y, line.label, {
-        fontFamily: '"IBM Plex Mono", monospace',
-        fontSize: '13px',
-        color: hexColor(MG_COLORS.inkFaint),
-      }).setOrigin(0, 0.5).setDepth(201);
-      this.add.text(width / 2 + 90, y, String(line.value), {
-        fontFamily: '"IBM Plex Mono", monospace',
-        fontSize: '13px',
-        color: hexColor(MG_COLORS.ink),
-      }).setOrigin(1, 0.5).setDepth(201);
+      const lbl = this.add.text(width / 2 - 90, y, line.label, {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: '13px', color: hexColor(MG_COLORS.inkFaint),
+      }).setOrigin(0, 0.5).setDepth(202).setAlpha(0);
+      const val = this.add.text(width / 2 + 90, y, String(line.value), {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: '13px', color: hexColor(MG_COLORS.ink),
+      }).setOrigin(1, 0.5).setDepth(202).setAlpha(0);
+      this.tweens.add({ targets: [lbl, val], alpha: 1, delay: 380 + i * 70, duration: 220 });
     });
 
-    const flavorY = centerY - 10 + (result.statLines?.length || 0) * 26 + 24;
+    const n = result.statLines?.length || 0;
     if (result.flavorText) {
-      this.add.text(width / 2, flavorY, result.flavorText, {
-        fontFamily: '"IBM Plex Mono", monospace',
-        fontSize: '12px',
-        fontStyle: 'italic',
-        color: hexColor(themeColor),
-        align: 'center',
-        wordWrap: { width: width * 0.7 },
-      }).setOrigin(0.5).setDepth(201);
+      const flavor = this.add.text(width / 2, centerY - 10 + n * 26 + 24, result.flavorText, {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: '12px', fontStyle: 'italic',
+        color: hexColor(themeColor), align: 'center', wordWrap: { width: width * 0.7 },
+      }).setOrigin(0.5).setDepth(202).setAlpha(0);
+      this.tweens.add({ targets: flavor, alpha: 1, delay: 380 + n * 70 + 120, duration: 300 });
     }
 
     this.time.delayedCall(2800, () => {
