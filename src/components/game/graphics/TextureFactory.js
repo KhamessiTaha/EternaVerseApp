@@ -7,6 +7,7 @@
 import seedrandom from "seedrandom";
 import { OBJECT_CLASSES } from "../world/researchValues.js";
 import { PLANET_CLASSES } from "../world/worldScales.js";
+import { CUSTOM_ASSETS, customTextureKey } from "../content/customAssets.js";
 import { HULL_CATALOG, HULL_SHAPES } from "../content/hullCatalog.js";
 
 const TEX_SIZE = 256;
@@ -46,9 +47,28 @@ export class TextureFactory {
     this.rng = seedrandom(`${seed}#textures`);
   }
 
+  // Queue any custom PNG art (customAssets.js) in the scene preload. Loaded
+  // under the same evtex:* keys the procedural textures use, so generateAll's
+  // exists()-guard automatically prefers the PNG and only generates the gaps.
+  static queueCustomAssets(scene) {
+    for (const [family, paths] of Object.entries(CUSTOM_ASSETS)) {
+      (paths || []).forEach((path, i) => {
+        const key = customTextureKey(family, i);
+        if (!scene.textures.exists(key)) scene.load.image(key, path);
+      });
+    }
+  }
+
+  // Effective variant count for a galaxy family = the larger of the built-in
+  // count and however many custom PNGs were supplied (so extra art = more
+  // variety, picked by keyFor).
+  _variantCount(family) {
+    return Math.max(VARIANTS[family] ?? 1, (CUSTOM_ASSETS[family]?.length) ?? 0);
+  }
+
   generateAll() {
-    for (const [family, count] of Object.entries(VARIANTS)) {
-      for (let i = 0; i < count; i++) this._generate(family, i);
+    for (const family of Object.keys(VARIANTS)) {
+      for (let i = 0; i < this._variantCount(family); i++) this._generate(family, i);
     }
     TextureFactory.STARFIELD_KEYS.forEach((key, i) => this._generateStarfield(key, i));
     this._generateSpark();
@@ -349,7 +369,7 @@ export class TextureFactory {
       : info?.category === "nebula" ? "nebula"
       : descriptor.objectClass; // quasar | merger
     const fam = family === "lenticular" ? "elliptical" : family;
-    const count = VARIANTS[fam] ?? 1;
+    const count = this._variantCount(fam);
     return `evtex:${fam}:${stringHash(descriptor.id) % count}`;
   }
 

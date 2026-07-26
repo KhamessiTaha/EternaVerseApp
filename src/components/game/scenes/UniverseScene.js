@@ -56,7 +56,10 @@ export const UniverseSceneFactory = (props) => {
     }
 
     preload() {
-      // Ship hulls are procedurally drawn (TextureFactory), not loaded assets.
+      // Ship hulls and default object textures are procedurally drawn. Any
+      // optional custom PNG art (customAssets.js) is loaded here and overrides
+      // the matching procedural texture; missing files fall back automatically.
+      TextureFactory.queueCustomAssets(this);
     }
 
     create() {
