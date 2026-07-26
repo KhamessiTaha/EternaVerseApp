@@ -35,6 +35,9 @@ const stringHash = (s) => {
   return Math.abs(h);
 };
 
+// 0xRRGGBB + alpha -> canvas rgba() string.
+const toRgba = (hex, a) => `rgba(${(hex >> 16) & 255},${(hex >> 8) & 255},${hex & 255},${a})`;
+
 export class TextureFactory {
   static STARFIELD_KEYS = ["evtex:stars:0", "evtex:stars:1", "evtex:stars:2"];
 
@@ -350,41 +353,57 @@ export class TextureFactory {
     return `evtex:${fam}:${stringHash(descriptor.id) % count}`;
   }
 
+  // Galaxy/nebula/phenomenon textures. Drawn on a real <canvas> (like the
+  // hulls and starfield), NOT a Phaser RenderTexture: RenderTextures use
+  // premultiplied alpha on the GPU and leave an opaque dark box around the
+  // sprite - the "not a PNG" artifact. Canvas textures are cleanly transparent.
   _generate(family, variant) {
     const key = `evtex:${family}:${variant}`;
     if (this.scene.textures.exists(key)) return;
-    const rt = this.scene.make.renderTexture({ width: TEX_SIZE, height: TEX_SIZE }, false);
-    const g = this.scene.make.graphics({ add: false });
-    const c = TEX_SIZE / 2;
+    const size = TEX_SIZE;
+    const c = size / 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
 
-    if (family === "spiral" || family === "barred") this._drawSpiral(g, c, family === "barred");
-    else if (family === "elliptical") this._drawElliptical(g, c);
-    else if (family === "irregular") this._drawIrregular(g, c);
-    else if (family === "nebula") this._drawNebula(g, c, variant);
-    else if (family === "quasar") this._drawQuasar(g, c);
-    else if (family === "merger") this._drawMerger(g, c);
+    if (family === "spiral" || family === "barred") this._drawSpiral(ctx, c, family === "barred");
+    else if (family === "elliptical") this._drawElliptical(ctx, c);
+    else if (family === "irregular") this._drawIrregular(ctx, c);
+    else if (family === "nebula") this._drawNebula(ctx, c, variant);
+    else if (family === "quasar") this._drawQuasar(ctx, c);
+    else if (family === "merger") this._drawMerger(ctx, c);
 
-    rt.draw(g);
-    rt.saveTexture(key);
-    g.destroy();
-    rt.destroy();
+    this.scene.textures.addCanvas(key, canvas);
   }
 
-  _drawSpiral(g, c, barred) {
+  // Canvas draw helpers (mirror the old Graphics fillCircle/fillEllipse).
+  _disc(ctx, hex, alpha, x, y, r) {
+    ctx.fillStyle = toRgba(hex, alpha);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  _oval(ctx, hex, alpha, x, y, w, h) {
+    ctx.fillStyle = toRgba(hex, alpha);
+    ctx.beginPath();
+    ctx.ellipse(x, y, w / 2, h / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  _drawSpiral(ctx, c, barred) {
     const arms = 2 + Math.floor(this.rng() * 2) * 2; // 2 or 4
     const tightness = 0.18 + this.rng() * 0.12;
     const armColor = ARM_COLORS[Math.floor(this.rng() * ARM_COLORS.length)];
 
     // Core bulge: layered soft discs approximating a gaussian falloff.
-    for (let r = 26; r > 2; r -= 3) {
-      g.fillStyle(CORE_COLOR, 0.05 + (26 - r) * 0.012);
-      g.fillCircle(c, c, r);
-    }
+    for (let r = 26; r > 2; r -= 3) this._disc(ctx, CORE_COLOR, 0.05 + (26 - r) * 0.012, c, c, r);
     if (barred) {
-      g.fillStyle(CORE_COLOR, 0.35);
-      g.save(); g.translateCanvas(c, c); g.rotateCanvas(this.rng() * Math.PI);
-      g.fillEllipse(0, 0, 92, 16);
-      g.restore();
+      ctx.save();
+      ctx.translate(c, c);
+      ctx.rotate(this.rng() * Math.PI);
+      this._oval(ctx, CORE_COLOR, 0.35, 0, 0, 92, 16);
+      ctx.restore();
     }
     // Arms: dots along logarithmic spirals with jitter.
     for (let a = 0; a < arms; a++) {
@@ -401,76 +420,62 @@ export class TextureFactory {
         const roll = this.rng();
         const dotColor = roll < 0.05 ? 0xff9ec8 : roll < 0.11 ? 0xffffff : armColor;
         const dotAlpha = roll < 0.11 ? 0.28 + this.rng() * 0.3 : 0.10 + this.rng() * 0.22;
-        g.fillStyle(dotColor, dotAlpha);
-        g.fillCircle(x, y, (roll < 0.05 ? 1.6 : 1) + this.rng() * 2.1);
+        this._disc(ctx, dotColor, dotAlpha, x, y, (roll < 0.05 ? 1.6 : 1) + this.rng() * 2.1);
       }
     }
   }
 
-  _drawElliptical(g, c) {
+  _drawElliptical(ctx, c) {
     const ellipticity = this.rng(); // 0 = E0 round ... 1 = E7 flat
     const color = ELLIPTICAL_COLORS[Math.floor(this.rng() * ELLIPTICAL_COLORS.length)];
     const ry = 1 - ellipticity * 0.62;
-    for (let r = 100; r > 3; r -= 2.5) {
-      g.fillStyle(color, 0.012 + (100 - r) * 0.0035);
-      g.fillEllipse(c, c, r * 2, r * 2 * ry);
-    }
+    for (let r = 100; r > 3; r -= 2.5) this._oval(ctx, color, 0.012 + (100 - r) * 0.0035, c, c, r * 2, r * 2 * ry);
   }
 
-  _drawIrregular(g, c) {
+  _drawIrregular(ctx, c) {
     const color = ARM_COLORS[Math.floor(this.rng() * ARM_COLORS.length)];
     const clumps = 5 + Math.floor(this.rng() * 4);
     for (let i = 0; i < clumps; i++) {
       const cx = c + (this.rng() - 0.5) * 110;
       const cy = c + (this.rng() - 0.5) * 110;
       for (let j = 0; j < 45; j++) {
-        g.fillStyle(this.rng() < 0.25 ? CORE_COLOR : color, 0.08 + this.rng() * 0.2);
-        g.fillCircle(cx + (this.rng() - 0.5) * 46, cy + (this.rng() - 0.5) * 46, 1 + this.rng() * 2);
+        this._disc(ctx, this.rng() < 0.25 ? CORE_COLOR : color, 0.08 + this.rng() * 0.2,
+          cx + (this.rng() - 0.5) * 46, cy + (this.rng() - 0.5) * 46, 1 + this.rng() * 2);
       }
     }
   }
 
-  _drawNebula(g, c, variant) {
+  _drawNebula(ctx, c, variant) {
     const palette = NEBULA_PALETTES[variant % NEBULA_PALETTES.length];
     for (let layer = 0; layer < 3; layer++) {
       const color = palette[layer];
       for (let i = 0; i < 26; i++) {
         const x = c + (this.rng() - 0.5) * (150 - layer * 30);
         const y = c + (this.rng() - 0.5) * (150 - layer * 30);
-        g.fillStyle(color, 0.02 + this.rng() * 0.035);
-        g.fillCircle(x, y, 18 + this.rng() * (44 - layer * 10));
+        this._disc(ctx, color, 0.02 + this.rng() * 0.035, x, y, 18 + this.rng() * (44 - layer * 10));
       }
     }
   }
 
-  _drawQuasar(g, c) {
-    for (let r = 30; r > 2; r -= 2) {
-      g.fillStyle(0xffffff, 0.05 + (30 - r) * 0.02);
-      g.fillCircle(c, c, r);
-    }
+  _drawQuasar(ctx, c) {
+    for (let r = 30; r > 2; r -= 2) this._disc(ctx, 0xffffff, 0.05 + (30 - r) * 0.02, c, c, r);
     // Relativistic jets: thin fading spikes.
-    g.fillStyle(0x9fe6f0, 0.4);
-    g.fillEllipse(c, c - 62, 7, 108);
-    g.fillEllipse(c, c + 62, 7, 108);
-    g.fillStyle(0x4ec9e0, 0.15);
-    g.fillEllipse(c, c, 220, 10);
+    this._oval(ctx, 0x9fe6f0, 0.4, c, c - 62, 7, 108);
+    this._oval(ctx, 0x9fe6f0, 0.4, c, c + 62, 7, 108);
+    this._oval(ctx, 0x4ec9e0, 0.15, c, c, 220, 10);
   }
 
-  _drawMerger(g, c) {
+  _drawMerger(ctx, c) {
     // Two offset elliptical bodies plus a tidal bridge of scattered stars.
-    const draw = (cx, cy) => {
-      for (let r = 52; r > 3; r -= 2.5) {
-        g.fillStyle(CORE_COLOR, 0.015 + (52 - r) * 0.004);
-        g.fillEllipse(cx, cy, r * 2, r * 1.5);
-      }
+    const body = (cx, cy) => {
+      for (let r = 52; r > 3; r -= 2.5) this._oval(ctx, CORE_COLOR, 0.015 + (52 - r) * 0.004, cx, cy, r * 2, r * 1.5);
     };
-    draw(c - 46, c - 22);
-    draw(c + 46, c + 22);
+    body(c - 46, c - 22);
+    body(c + 46, c + 22);
     for (let t = 0; t < 1; t += 0.02) {
       const x = c - 46 + t * 92 + (this.rng() - 0.5) * 20;
       const y = c - 22 + t * 44 + Math.sin(t * Math.PI) * 26 + (this.rng() - 0.5) * 12;
-      g.fillStyle(ARM_COLORS[0], 0.12 + this.rng() * 0.18);
-      g.fillCircle(x, y, 1 + this.rng() * 1.8);
+      this._disc(ctx, ARM_COLORS[0], 0.12 + this.rng() * 0.18, x, y, 1 + this.rng() * 1.8);
     }
   }
 
