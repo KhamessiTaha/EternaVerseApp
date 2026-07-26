@@ -6,6 +6,7 @@
 // scale/rotation/alpha. Budget: well under 300ms on a mid-range machine.
 import seedrandom from "seedrandom";
 import { OBJECT_CLASSES } from "../world/researchValues.js";
+import { PLANET_CLASSES } from "../world/worldScales.js";
 import { HULL_CATALOG, HULL_SHAPES } from "../content/hullCatalog.js";
 
 const TEX_SIZE = 256;
@@ -49,62 +50,205 @@ export class TextureFactory {
     TextureFactory.STARFIELD_KEYS.forEach((key, i) => this._generateStarfield(key, i));
     this._generateSpark();
     this._generateStar();
-    this._generatePlanet();
+    Object.entries(PLANET_CLASSES).forEach(([id, info]) => this._generatePlanet(id, info));
     HULL_CATALOG.forEach((hull) => this._generateHull(hull.id));
   }
 
-  // A white radial glow with a hot core - tinted per-star to its spectral
-  // color (Cosmic Scales, stellar scale). Additive-blended when rendered.
+  // A star: a broad soft corona, four diffraction spikes, and a hot core -
+  // all white, tinted per-object to the spectral color, additive-blended.
+  // Fully transparent at the edges so overlaps blend cleanly.
   _generateStar() {
     const key = "evtex:star";
     if (this.scene.textures.exists(key)) return;
-    const size = 160;
+    const size = 256;
+    const c = size / 2;
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext("2d");
-    const c = size / 2;
-    const glow = ctx.createRadialGradient(c, c, 0, c, c, c);
-    glow.addColorStop(0, "rgba(255,255,255,1)");
-    glow.addColorStop(0.16, "rgba(255,255,255,0.95)");
-    glow.addColorStop(0.4, "rgba(255,255,255,0.32)");
-    glow.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = glow;
+
+    // Corona: wide falloff that reaches zero well before the edge.
+    const corona = ctx.createRadialGradient(c, c, 0, c, c, c);
+    corona.addColorStop(0, "rgba(255,255,255,1)");
+    corona.addColorStop(0.07, "rgba(255,255,255,0.95)");
+    corona.addColorStop(0.2, "rgba(255,255,255,0.4)");
+    corona.addColorStop(0.5, "rgba(255,255,255,0.1)");
+    corona.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = corona;
     ctx.fillRect(0, 0, size, size);
+
+    // Diffraction spikes: two crossed, tapered glows (add within the canvas).
+    ctx.globalCompositeOperation = "lighter";
+    const spike = (w, h) => {
+      const g = ctx.createLinearGradient(c, c - h, c, c + h);
+      g.addColorStop(0, "rgba(255,255,255,0)");
+      g.addColorStop(0.5, "rgba(255,255,255,0.5)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(c, c, w, h, 0, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    spike(1.6, c * 0.92); // vertical
+    spike(c * 0.92, 1.6); // horizontal
+    ctx.globalCompositeOperation = "source-over";
+
+    // Hot core
+    const core = ctx.createRadialGradient(c, c, 0, c, c, size * 0.1);
+    core.addColorStop(0, "rgba(255,255,255,1)");
+    core.addColorStop(1, "rgba(255,255,255,0.55)");
+    ctx.fillStyle = core;
     ctx.beginPath();
-    ctx.arc(c, c, size * 0.13, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,1)";
+    ctx.arc(c, c, size * 0.1, 0, Math.PI * 2);
     ctx.fill();
+
     this.scene.textures.addCanvas(key, canvas);
   }
 
-  // A shaded grayscale sphere (light offset for a 3D terminator) plus faint
-  // bands - tinted per-planet to its class color. Normal-blended.
-  _generatePlanet() {
-    const key = "evtex:planet";
+  // A shaded planet with a lit limb, a night-side terminator, a soft
+  // atmosphere halo for worlds that have air, and per-type surface detail
+  // (gas bands, terran continents, ice caps, molten cracks, cratered rock).
+  // One colored texture per class; transparent outside the atmosphere.
+  _generatePlanet(classId, info) {
+    const key = `evtex:planet:${classId}`;
     if (this.scene.textures.exists(key)) return;
     const size = 128;
+    const c = size / 2;
+    const r = size * 0.38;
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext("2d");
-    const c = size / 2;
-    const r = size * 0.42;
+    const rng = seedrandom(`${key}#surface`);
+
+    const R = (info.color >> 16) & 255;
+    const G = (info.color >> 8) & 255;
+    const B = info.color & 255;
+    const cl = (v) => Math.max(0, Math.min(255, Math.round(v)));
+    const rgba = (f, a) => `rgba(${cl(R * f)},${cl(G * f)},${cl(B * f)},${a})`;
+    const hasAtmo = ["terran", "ocean", "ice", "gas"].includes(classId);
+
+    // Soft atmosphere halo (transparent-edged) so overlaps blend, never a box.
+    if (hasAtmo) {
+      const halo = ctx.createRadialGradient(c, c, r * 0.85, c, c, r * 1.32);
+      halo.addColorStop(0, rgba(1.4, 0.4));
+      halo.addColorStop(1, rgba(1.4, 0));
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(c, c, r * 1.32, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.save();
     ctx.beginPath();
     ctx.arc(c, c, r, 0, Math.PI * 2);
     ctx.clip();
-    const grad = ctx.createRadialGradient(c - r * 0.35, c - r * 0.35, r * 0.1, c, c, r * 1.25);
-    grad.addColorStop(0, "rgba(255,255,255,1)");
-    grad.addColorStop(0.65, "rgba(200,200,200,1)");
-    grad.addColorStop(1, "rgba(90,90,90,1)");
-    ctx.fillStyle = grad;
+
+    // Base sphere, lit from the upper-left.
+    const body = ctx.createRadialGradient(c - r * 0.38, c - r * 0.38, r * 0.1, c, c, r * 1.2);
+    body.addColorStop(0, rgba(1.45, 1));
+    body.addColorStop(0.55, rgba(1.0, 1));
+    body.addColorStop(1, rgba(0.4, 1));
+    ctx.fillStyle = body;
     ctx.fillRect(0, 0, size, size);
-    // Faint latitudinal bands for a little surface texture
-    ctx.fillStyle = "rgba(0,0,0,0.06)";
-    for (let by = -r; by < r; by += 7) ctx.fillRect(c - r, c + by, r * 2, 2.5);
+
+    // Per-type surface detail
+    if (classId === "gas") {
+      for (let by = -r; by < r; by += 3 + rng() * 4) {
+        ctx.fillStyle = rgba(0.7 + rng() * 0.6, 0.4);
+        ctx.fillRect(c - r, c + by, r * 2, 1.5 + rng() * 3);
+      }
+    } else if (classId === "terran") {
+      for (let i = 0; i < 11; i++) {
+        ctx.fillStyle = `rgba(${cl(60 + rng() * 40)},${cl(120 + rng() * 60)},${cl(70 + rng() * 30)},0.6)`;
+        this._blob(ctx, c + (rng() - 0.5) * r * 1.4, c + (rng() - 0.5) * r * 1.4, 4 + rng() * 9, rng);
+      }
+    } else if (classId === "ocean") {
+      for (let i = 0; i < 7; i++) {
+        ctx.fillStyle = rgba(1.5, 0.25);
+        this._blob(ctx, c + (rng() - 0.5) * r * 1.5, c + (rng() - 0.5) * r * 1.5, 5 + rng() * 8, rng);
+      }
+    } else if (classId === "ice") {
+      ctx.fillStyle = "rgba(255,255,255,0.45)";
+      this._blob(ctx, c, c - r * 0.7, r * 0.8, rng);
+      this._blob(ctx, c, c + r * 0.7, r * 0.8, rng);
+      for (let i = 0; i < 8; i++) {
+        ctx.strokeStyle = "rgba(255,255,255,0.3)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(c + (rng() - 0.5) * r * 1.6, c + (rng() - 0.5) * r * 1.6);
+        ctx.lineTo(c + (rng() - 0.5) * r * 1.6, c + (rng() - 0.5) * r * 1.6);
+        ctx.stroke();
+      }
+    } else if (classId === "lava") {
+      ctx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < 22; i++) {
+        ctx.strokeStyle = `rgba(255,${cl(90 + rng() * 90)},40,${0.3 + rng() * 0.4})`;
+        ctx.lineWidth = 0.8 + rng() * 1.4;
+        ctx.beginPath();
+        const x = c + (rng() - 0.5) * r * 1.7;
+        const y = c + (rng() - 0.5) * r * 1.7;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + (rng() - 0.5) * 14, y + (rng() - 0.5) * 14);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = "source-over";
+    } else {
+      // rocky / desert / barren: mottled surface + a few craters
+      for (let i = 0; i < 46; i++) {
+        ctx.fillStyle = rgba(rng() < 0.5 ? 0.72 : 1.3, 0.22);
+        ctx.beginPath();
+        ctx.arc(c + (rng() - 0.5) * r * 1.9, c + (rng() - 0.5) * r * 1.9, 1 + rng() * 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      for (let i = 0; i < 5; i++) {
+        const x = c + (rng() - 0.5) * r * 1.5;
+        const y = c + (rng() - 0.5) * r * 1.5;
+        const cr = 2 + rng() * 4;
+        ctx.fillStyle = rgba(0.55, 0.4);
+        ctx.beginPath();
+        ctx.arc(x, y, cr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = rgba(1.4, 0.3);
+        ctx.beginPath();
+        ctx.arc(x - cr * 0.3, y - cr * 0.3, cr * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Night-side terminator, opposite the light.
+    const term = ctx.createRadialGradient(c + r * 0.55, c + r * 0.55, r * 0.2, c, c, r * 1.45);
+    term.addColorStop(0, "rgba(2,2,12,0)");
+    term.addColorStop(1, "rgba(2,2,12,0.74)");
+    ctx.fillStyle = term;
+    ctx.fillRect(0, 0, size, size);
     ctx.restore();
+
+    // Bright lit limb on the day side (atmosphere worlds catch the light).
+    if (hasAtmo) {
+      ctx.strokeStyle = rgba(1.7, 0.5);
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(c, c, r - 0.7, Math.PI * 1.15, Math.PI * 1.95);
+      ctx.stroke();
+    }
+
     this.scene.textures.addCanvas(key, canvas);
+  }
+
+  // Small irregular filled blob (continents, ice caps) around (x, y).
+  _blob(ctx, x, y, radius, rng) {
+    ctx.beginPath();
+    const pts = 7;
+    for (let i = 0; i <= pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const rr = radius * (0.6 + rng() * 0.7);
+      const px = x + Math.cos(a) * rr;
+      const py = y + Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
   }
 
   /** Texture key for a given hull id - drawn once, tinted per-player via setTint. */
@@ -196,7 +340,7 @@ export class TextureFactory {
 
   keyFor(descriptor) {
     if (descriptor.category === "star") return "evtex:star";
-    if (descriptor.category === "planet") return "evtex:planet";
+    if (descriptor.category === "planet") return `evtex:planet:${descriptor.objectClass}`;
     const info = OBJECT_CLASSES[descriptor.objectClass];
     const family = info?.category === "galaxy" ? info.morph
       : info?.category === "nebula" ? "nebula"
@@ -252,8 +396,13 @@ export class TextureFactory {
         const jitter = (this.rng() - 0.5) * 9;
         const x = c + Math.cos(angle) * (radius + jitter);
         const y = c + Math.sin(angle) * (radius + jitter);
-        g.fillStyle(armColor, 0.10 + this.rng() * 0.22);
-        g.fillCircle(x, y, 1 + this.rng() * 2.1);
+        // Sprinkle pink HII star-forming regions and bright blue-white young
+        // stars through the arms - real spiral astronomy, and far less flat.
+        const roll = this.rng();
+        const dotColor = roll < 0.05 ? 0xff9ec8 : roll < 0.11 ? 0xffffff : armColor;
+        const dotAlpha = roll < 0.11 ? 0.28 + this.rng() * 0.3 : 0.10 + this.rng() * 0.22;
+        g.fillStyle(dotColor, dotAlpha);
+        g.fillCircle(x, y, (roll < 0.05 ? 1.6 : 1) + this.rng() * 2.1);
       }
     }
   }

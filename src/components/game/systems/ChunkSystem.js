@@ -118,12 +118,17 @@ export class ChunkSystem {
       .setAlpha(descriptor.alpha)
       .setDepth(isNebula ? -3 : -1);
 
-    // Stars/planets share one white texture, tinted to the class color.
-    if ((isStar || isPlanet) && typeof descriptor.color === "number") {
+    // Stars share one white glow texture, tinted to their spectral color.
+    // Planets get their own per-class colored texture (no tint).
+    if (isStar && typeof descriptor.color === "number") {
       image.setTint(descriptor.color);
     }
 
-    if (isNebula || isStar || descriptor.objectClass === "quasar") {
+    // Planets are solid bodies (normal blend). EVERYTHING else - galaxies,
+    // nebulae, stars, phenomena - is emissive light, drawn ADDITIVELY so
+    // overlapping structures never occlude each other with a dark texture box
+    // (this is the "dark square" artifact the flat normal-blend galaxies had).
+    if (!isPlanet) {
       image.setBlendMode(Phaser.BlendModes.ADD);
     }
 
