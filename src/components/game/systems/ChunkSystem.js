@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import seedrandom from 'seedrandom';
 import { CHUNK_SIZE, ANOMALY_SPAWN_CHANCE, ANOMALIES_PER_CHUNK, ANOMALY_TYPES } from '../constants';
 import { getChunkKey } from '../utils';
-import { generateChunkObjects } from '../world/objectGenerator.js';
+import { generateScaleObjects } from '../world/worldScales.js';
 
 export class ChunkSystem {
   constructor(scene, anomalySystem) {
@@ -40,20 +40,33 @@ export class ChunkSystem {
     this.loadedChunks = newChunks;
   }
 
+  // Tear down every loaded chunk - used when changing cosmic scale (descend /
+  // ascend), after which loadNearbyChunks repopulates from the new scale.
+  reset() {
+    this.loadedChunks.forEach((chunk) => this.cleanupChunk(chunk));
+    this.loadedChunks = new Map();
+  }
+
   generateChunk(chunkX, chunkY) {
     const chunk = { objects: [], anomalies: [], salvage: [] };
-    const seed = this.scene.universe.seed ?? "seed";
+    // Scale-aware seed: at the galactic scale this is just the universe seed;
+    // descending into a galaxy/star re-seeds off that structure's id so its
+    // interior is a distinct, stable world (Cosmic Scales).
+    const seed = this.scene.worldSeed?.() ?? this.scene.universe.seed ?? "seed";
+    const scale = this.scene.world?.scale ?? "galactic";
 
-    for (const descriptor of generateChunkObjects(seed, chunkX, chunkY)) {
+    for (const descriptor of generateScaleObjects(seed, chunkX, chunkY, scale)) {
       chunk.objects.push(this.renderObject(descriptor));
     }
 
     this.generateSalvage(chunk, chunkX, chunkY, seed);
 
-    // Procedural anomalies (unchanged behavior)
+    // Procedural anomalies only at the galactic scale for now - their ids are
+    // "chunkX:chunkY:index" and would collide across scales (Cosmic Scales
+    // Phase 1 keeps anomaly/civ gameplay at the top scale).
     const chunkSeed = seed + getChunkKey(chunkX, chunkY);
     const rng = seedrandom(chunkSeed);
-    if (rng() < ANOMALY_SPAWN_CHANCE) {
+    if (scale === "galactic" && rng() < ANOMALY_SPAWN_CHANCE) {
       this.generateProceduralAnomalies(chunk, chunkX, chunkY, rng);
     }
 
@@ -93,6 +106,8 @@ export class ChunkSystem {
   renderObject(descriptor) {
     const isNebula = descriptor.category === "nebula";
     const isPhenomenon = descriptor.category === "phenomenon";
+    const isStar = descriptor.category === "star";
+    const isPlanet = descriptor.category === "planet";
 
     const image = this.scene.add.image(
       descriptor.x, descriptor.y,
@@ -103,7 +118,12 @@ export class ChunkSystem {
       .setAlpha(descriptor.alpha)
       .setDepth(isNebula ? -3 : -1);
 
-    if (isNebula || descriptor.objectClass === "quasar") {
+    // Stars/planets share one white texture, tinted to the class color.
+    if ((isStar || isPlanet) && typeof descriptor.color === "number") {
+      image.setTint(descriptor.color);
+    }
+
+    if (isNebula || isStar || descriptor.objectClass === "quasar") {
       image.setBlendMode(Phaser.BlendModes.ADD);
     }
 
@@ -123,7 +143,10 @@ export class ChunkSystem {
     let light = null;
     if (!this.scene.graphicsQualityLow) {
       const lightThreshold = this.scene.graphicsQualityMedium ? 0.75 : 0.65;
-      if (isPhenomenon || (descriptor.category === "galaxy" && descriptor.scale > lightThreshold)) {
+      if (isStar) {
+        // Stars cast their own colored light on the system around them.
+        light = this.scene.lights.addLight(descriptor.x, descriptor.y, 200 * descriptor.scale + 90, descriptor.color ?? 0xffe2b0, 0.55);
+      } else if (isPhenomenon || (descriptor.category === "galaxy" && descriptor.scale > lightThreshold)) {
         const color = descriptor.objectClass === "quasar" ? 0x9fe6f0 : 0xffe2b0;
         light = this.scene.lights.addLight(descriptor.x, descriptor.y, 140 * descriptor.scale + 60, color, 0.35);
       }

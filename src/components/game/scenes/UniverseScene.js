@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import seedrandom from "seedrandom";
 import { getChunkCoords, lerpFactorByDelta } from "../utils";
 import { STABILITY_CRITICAL_THRESHOLD } from "../constants";
+import { worldSeed, childScale, canDescend, DESCEND_CATEGORY, SCALE_LABEL } from "../world/worldScales.js";
 import { getSettings, onSettingsChange } from "../settings.js";
 import { startAmbient, stopAmbient, updateEngine, stopEngine, playSfx } from "../audio.js";
 import { ChunkSystem } from "../systems/ChunkSystem";
@@ -59,6 +60,12 @@ export const UniverseSceneFactory = (props) => {
     }
 
     create() {
+      // Cosmic Scales: which nested scale we're flying (galactic by default)
+      // and the id/label chain of structures descended into. Must exist before
+      // the first chunk load, since ChunkSystem seeds off worldSeed().
+      this.world = { scale: "galactic", path: [], labels: [] };
+      this.descentStack = [];
+
       // Textures must exist before any chunk renders its objects.
       this.textureFactory = new TextureFactory(this, this.universe.seed ?? "default");
       this.textureFactory.generateAll();
@@ -83,6 +90,8 @@ export const UniverseSceneFactory = (props) => {
       this.renderFullMap();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
       this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
+
+      this.initScaleNavigation();
 
       if (this.onHint && !welcomeHintShown) {
         welcomeHintShown = true;
@@ -666,14 +675,19 @@ export const UniverseSceneFactory = (props) => {
       }
 
       this.checkChunkChange(time);
+      this._updateScalePrompt(delta);
 
       this.anomalySystem.handleInteraction(
         this.player,
         this.chunkSystem.loadedChunks
       );
-      this.civilizationSystem.handleInteraction(this.player);
-      this.civilizationSystem.update(time, delta); // hostile-civ missiles
-      this.cosmicEventSystem.update(time, delta);
+      // Civ diplomacy + cosmic events are galactic-scale gameplay - dormant
+      // while the player is descended into a galaxy/system (Cosmic Scales).
+      if (this.world.scale === "galactic") {
+        this.civilizationSystem.handleInteraction(this.player);
+        this.civilizationSystem.update(time, delta); // hostile-civ missiles
+        this.cosmicEventSystem.update(time, delta);
+      }
 
       // Update minimap (now sends data to React)
       this.minimapSystem.update(
@@ -780,10 +794,134 @@ export const UniverseSceneFactory = (props) => {
       ) {
         this.currentChunk = nextChunk;
         this.chunkSystem.loadNearbyChunks(nextChunk.chunkX, nextChunk.chunkY);
-        this.anomalySystem.renderBackendAnomalies(
-          this.chunkSystem.loadedChunks,
-        );
+        // Backend anomalies + civ beacons live at galactic (x,y); only render
+        // them when we're actually at the galactic scale (Cosmic Scales).
+        if (this.world.scale === "galactic") {
+          this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
+          this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
+        }
+      }
+    }
+
+    // ---- Cosmic Scales: drill-down navigation ----------------------------
+
+    worldSeed() {
+      return worldSeed(this.universe.seed ?? "seed", this.world.scale, this.world.path);
+    }
+
+    initScaleNavigation() {
+      const w = this.scale.width;
+      const h = this.scale.height;
+      // Breadcrumb (top-center) + descend/ascend prompt (lower-center)
+      this.breadcrumbText = this.add.text(w / 2, 12, "", {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: "12px", color: "#9497ad",
+      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(950);
+      this.scalePrompt = this.add.text(w / 2, h - 96, "", {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: "13px", color: "#dfa73f",
+        backgroundColor: "rgba(12,15,28,0.7)", padding: { x: 10, y: 5 },
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(950).setVisible(false);
+      this._updateBreadcrumb();
+      this._promptTimer = 0;
+
+      // ENTER descends into the nearest structure; BACKSPACE ascends.
+      this.descendKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+      this.ascendKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.BACKSPACE);
+      this.descendKey.on("down", () => {
+        if (this.inputSystem?.isMinigameActive) return;
+        const target = this.nearestDescendable();
+        if (target) this.descend(target);
+      });
+      this.ascendKey.on("down", () => {
+        if (this.inputSystem?.isMinigameActive) return;
+        this.ascend();
+      });
+    }
+
+    // Nearest descendable structure (galaxy at galactic, star at stellar) the
+    // player is close enough to enter, or null.
+    nearestDescendable() {
+      if (!canDescend(this.world.scale)) return null;
+      const cat = DESCEND_CATEGORY[this.world.scale];
+      let best = null;
+      let bestD = 300; // world units - must be near the structure
+      for (const chunk of this.chunkSystem.loadedChunks.values()) {
+        for (const entry of chunk.objects) {
+          const d = entry.descriptor;
+          if (d.category !== cat) continue;
+          const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, d.x, d.y);
+          if (dist < bestD) { bestD = dist; best = d; }
+        }
+      }
+      return best;
+    }
+
+    descend(descriptor) {
+      if (!descriptor || !canDescend(this.world.scale)) return;
+      this.descentStack.push({
+        scale: this.world.scale, path: [...this.world.path], labels: [...this.world.labels],
+        playerX: this.player.x, playerY: this.player.y,
+      });
+      this.world = {
+        scale: childScale(this.world.scale),
+        path: [...this.world.path, descriptor.id],
+        labels: [...this.world.labels, descriptor.name],
+      };
+      this._enterScale(0, 0);
+      narrate(`Descending into ${descriptor.name}. A whole ${SCALE_LABEL[this.world.scale].toLowerCase()} realm, folded inside a single point of light.`);
+    }
+
+    ascend() {
+      const prev = this.descentStack.pop();
+      if (!prev) return;
+      const leaving = this.world.labels[this.world.labels.length - 1];
+      this.world = { scale: prev.scale, path: prev.path, labels: prev.labels };
+      this._enterScale(prev.playerX, prev.playerY);
+      narrate(`Rising back out of ${leaving} to the ${SCALE_LABEL[this.world.scale].toLowerCase()} scale.`);
+    }
+
+    // Rebuild the world at the current scale and drop the player at (x,y).
+    _enterScale(x, y) {
+      // Galactic-only entities must not linger at deeper scales.
+      this.anomalySystem.clearBackendVisuals();
+      this.civilizationSystem.clearVisuals();
+      this.chunkSystem.reset();
+
+      this.player.setPosition(x, y);
+      this.player.body?.setVelocity?.(0, 0);
+      if (this.playerState) this.playerState.velocity = { x: 0, y: 0 };
+
+      this.currentChunk = getChunkCoords(x, y);
+      this.chunkSystem.loadNearbyChunks(this.currentChunk.chunkX, this.currentChunk.chunkY);
+
+      if (this.world.scale === "galactic") {
+        this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
         this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
+      }
+      this.renderFullMap();
+      this._updateBreadcrumb();
+      this.cameras.main.flash(220, 12, 15, 28);
+    }
+
+    _updateBreadcrumb() {
+      if (!this.breadcrumbText) return;
+      const scaleLabel = (SCALE_LABEL[this.world.scale] || "").toUpperCase();
+      this.breadcrumbText.setText(
+        this.world.labels.length ? `${this.world.labels.join("  ▸  ")}   ·   ${scaleLabel}` : scaleLabel
+      );
+    }
+
+    _updateScalePrompt(delta) {
+      this._promptTimer -= delta;
+      if (this._promptTimer > 0) return;
+      this._promptTimer = 160;
+      if (!this.scalePrompt) return;
+      const target = this.nearestDescendable();
+      if (target) {
+        this.scalePrompt.setText(`[ ENTER ]  descend into ${target.name}`).setVisible(true);
+      } else if (this.descentStack.length) {
+        this.scalePrompt.setText("[ BACKSPACE ]  ascend").setVisible(true);
+      } else {
+        this.scalePrompt.setVisible(false);
       }
     }
 

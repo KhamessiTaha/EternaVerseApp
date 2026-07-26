@@ -100,6 +100,17 @@ export class CivilizationSystem {
   }
 
   /** Create visuals for beacons whose chunk is loaded; cull distant ones. */
+  // Destroy all civ beacon visuals (data kept) - used when descending a cosmic
+  // scale. renderVisible recreates them at the galactic scale.
+  clearVisuals() {
+    for (const beacon of this.beacons.values()) {
+      if (beacon.visual) {
+        this.destroyVisual(beacon.visual);
+        beacon.visual = null;
+      }
+    }
+  }
+
   renderVisible(loadedChunks) {
     const player = this.scene.player;
 

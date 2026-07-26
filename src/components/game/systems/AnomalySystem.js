@@ -48,6 +48,18 @@ export class AnomalySystem {
     }
   }
 
+  // Destroy all backend-anomaly visuals (leaving their data intact) - used
+  // when descending a cosmic scale, where galactic anomalies don't belong.
+  // renderBackendAnomalies recreates them when back at the galactic scale.
+  clearBackendVisuals() {
+    for (const anomaly of this.backendAnomalies.values()) {
+      if (anomaly.visual) {
+        this.destroyAnomalyVisual(anomaly.visual);
+        anomaly.visual = null;
+      }
+    }
+  }
+
   renderBackendAnomalies(loadedChunks) {
     for (const [id, backendAnomaly] of this.backendAnomalies.entries()) {
       if (backendAnomaly.visual || this.resolvedAnomalies.has(id)) continue;

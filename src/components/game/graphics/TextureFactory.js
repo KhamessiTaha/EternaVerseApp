@@ -48,7 +48,63 @@ export class TextureFactory {
     }
     TextureFactory.STARFIELD_KEYS.forEach((key, i) => this._generateStarfield(key, i));
     this._generateSpark();
+    this._generateStar();
+    this._generatePlanet();
     HULL_CATALOG.forEach((hull) => this._generateHull(hull.id));
+  }
+
+  // A white radial glow with a hot core - tinted per-star to its spectral
+  // color (Cosmic Scales, stellar scale). Additive-blended when rendered.
+  _generateStar() {
+    const key = "evtex:star";
+    if (this.scene.textures.exists(key)) return;
+    const size = 160;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    const c = size / 2;
+    const glow = ctx.createRadialGradient(c, c, 0, c, c, c);
+    glow.addColorStop(0, "rgba(255,255,255,1)");
+    glow.addColorStop(0.16, "rgba(255,255,255,0.95)");
+    glow.addColorStop(0.4, "rgba(255,255,255,0.32)");
+    glow.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, size, size);
+    ctx.beginPath();
+    ctx.arc(c, c, size * 0.13, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,1)";
+    ctx.fill();
+    this.scene.textures.addCanvas(key, canvas);
+  }
+
+  // A shaded grayscale sphere (light offset for a 3D terminator) plus faint
+  // bands - tinted per-planet to its class color. Normal-blended.
+  _generatePlanet() {
+    const key = "evtex:planet";
+    if (this.scene.textures.exists(key)) return;
+    const size = 128;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    const c = size / 2;
+    const r = size * 0.42;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(c, c, r, 0, Math.PI * 2);
+    ctx.clip();
+    const grad = ctx.createRadialGradient(c - r * 0.35, c - r * 0.35, r * 0.1, c, c, r * 1.25);
+    grad.addColorStop(0, "rgba(255,255,255,1)");
+    grad.addColorStop(0.65, "rgba(200,200,200,1)");
+    grad.addColorStop(1, "rgba(90,90,90,1)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+    // Faint latitudinal bands for a little surface texture
+    ctx.fillStyle = "rgba(0,0,0,0.06)";
+    for (let by = -r; by < r; by += 7) ctx.fillRect(c - r, c + by, r * 2, 2.5);
+    ctx.restore();
+    this.scene.textures.addCanvas(key, canvas);
   }
 
   /** Texture key for a given hull id - drawn once, tinted per-player via setTint. */
@@ -139,6 +195,8 @@ export class TextureFactory {
   }
 
   keyFor(descriptor) {
+    if (descriptor.category === "star") return "evtex:star";
+    if (descriptor.category === "planet") return "evtex:planet";
     const info = OBJECT_CLASSES[descriptor.objectClass];
     const family = info?.category === "galaxy" ? info.morph
       : info?.category === "nebula" ? "nebula"
