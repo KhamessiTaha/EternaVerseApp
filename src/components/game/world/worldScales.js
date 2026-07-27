@@ -138,10 +138,10 @@ export function generateSystem(seed, parentName) {
   });
 
   const letters = "bcdefghijk";
-  const planetCount = 3 + Math.floor(rng() * 7); // 3-9 planets
-  let radius = 1500;
+  const planetCount = 3 + Math.floor(rng() * 4); // 3-6 planets
+  let radius = 750;
   for (let i = 0; i < planetCount; i++) {
-    radius += 950 + rng() * 1300;
+    radius += 600 + rng() * 750;
     const angle = rng() * Math.PI * 2;
     const classId = pickWeighted(rng, PLANET_CLASSES);
     const info = PLANET_CLASSES[classId];

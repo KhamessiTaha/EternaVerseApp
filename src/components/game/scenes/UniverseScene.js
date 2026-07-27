@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import seedrandom from "seedrandom";
 import { getChunkCoords, lerpFactorByDelta } from "../utils";
 import { STABILITY_CRITICAL_THRESHOLD } from "../constants";
-import { worldSeed, childScale, canDescend, DESCEND_CATEGORY, SCALE_LABEL } from "../world/worldScales.js";
+import { worldSeed, childScale, canDescend, DESCEND_CATEGORY, SCALE_LABEL, generateSystem } from "../world/worldScales.js";
 import { getSettings, onSettingsChange } from "../settings.js";
 import { startAmbient, stopAmbient, updateEngine, stopEngine, playSfx } from "../audio.js";
 import { ChunkSystem } from "../systems/ChunkSystem";
@@ -892,12 +892,17 @@ export const UniverseSceneFactory = (props) => {
       this.civilizationSystem.clearVisuals();
       this.chunkSystem.reset();
 
+      // A planetary system is small and bounded, so load a wider area (cheap -
+      // few objects) to keep its planets on screen; other scales stay tight.
+      this.chunkSystem.activeChunkRadius = this.world.scale === "planetary" ? 6 : 2;
+
       this.player.setPosition(x, y);
       this.player.body?.setVelocity?.(0, 0);
       if (this.playerState) this.playerState.velocity = { x: 0, y: 0 };
 
       this.currentChunk = getChunkCoords(x, y);
       this.chunkSystem.loadNearbyChunks(this.currentChunk.chunkX, this.currentChunk.chunkY);
+      this._drawSystemOrbits();
 
       // Anomalies stay galactic; civs render at every scale (they're placed by
       // Kardashev type - Cosmic Scales Phase 2).
@@ -908,6 +913,23 @@ export const UniverseSceneFactory = (props) => {
       this.renderFullMap();
       this._updateBreadcrumb();
       this.cameras.main.flash(220, 12, 15, 28);
+    }
+
+    // Faint concentric orbit rings around a system's star, so the layout is
+    // instantly readable and the player can follow a ring to each planet.
+    _drawSystemOrbits() {
+      (this._orbitRings || []).forEach((r) => r.destroy());
+      this._orbitRings = [];
+      if (this.world.scale !== "planetary") return;
+      const system = generateSystem(this.worldSeed(), this.world.labels[this.world.labels.length - 1]);
+      for (const o of system) {
+        if (o.category !== "planet") continue;
+        const radius = Math.hypot(o.x, o.y);
+        const ring = this.add.circle(0, 0, radius, 0x000000, 0)
+          .setStrokeStyle(1, 0x5a6a9a, 0.28)
+          .setDepth(-4);
+        this._orbitRings.push(ring);
+      }
     }
 
     _updateBreadcrumb() {

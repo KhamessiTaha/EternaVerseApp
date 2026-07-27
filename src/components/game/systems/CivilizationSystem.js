@@ -10,7 +10,7 @@ import { getChunkCoords, getChunkKey, civDesignation, civAttitude } from "../uti
 import { playSfx } from "../audio.js";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
-import { civVisibleAt, civLocation, civHostStructureAt } from "../world/civPlacement.js";
+import { civVisibleAt, civLocation, civHostStructureAt, civInDistress } from "../world/civPlacement.js";
 import { narrateOnce, pick, CURATOR } from "../narrator.js";
 
 // Kardashev type -> beacon color (matches the escalation feel: mundane ->
@@ -144,28 +144,37 @@ export class CivilizationSystem {
   }
 
   // Mark descendable structures (galaxies at galactic, stars at stellar) that
-  // contain a civ living deeper, so descent is purposeful rather than blind.
+  // contain a civ living deeper, so descent is purposeful. A structure hosting
+  // a civ in DISTRESS pulses urgent red (a distress signal to follow down);
+  // otherwise it's a calm green "civilization present" mark.
   _renderHostMarkers(loadedChunks, seed, world) {
     (this._hostMarkers || []).forEach((m) => { this.scene.tweens.killTweensOf(m); m.destroy(); });
     this._hostMarkers = [];
 
-    const hostIds = new Set();
+    const normal = new Set();
+    const distress = new Set();
     for (const beacon of this.beacons.values()) {
       const id = civHostStructureAt(seed, beacon.data, world);
-      if (id) hostIds.add(id);
+      if (!id) continue;
+      if (civInDistress(beacon.data)) distress.add(id); else normal.add(id);
     }
-    if (hostIds.size === 0) return;
+    if (normal.size === 0 && distress.size === 0) return;
 
     for (const chunk of loadedChunks.values()) {
       for (const entry of chunk.objects) {
-        if (!hostIds.has(entry.descriptor.id)) continue;
+        const id = entry.descriptor.id;
+        const isDistress = distress.has(id);
+        if (!isDistress && !normal.has(id)) continue;
         const { x, y } = entry.descriptor;
+        const color = isDistress ? 0xe0524a : 0x4fd1a5;
         const marker = this.scene.add.graphics({ x, y }).setDepth(7);
-        marker.lineStyle(1.5, 0x4fd1a5, 0.9);
+        marker.lineStyle(isDistress ? 2 : 1.5, color, 0.95);
         marker.strokeCircle(0, 0, 22);
         this.scene.tweens.add({
-          targets: marker, scaleX: 1.5, scaleY: 1.5, alpha: { from: 0.9, to: 0.2 },
-          duration: 1500, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+          targets: marker,
+          scaleX: isDistress ? 1.9 : 1.5, scaleY: isDistress ? 1.9 : 1.5,
+          alpha: { from: 0.95, to: 0.2 },
+          duration: isDistress ? 850 : 1500, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
         });
         this._hostMarkers.push(marker);
       }
@@ -174,7 +183,8 @@ export class CivilizationSystem {
 
   createBeacon(civ, loc) {
     const { x, y } = loc ?? civ.location;
-    const color = CIV_TYPE_COLORS[civ.type] ?? CIV_TYPE_COLORS.Type0;
+    // A dying civ's beacon burns urgent red - the distress signal, up close.
+    const color = civInDistress(civ) ? 0xe0524a : (CIV_TYPE_COLORS[civ.type] ?? CIV_TYPE_COLORS.Type0);
     const attitude = civAttitude(civ);
 
     // Core: small settlement mark - a filled diamond, deliberately unlike

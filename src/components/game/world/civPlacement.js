@@ -92,6 +92,14 @@ export function civVisibleAt(seed, civ, world) {
   return pathEq(civHost(seed, civ), world.path);
 }
 
+// A civ is in distress if it's dying or actively begging for rescue - the
+// trigger for a distress signal the player can follow down the scales.
+export function civInDistress(civ) {
+  if (!civ || civ.extinct) return false;
+  if (civ.petition && civ.petition.kind === "crisis") return true;
+  return (civ.resourceDepletion ?? 0) > 0.7 || (civ.stability ?? 0.5) < 0.28;
+}
+
 // Which structure id (at the CURRENT scale) does this civ live inside? Used to
 // mark descendable structures that contain a civ, so descent is purposeful.
 // galactic view -> the civ's home galaxy; stellar view (inside gal) -> its star.
