@@ -890,6 +890,7 @@ export const UniverseSceneFactory = (props) => {
       // Galactic-only entities must not linger at deeper scales.
       this.anomalySystem.clearBackendVisuals();
       this.civilizationSystem.clearVisuals();
+      this.cosmicEventSystem.clear();
       this.chunkSystem.reset();
 
       // A planetary system is small and bounded, so load a wider area (cheap -

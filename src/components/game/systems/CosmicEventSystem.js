@@ -53,6 +53,18 @@ export class CosmicEventSystem {
     this.nextAt = this.scene.time.now + Phaser.Math.Between(...EVENT_INTERVAL);
   }
 
+  // Tear down the active event's visuals immediately (used on cosmic-scale
+  // change - a galactic-scale supernova/derelict must not linger when you
+  // descend into a galaxy or system).
+  clear() {
+    const e = this.active;
+    if (!e) return;
+    ["core", "glow", "head", "tail", "hulk", "ring", "label"].forEach((k) => e[k]?.destroy?.());
+    (e.motes || []).forEach((m) => m?.destroy?.());
+    if (e.light) this.scene.lights.removeLight(e.light);
+    this.active = null;
+  }
+
   _spawn(time) {
     const p = this.scene.player;
     const angle = Math.random() * Math.PI * 2;
