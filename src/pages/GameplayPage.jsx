@@ -79,9 +79,17 @@ const GameplayPage = () => {
     // Civ drama + milestones make good notifications; cap per tick so a big
     // catch-up sim doesn't flood the corner of the screen
     fresh
-      .filter((e) => e.type === 'civilization' || e.type === 'milestone' || e.type === 'war')
-      .slice(0, 2)
+      .filter((e) => e.type === 'civilization' || e.type === 'milestone' || e.type === 'war' || e.type === 'chosen')
+      .slice(0, 3)
       .forEach((e) => {
+        // Chosen-species milestones are the arc's big beats - always a loud
+        // toast + a Curator line (red if your people fell, gold if they rose).
+        if (e.type === 'chosen') {
+          const fell = /are gone|ends here|lost to/i.test(e.description || '');
+          toast(e.description, fell ? 'critical' : 'success', 11000);
+          narrate(e.description);
+          return;
+        }
         toast(e.description, e.type === 'milestone' ? 'success' : 'info', 7000);
         if (e.type === 'war' || /holy war|worship|monument|tribute|denounc/i.test(e.description || '')) {
           narrate(e.description);
@@ -298,6 +306,7 @@ const GameplayPage = () => {
         if (data.outcome === 'backfire') narrate(pick(CURATOR.backfire));
         if (data.outcome === 'armed') narrate(pick(CURATOR.war.armed));
         if (data.outcome === 'brokered') narrate(pick(CURATOR.war.brokered));
+        if (data.outcome === 'rescued') narrate(pick(CURATOR.rescue));
       }
       return data;
     } catch (err) {

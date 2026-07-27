@@ -7,6 +7,7 @@
 // responses (stat changes, spent RP) reflect immediately.
 import { useState } from 'react';
 import { civDesignation, civAttitude } from '../utils';
+import { civInDistress } from '../world/civPlacement.js';
 import { playSfx } from '../audio.js';
 
 const ATTITUDE_INFO = {
@@ -203,6 +204,19 @@ export const FirstContactPanel = ({ civId, onClose, universe, onAction }) => {
 
           {/* Actions */}
           <div className="w-[280px] shrink-0 p-5 flex flex-col gap-2.5">
+            {civInDistress(civ) && (
+              <button
+                onClick={() => act('rescue')}
+                disabled={busy}
+                className="font-mono text-[11px] tracking-wider uppercase px-4 py-3 border border-critical text-critical hover:bg-critical/10 text-left transition-colors animate-pulse disabled:opacity-50"
+              >
+                <div>⚠ Rescue their world · free</div>
+                <div className="text-[10px] normal-case tracking-normal mt-0.5 opacity-80">
+                  You came down in person - stay the collapse and earn their devotion
+                </div>
+              </button>
+            )}
+
             {war && (
               <div className="border border-critical/50 bg-critical/5 px-3 py-2 font-mono">
                 <div className="text-[11px] text-critical tracking-wider">AT WAR with {enemyName}</div>
@@ -242,6 +256,20 @@ export const FirstContactPanel = ({ civId, onClose, universe, onAction }) => {
                 Passive ethnographic survey
               </div>
             </button>
+
+            {universe.chosenCivId === civ.id ? (
+              <div className="border border-accent/60 bg-accent/5 px-3 py-2.5 font-mono">
+                <div className="text-[11px] text-accent tracking-wider">★ YOUR CHOSEN SPECIES</div>
+                <div className="text-[9px] text-ink-faint mt-0.5">Their rise up the ladder is your story to shape.</div>
+              </div>
+            ) : (
+              <button onClick={() => act('champion')} disabled={busy} className={actionBtn(true)}>
+                <div>★ CHAMPION THIS SPECIES</div>
+                <div className="text-[10px] normal-case tracking-normal mt-0.5 opacity-70">
+                  Commit to their story - from first fire to the stars
+                </div>
+              </button>
+            )}
 
             <button
               onClick={() => act('uplift')}

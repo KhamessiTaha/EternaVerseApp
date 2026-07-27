@@ -34,6 +34,25 @@ export const CODEX_ENTRIES = {
   darkMatterClump: "A dark-matter density spike detectable only by its gravitational lensing signature. Whatever dark matter is - and it is five-sixths of all matter - it does not usually clump this hard.",
   cosmicString: "A candidate topological defect: a one-dimensional fault line in spacetime left over from a symmetry-breaking phase transition in the first instants after the Big Bang. Width: subatomic. Mass per kilometer: mountainous.",
   quantumTunneling: "A region exhibiting macroscopic quantum tunneling - matter crossing classically forbidden energy barriers in bulk. Vacuum decay scenarios begin with exactly this signature.",
+
+  // Stars, by spectral class (interstellar scale)
+  O: "The rarest and most luminous stars - searing blue giants tens of thousands of times brighter than the Sun, burning through their fuel in only a few million years before dying as supernovae.",
+  B: "Hot blue-white stars, luminous and short-lived. They light up star-forming regions and seed the galaxy with heavy elements when they explode.",
+  A: "White main-sequence stars around twice the Sun's mass. Sirius and Vega are the bright, familiar examples.",
+  F: "Yellow-white stars a little hotter and heavier than the Sun, with a habitable zone farther out and a shorter, brighter life.",
+  G: "Sun-like yellow stars: stable, long-lived (~10 billion years), the classic setting for a temperate world. Our own star is a G2V.",
+  K: "Orange dwarfs - cooler and dimmer than the Sun but far longer-lived, and increasingly regarded as the calmest, steadiest hosts for life.",
+  M: "Red dwarfs: the galaxy's most common stars by a wide margin. Small, cool, and so frugal they burn for trillions of years. Faint, but everywhere.",
+
+  // Planets, by type (interplanetary scale)
+  terran: "A rare temperate world with liquid-water oceans and a breathable-range atmosphere - the kind of place life takes hold. Vanishingly precious.",
+  ocean: "A world drowned under a single global sea, perhaps hundreds of kilometers deep, its weather driven by an unbroken ocean.",
+  desert: "An arid world of dune seas and wind-carved rock, its water locked away as polar ice or thin high vapor.",
+  rocky: "A bare terrestrial world of stone and metal - geologically active or long dead - without the air or water for life as we know it.",
+  barren: "An airless, cratered world; every impact of its history preserved in the regolith, unerased by weather or tectonics.",
+  ice: "A frozen world of water, ammonia and methane ices, its cracked shell sometimes hiding a liquid ocean far below.",
+  gas: "A giant of hydrogen and helium with no solid surface, banded by storms that dwarf whole planets and ringed by moons.",
+  lava: "A molten world, its surface a churning ocean of magma - either newborn, or scorched by a star it orbits far too closely.",
 };
 
 export const getCodexEntry = (objectClass) =>

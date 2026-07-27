@@ -1,6 +1,7 @@
 // src/components/game/ui/CodexPanel.jsx
 import { useMemo, useState } from 'react';
 import { KNOWN_CLASS_COUNT, getClassInfo } from '../world/researchValues.js';
+import { getScaleClassInfo } from '../world/worldScales.js';
 import { ANOMALY_TYPE_MAP } from '../constants';
 import { getCodexEntry, getCodexContainment } from '../content/codexEntries.js';
 import { CODEX_PRINCIPLES, getPrinciple } from '../content/codexPrinciples.js';
@@ -15,6 +16,8 @@ const RARITY_COLOR = {
 const GROUPS = [
   { id: 'galaxy', label: 'Galaxies', match: (d) => d.category === 'galaxy' },
   { id: 'phenomenon', label: 'Phenomena', match: (d) => d.category === 'phenomenon' || d.category === 'nebula' },
+  { id: 'star', label: 'Stars', match: (d) => d.category === 'star' },
+  { id: 'planet', label: 'Planets', match: (d) => d.category === 'planet' },
   { id: 'anomaly', label: 'Anomalies', match: (d) => d.category === 'anomaly' },
 ];
 
@@ -38,7 +41,8 @@ export const CodexPanel = ({ isOpen, onClose, universe }) => {
   const principle = getPrinciple(principleId) || CODEX_PRINCIPLES[0];
 
   const labelFor = (d) =>
-    getClassInfo(d.objectClass)?.label ?? ANOMALY_TYPE_MAP[d.objectClass]?.label ?? d.objectClass;
+    getClassInfo(d.objectClass)?.label ?? getScaleClassInfo(d.objectClass)?.label
+      ?? ANOMALY_TYPE_MAP[d.objectClass]?.label ?? d.objectClass;
 
   const TabButton = ({ id, children }) => (
     <button

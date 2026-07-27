@@ -200,6 +200,11 @@ export const CURATOR = {
     "I kept notes while you were gone. I always keep notes. Welcome back, warden.",
     "The universe managed without you. Barely, I'd say, but I'm biased toward flattery.",
   ],
+  rescue: [
+    "You came down for them. Do you understand what that means to a people who thought the sky was empty? They will build ten thousand years of faith on this single hour.",
+    "A whole world, saved by hand. Not with research spent from afar - with your own arrival. They will never, ever forget it.",
+    "You descended into their dying light and held it open. That is not diplomacy, warden. That is legend.",
+  ],
   petition: [
     "A civilization is calling out to you. They think you're listening. You might as well prove them right.",
     "Someone down there wants a decision from the sky. How it feels, to be prayed to and petitioned at once.",

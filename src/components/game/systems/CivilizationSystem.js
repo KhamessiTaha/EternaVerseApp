@@ -220,6 +220,20 @@ export class CivilizationSystem {
     // Attitude flourishes: the world should read how they feel about you
     // at a glance, before you ever open the contact panel
     const extras = [];
+
+    // Your chosen species is crowned with a gold star, so you can find the
+    // people whose story you're shaping anywhere in the universe.
+    if (this.scene.universe?.chosenCivId === civ.id) {
+      const star = this.scene.add.text(x, y - 26, "★", {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: "16px", color: "#f5cf7a",
+      }).setOrigin(0.5).setDepth(10);
+      this.scene.tweens.add({
+        targets: star, y: y - 30, alpha: { from: 1, to: 0.55 },
+        duration: 1200, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+      });
+      extras.push(star);
+    }
+
     if (attitude === "worship") {
       // Golden halo + a slow orbiting votive light
       const halo = this.scene.add.graphics({ x, y }).setDepth(8);

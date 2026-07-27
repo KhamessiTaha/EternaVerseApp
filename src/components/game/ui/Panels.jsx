@@ -1,10 +1,20 @@
 import { useEffect, useState } from 'react';
-import { formatNumber } from '../utils';
+import { formatNumber, civDesignation } from '../utils';
 import { getStabilityColorKey, getCosmicPhaseLabel, formatTrend } from './statusHelpers';
 import { StatLine, Meter, StatusPill, SectionTitle, Key, icons } from './primitives';
 import { getSettings, onSettingsChange } from '../settings';
 
 const STATUS_COLOR = { running: 'good', paused: 'warn', ended: 'critical' };
+
+// Chosen-species tracker: short Kardashev label + tech progress toward the next
+// tier (thresholds mirror physicsEngine's type-transition gates: 20/50/80).
+const TYPE_SHORT = { Type0: 'Type 0 · Planetary', Type1: 'Type I · Stellar', Type2: 'Type II · Stellar', Type3: 'Type III · Galactic' };
+const TIER_BAND = { Type0: [0, 20], Type1: [20, 50], Type2: [50, 80] };
+const ascensionProgress = (civ) => {
+  if (civ.type === 'Type3') return 100;
+  const [lo, hi] = TIER_BAND[civ.type] ?? [0, 100];
+  return Math.max(0, Math.min(100, (((civ.technology || 0) - lo) / (hi - lo)) * 100));
+};
 
 export const PrimaryInstrument = ({ universe }) => {
   const cs = universe?.currentState;
@@ -68,8 +78,24 @@ export const Console = ({ universe, stats }) => {
   const civsExtinct = cs.civilizationsExtinct || 0;
   const activeBackendAnomalies = universe?.anomalies?.filter((a) => !a.resolved).length || 0;
 
+  const chosen = civs.find((c) => c.id === universe?.chosenCivId && !c.extinct);
+
   return (
     <div className="w-60 bg-void-raised/70 backdrop-blur-sm border border-line pointer-events-auto">
+      {chosen && (
+        <ConsoleSection icon={icons.life} title="Chosen Species">
+          <StatLine label={civDesignation(chosen.id)} value={TYPE_SHORT[chosen.type] ?? chosen.type} valueClass="text-accent" />
+          <div className="mt-1.5">
+            <div className="flex justify-between font-mono text-[9px] text-ink-faint uppercase tracking-wider mb-1">
+              <span>{chosen.type === 'Type3' ? 'Transcended' : 'Ascension'}</span>
+              <span>{Math.round(ascensionProgress(chosen))}%</span>
+            </div>
+            <div className="h-[3px] bg-line">
+              <div className="h-full bg-accent" style={{ width: `${ascensionProgress(chosen)}%` }} />
+            </div>
+          </div>
+        </ConsoleSection>
+      )}
       <ConsoleSection icon={icons.structures} title="Structures">
         <StatLine label="Galaxies" value={formatNumber(cs.galaxyCount)} />
         <StatLine label="Stars" value={formatNumber(cs.starCount)} />
