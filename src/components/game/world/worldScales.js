@@ -68,10 +68,13 @@ const pickWeighted = (rng, table) => {
   return Object.keys(table)[0];
 };
 
+// Real star-catalog prefixes, for variety instead of everything being "HD".
+const STAR_PREFIXES = ["HD", "HIP", "Gliese", "Wolf", "Ross", "Kepler", "Kapteyn", "Luyten", "Tau", " Keid"];
+
 const nameFor = (seed, id, category) => {
   const r = seedrandom(`${seed}#name#${id}`);
   const n = 100 + Math.floor(r() * 9900);
-  if (category === "star") return `HD ${n}`;
+  if (category === "star") return `${STAR_PREFIXES[Math.floor(r() * STAR_PREFIXES.length)].trim()} ${n}`;
   if (category === "planet") return `Kepler-${n}${String.fromCharCode(98 + Math.floor(r() * 6))}`;
   return `EVC ${n}`;
 };
@@ -104,18 +107,78 @@ function placeFrom(objects, seed, cx, cy, scale, table, count) {
 }
 
 /**
- * Objects in a chunk at a given scale. galactic delegates to the existing
- * galaxy generator; stellar and planetary use the class tables above. Returns
- * the same descriptor shape ChunkSystem.renderObject already consumes (plus a
- * `color` field the star/planet textures use).
+ * A bounded star SYSTEM: the central star you descended into (at the origin)
+ * plus a finite set of planets in rings around it, named after the parent star
+ * ("HD 4821 b, c, d"). Deterministic per system seed. This is what makes the
+ * planetary scale a real solar system instead of an infinite planet field.
  */
-export function generateScaleObjects(seed, chunkX, chunkY, scale) {
+export function generateSystem(seed, parentName) {
+  const rng = seedrandom(`${seed}#system`);
+  const objects = [];
+
+  const starClass = pickWeighted(rng, STAR_CLASSES);
+  const starInfo = STAR_CLASSES[starClass];
+  const name = parentName || nameFor(seed, `sun:${seed}`, "star");
+
+  // The system's own sun, at the center.
+  objects.push({
+    id: `sun:${seed}`,
+    name,
+    category: "star",
+    objectClass: starClass,
+    rarity: starInfo.rarity,
+    research: 0, // the sun you arrived at isn't a new discovery
+    color: starInfo.color,
+    x: 0,
+    y: 0,
+    scale: ((starInfo.size[0] + starInfo.size[1]) / 2) * 1.9,
+    rotation: 0,
+    alpha: 1,
+    central: true,
+  });
+
+  const letters = "bcdefghijk";
+  const planetCount = 3 + Math.floor(rng() * 7); // 3-9 planets
+  let radius = 1500;
+  for (let i = 0; i < planetCount; i++) {
+    radius += 950 + rng() * 1300;
+    const angle = rng() * Math.PI * 2;
+    const classId = pickWeighted(rng, PLANET_CLASSES);
+    const info = PLANET_CLASSES[classId];
+    objects.push({
+      id: `p:${seed}:${i}`,
+      name: `${name} ${letters[i] || i + 1}`,
+      category: "planet",
+      objectClass: classId,
+      rarity: info.rarity,
+      research: info.research,
+      color: info.color,
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+      scale: 0.5 + rng() * 0.55,
+      rotation: rng() * Math.PI * 2,
+      alpha: 1,
+    });
+  }
+  return objects;
+}
+
+/**
+ * Objects in a chunk at a given scale. galactic delegates to the existing
+ * galaxy generator; stellar scatters stars across infinite chunks (a galaxy is
+ * vast); planetary returns a BOUNDED system's objects for this chunk only.
+ * `parentName` is the descended-into structure's name (used to name planets).
+ */
+export function generateScaleObjects(seed, chunkX, chunkY, scale, parentName) {
   if (scale === "galactic") return generateChunkObjects(seed, chunkX, chunkY);
   if (scale === "stellar") {
     return placeFrom([], seed, chunkX, chunkY, scale, STAR_CLASSES, (rng) => intIn(rng, 3, 7));
   }
   if (scale === "planetary") {
-    return placeFrom([], seed, chunkX, chunkY, scale, PLANET_CLASSES, (rng) => intIn(rng, 2, 5));
+    // The system sits at the origin; only its chunks have anything.
+    return generateSystem(seed, parentName).filter(
+      (o) => Math.floor(o.x / CHUNK_SIZE) === chunkX && Math.floor(o.y / CHUNK_SIZE) === chunkY
+    );
   }
   return [];
 }

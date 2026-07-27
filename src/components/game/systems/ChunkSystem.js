@@ -3,6 +3,7 @@ import seedrandom from 'seedrandom';
 import { CHUNK_SIZE, ANOMALY_SPAWN_CHANCE, ANOMALIES_PER_CHUNK, ANOMALY_TYPES } from '../constants';
 import { getChunkKey } from '../utils';
 import { generateScaleObjects } from '../world/worldScales.js';
+import { TextureFactory } from '../graphics/TextureFactory.js';
 
 export class ChunkSystem {
   constructor(scene, anomalySystem) {
@@ -54,8 +55,12 @@ export class ChunkSystem {
     // interior is a distinct, stable world (Cosmic Scales).
     const seed = this.scene.worldSeed?.() ?? this.scene.universe.seed ?? "seed";
     const scale = this.scene.world?.scale ?? "galactic";
+    // Name of the structure we descended into (the star, at planetary scale) so
+    // its planets can be named after it.
+    const labels = this.scene.world?.labels ?? [];
+    const parentName = labels[labels.length - 1];
 
-    for (const descriptor of generateScaleObjects(seed, chunkX, chunkY, scale)) {
+    for (const descriptor of generateScaleObjects(seed, chunkX, chunkY, scale, parentName)) {
       chunk.objects.push(this.renderObject(descriptor));
     }
 
@@ -109,26 +114,26 @@ export class ChunkSystem {
     const isStar = descriptor.category === "star";
     const isPlanet = descriptor.category === "planet";
 
-    const image = this.scene.add.image(
-      descriptor.x, descriptor.y,
-      this.scene.textureFactory.keyFor(descriptor)
-    )
+    const textureKey = this.scene.textureFactory.keyFor(descriptor);
+    const isCustom = TextureFactory.isCustom(textureKey);
+    const image = this.scene.add.image(descriptor.x, descriptor.y, textureKey)
       .setScale(descriptor.scale)
       .setRotation(descriptor.rotation)
       .setAlpha(descriptor.alpha)
       .setDepth(isNebula ? -3 : -1);
 
-    // Stars share one white glow texture, tinted to their spectral color.
-    // Planets get their own per-class colored texture (no tint).
-    if (isStar && typeof descriptor.color === "number") {
+    // Tint only the shared WHITE star texture to its spectral color. A custom
+    // per-class star image (evtex:star:O, etc.) is already colored - don't tint.
+    if (isStar && textureKey === "evtex:star" && typeof descriptor.color === "number") {
       image.setTint(descriptor.color);
     }
 
-    // Planets are solid bodies (normal blend). EVERYTHING else - galaxies,
-    // nebulae, stars, phenomena - is emissive light, drawn ADDITIVELY so
-    // overlapping structures never occlude each other with a dark texture box
-    // (this is the "dark square" artifact the flat normal-blend galaxies had).
-    if (!isPlanet) {
+    // Custom art is already background-keyed to transparent, so it renders with
+    // normal blend (shows the image as-is). Procedural emissive objects
+    // (galaxies/nebulae/stars/phenomena) are faint glows meant to be ADDITIVE,
+    // which also stops them boxing each other on overlap. Planets are always
+    // normal-blend solid bodies.
+    if (!isPlanet && !isCustom) {
       image.setBlendMode(Phaser.BlendModes.ADD);
     }
 

@@ -41,6 +41,8 @@ const toRgba = (hex, a) => `rgba(${(hex >> 16) & 255},${(hex >> 8) & 255},${hex 
 
 export class TextureFactory {
   static STARFIELD_KEYS = ["evtex:stars:0", "evtex:stars:1", "evtex:stars:2"];
+  // Texture keys backed by processed custom art (rendered with normal blend).
+  static _customKeys = new Set();
 
   constructor(scene, seed) {
     this.scene = scene;
@@ -50,23 +52,89 @@ export class TextureFactory {
   // Queue any custom PNG art (customAssets.js) in the scene preload. Loaded
   // under the same evtex:* keys the procedural textures use, so generateAll's
   // exists()-guard automatically prefers the PNG and only generates the gaps.
-  static queueCustomAssets(scene) {
-    for (const [family, paths] of Object.entries(CUSTOM_ASSETS)) {
-      (paths || []).forEach((path, i) => {
-        const key = customTextureKey(family, i);
-        // Absolute from the site root - the game runs at /gameplay/:id, so a
-        // relative path would 404 against the route and fall back to procedural.
-        const url = path.startsWith("/") ? path : `/${path}`;
-        if (!scene.textures.exists(key)) scene.load.image(key, url);
-      });
-    }
+  static isCustom(key) {
+    return TextureFactory._customKeys.has(key);
   }
 
-  // Effective variant count for a galaxy family = the larger of the built-in
-  // count and however many custom PNGs were supplied (so extra art = more
-  // variety, picked by keyFor).
+  // Load custom PNG/JPG art in preload, then POST-PROCESS each on load so any
+  // background works: emissive objects (galaxies/nebulae/stars) get their dark
+  // background keyed out to transparent by luminance; planets get cropped to a
+  // clean circle. Everything is normalized to a standard size, so a huge source
+  // image renders the same as a procedural one.
+  static queueCustomAssets(scene) {
+    TextureFactory._customKeys.clear();
+    const entries = [];
+    for (const [family, paths] of Object.entries(CUSTOM_ASSETS)) {
+      (paths || []).forEach((path, i) => {
+        const finalKey = customTextureKey(family, i);
+        if (scene.textures.exists(finalKey)) return;
+        const rawKey = `__raw:${finalKey}`;
+        const url = path.startsWith("/") ? path : `/${path}`;
+        scene.load.image(rawKey, url);
+        entries.push({ family, finalKey, rawKey });
+      });
+    }
+    if (entries.length === 0) return;
+    // Runs after the loader finishes, before the scene's create() - so the
+    // processed textures exist by the time TextureFactory.generateAll() runs
+    // and its exists()-guard skips generating a procedural texture for them.
+    scene.load.once("complete", () => {
+      for (const e of entries) {
+        if (scene.textures.exists(e.rawKey)) TextureFactory._processCustom(scene, e);
+      }
+    });
+  }
+
+  static _processCustom(scene, { family, finalKey, rawKey }) {
+    const isPlanet = family.startsWith("planet:");
+    const size = isPlanet ? 128 : 256;
+    const src = scene.textures.get(rawKey).getSourceImage();
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(src, 0, 0, size, size);
+
+    if (isPlanet) {
+      // Crop to a clean circle (any background outside the disc disappears).
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size * 0.46, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+    } else {
+      // Luminance key: an emissive object is bright on dark, so drive alpha
+      // from brightness - the dark background falls to transparent, the object
+      // stays, with a natural soft edge. Kills the "dark square" for good.
+      const img = ctx.getImageData(0, 0, size, size);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        d[i + 3] = Math.max(0, Math.min(255, (lum - 16) * 1.9));
+      }
+      ctx.putImageData(img, 0, 0);
+      // Radial fade catches any residual corner haze.
+      ctx.globalCompositeOperation = "destination-in";
+      const g = ctx.createRadialGradient(size / 2, size / 2, size * 0.1, size / 2, size / 2, size * 0.5);
+      g.addColorStop(0, "rgba(0,0,0,1)");
+      g.addColorStop(0.82, "rgba(0,0,0,1)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    scene.textures.remove(rawKey);
+    scene.textures.addCanvas(finalKey, canvas);
+    TextureFactory._customKeys.add(finalKey);
+  }
+
+  // Variant count for a galaxy family. If ANY custom art was supplied for the
+  // family, use exactly that many (so every instance is your art - no mixing
+  // custom and procedural). Otherwise use the built-in procedural count.
   _variantCount(family) {
-    return Math.max(VARIANTS[family] ?? 1, (CUSTOM_ASSETS[family]?.length) ?? 0);
+    const custom = CUSTOM_ASSETS[family]?.length ?? 0;
+    return custom > 0 ? custom : (VARIANTS[family] ?? 1);
   }
 
   generateAll() {
@@ -365,7 +433,12 @@ export class TextureFactory {
   }
 
   keyFor(descriptor) {
-    if (descriptor.category === "star") return "evtex:star";
+    if (descriptor.category === "star") {
+      // Prefer a custom per-spectral-class star image if one was supplied;
+      // otherwise the single white star texture (tinted at render time).
+      const perClass = `evtex:star:${descriptor.objectClass}`;
+      return this.scene.textures.exists(perClass) ? perClass : "evtex:star";
+    }
     if (descriptor.category === "planet") return `evtex:planet:${descriptor.objectClass}`;
     const info = OBJECT_CLASSES[descriptor.objectClass];
     const family = info?.category === "galaxy" ? info.morph

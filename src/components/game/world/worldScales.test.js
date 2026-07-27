@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   SCALES, childScale, parentScale, canDescend, worldSeed,
-  generateScaleObjects, STAR_CLASSES,
+  generateScaleObjects, generateSystem, STAR_CLASSES,
 } from "./worldScales.js";
 
 test("scale ladder navigates and clamps at the ends", () => {
@@ -39,15 +39,26 @@ test("generateScaleObjects is deterministic per (seed, chunk, scale)", () => {
   }
 });
 
-test("stellar chunks yield stars; planetary chunks yield planets", () => {
+test("stellar chunks yield stars", () => {
   const stars = generateScaleObjects("seed", 0, 0, "stellar");
   assert.ok(stars.length >= 3 && stars.length <= 7);
   assert.ok(stars.every((o) => o.category === "star"));
   assert.ok(stars.every((o) => typeof o.color === "number"));
+});
 
-  const planets = generateScaleObjects("seed", 0, 0, "planetary");
-  assert.ok(planets.length >= 2 && planets.length <= 5);
-  assert.ok(planets.every((o) => o.category === "planet"));
+test("a planetary system is bounded: one central star + a few named planets", () => {
+  const sys = generateSystem("sys-seed", "HD 4821");
+  const star = sys.filter((o) => o.category === "star");
+  const planets = sys.filter((o) => o.category === "planet");
+  assert.equal(star.length, 1);
+  assert.ok(star[0].central && star[0].x === 0 && star[0].y === 0);
+  assert.ok(planets.length >= 3 && planets.length <= 9, `got ${planets.length} planets`);
+  // planets are named after the parent star, exoplanet-style
+  assert.equal(planets[0].name, "HD 4821 b");
+  assert.equal(planets[1].name, "HD 4821 c");
+  // the central star chunk (0,0) contains the sun; distant chunks are empty
+  assert.ok(generateScaleObjects("sys-seed", 0, 0, "planetary", "HD 4821").some((o) => o.central));
+  assert.equal(generateScaleObjects("sys-seed", 40, 40, "planetary", "HD 4821").length, 0);
 });
 
 test("star spectral distribution is M-dwarf dominated (real IMF)", () => {

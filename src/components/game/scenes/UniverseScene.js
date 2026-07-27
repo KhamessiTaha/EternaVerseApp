@@ -869,7 +869,10 @@ export const UniverseSceneFactory = (props) => {
         path: [...this.world.path, descriptor.id],
         labels: [...this.world.labels, descriptor.name],
       };
-      this._enterScale(0, 0);
+      // At the planetary scale the system's star sits at the origin, so drop
+      // the player out beyond it rather than on top of it.
+      const spawn = this.world.scale === "planetary" ? { x: 0, y: -1150 } : { x: 0, y: 0 };
+      this._enterScale(spawn.x, spawn.y);
       narrate(`Descending into ${descriptor.name}. A whole ${SCALE_LABEL[this.world.scale].toLowerCase()} realm, folded inside a single point of light.`);
     }
 
