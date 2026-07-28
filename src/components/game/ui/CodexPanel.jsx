@@ -21,6 +21,18 @@ const GROUPS = [
   { id: 'anomaly', label: 'Anomalies', match: (d) => d.category === 'anomaly' },
 ];
 
+// Module-level so it isn't redefined every render (which remounts the tab bar).
+const TabButton = ({ active, onClick, children }) => (
+  <button
+    onClick={onClick}
+    className={`font-mono text-[11px] tracking-wider uppercase px-3 py-1.5 border-b-2 transition-colors ${
+      active ? 'border-accent text-ink' : 'border-transparent text-ink-faint hover:text-ink-dim'
+    }`}
+  >
+    {children}
+  </button>
+);
+
 export const CodexPanel = ({ isOpen, onClose, universe }) => {
   const [tab, setTab] = useState('catalog');
   const [selectedId, setSelectedId] = useState(null);
@@ -44,17 +56,6 @@ export const CodexPanel = ({ isOpen, onClose, universe }) => {
     getClassInfo(d.objectClass)?.label ?? getScaleClassInfo(d.objectClass)?.label
       ?? ANOMALY_TYPE_MAP[d.objectClass]?.label ?? d.objectClass;
 
-  const TabButton = ({ id, children }) => (
-    <button
-      onClick={() => setTab(id)}
-      className={`font-mono text-[11px] tracking-wider uppercase px-3 py-1.5 border-b-2 transition-colors ${
-        tab === id ? 'border-accent text-ink' : 'border-transparent text-ink-faint hover:text-ink-dim'
-      }`}
-    >
-      {children}
-    </button>
-  );
-
   const containment = selected && getCodexContainment(selected.objectClass);
 
   return (
@@ -69,8 +70,8 @@ export const CodexPanel = ({ isOpen, onClose, universe }) => {
               </p>
             </div>
             <div className="flex items-center gap-1 self-end">
-              <TabButton id="catalog">Field Catalog</TabButton>
-              <TabButton id="principles">Principles</TabButton>
+              <TabButton active={tab === 'catalog'} onClick={() => setTab('catalog')}>Field Catalog</TabButton>
+              <TabButton active={tab === 'principles'} onClick={() => setTab('principles')}>Principles</TabButton>
             </div>
           </div>
           <div className="flex items-center gap-6 font-mono">
