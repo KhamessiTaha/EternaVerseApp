@@ -165,6 +165,44 @@ const ThreatForecast = ({ universeId, isOpen }) => {
   );
 };
 
+// The Hall of Legacies: every people the player shepherded from first fire to
+// Type III. It is the game's accumulating trophy case - proof that the Chosen
+// Species arc is repeatable, and that a universe can hold more than one saga.
+const HallOfLegacies = ({ legacies }) => {
+  if (!legacies?.length) return null;
+  const fmtAge = (y) =>
+    y >= 1e9 ? `${(y / 1e9).toFixed(1)} Gyr` : `${Math.max(1, Math.round(y / 1e6))} Myr`;
+  return (
+    <div className="border-b border-line pb-3">
+      <div className="px-5 pt-4 pb-2">
+        <div className="font-sans text-[15px] text-ink font-medium flex items-center gap-2">
+          <span className="text-[#ffe9a8]">✦</span> Hall of Legacies
+        </div>
+        <div className="text-[9px] font-mono uppercase tracking-wider text-ink-faint">
+          {legacies.length} {legacies.length === 1 ? 'people ascended' : 'peoples ascended'}
+        </div>
+      </div>
+      <div className="px-5 space-y-2">
+        {[...legacies].reverse().map((l) => (
+          <div key={l.civId} className="border border-line/70 bg-void-raised px-3 py-2 font-mono">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[12px] text-[#ffe9a8]">{l.designation}</span>
+              <span className="text-[9px] text-ink-faint tabular-nums">{l.ageGyr} Gyr</span>
+            </div>
+            <div className="text-[10px] text-ink-faint mt-0.5">
+              Shepherded {fmtAge(l.shepherdedFor || 0)}
+              {(l.uplifts || l.rescues || l.pacifies) ? ' · ' : ''}
+              {l.uplifts ? `${l.uplifts} uplift${l.uplifts > 1 ? 's' : ''} ` : ''}
+              {l.rescues ? `${l.rescues} rescue${l.rescues > 1 ? 's' : ''} ` : ''}
+              {l.pacifies ? `${l.pacifies} tempered` : ''}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export const ChroniclePanel = ({ isOpen, onClose, universe }) => {
   const [filter, setFilter] = useState('all');
 
@@ -259,8 +297,9 @@ export const ChroniclePanel = ({ isOpen, onClose, universe }) => {
             </div>
           </div>
 
-          {/* Threat forecast */}
+          {/* Meta column: the Hall of Legacies, then the threat forecast */}
           <div className="w-[320px] shrink-0 border-l border-line overflow-y-auto">
+            <HallOfLegacies legacies={universe?.legacies} />
             <div className="px-5 pt-4 pb-1">
               <div className="font-sans text-[15px] text-ink font-medium">Threat Forecast</div>
               <div className="text-[9px] font-mono uppercase tracking-wider text-ink-faint">Predictive model</div>

@@ -82,7 +82,8 @@ export class CivilizationSystem {
         // match; recreated on the next renderVisible
         if (existing.visual &&
             (existing.visual.attitude !== civAttitude(civ) ||
-             existing.visual.atWar !== this._isAtWar(civ.id))) {
+             existing.visual.atWar !== this._isAtWar(civ.id) ||
+             existing.visual.ascended !== !!civ.ascended)) {
           this.destroyVisual(existing.visual);
           existing.visual = null;
         }
@@ -234,6 +235,28 @@ export class CivilizationSystem {
       extras.push(star);
     }
 
+    // An ascended people (a completed legacy) wear a permanent radiant crown -
+    // a double halo and a bright glyph - so a shepherd's finished work is
+    // visible forever, even after the mantle passed to someone new.
+    if (civ.ascended) {
+      const crown = this.scene.add.text(x, y - 27, "✦", {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: "18px", color: "#ffe9a8",
+      }).setOrigin(0.5).setDepth(11).setBlendMode(Phaser.BlendModes.ADD);
+      this.scene.tweens.add({
+        targets: crown, alpha: { from: 1, to: 0.6 }, scale: { from: 1, to: 1.15 },
+        duration: 1600, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+      });
+      const aura = this.scene.add.graphics({ x, y }).setDepth(7);
+      aura.lineStyle(2, 0xffe9a8, 0.5);
+      aura.strokeCircle(0, 0, 26);
+      aura.lineStyle(1, 0xffe9a8, 0.3);
+      aura.strokeCircle(0, 0, 34);
+      this.scene.tweens.add({
+        targets: aura, angle: 360, duration: 18000, repeat: -1,
+      });
+      extras.push(crown, aura);
+    }
+
     if (attitude === "worship") {
       // Golden halo + a slow orbiting votive light
       const halo = this.scene.add.graphics({ x, y }).setDepth(8);
@@ -275,7 +298,7 @@ export class CivilizationSystem {
       .setDepth(1000)
       .setVisible(false);
 
-    return { x, y, core, rings, label, extras, attitude, atWar };
+    return { x, y, core, rings, label, extras, attitude, atWar, ascended: !!civ.ascended };
   }
 
   /** Show/hide contact prompts based on player proximity. */

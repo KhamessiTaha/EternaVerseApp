@@ -1,28 +1,39 @@
 // src/components/game/ui/LegacyPanel.jsx
 //
-// The culmination of the Chosen Species arc: shown once, when the civilization
-// the player has shepherded reaches Type III. It honors the whole journey -
-// first fire to a galaxy-spanning power - and is the game's emotional payoff.
-import { civDesignation } from '../utils';
+// The culmination of the Chosen Species arc: shown once, when a people the
+// player has shepherded reaches Type III and ascends. It honors the whole
+// journey - first fire to a galaxy-spanning power - and, crucially, hands the
+// mantle back: the ascended become a benefactor, and the player is invited to
+// choose again. It is the game's emotional payoff AND its second-wind hook.
+//
+// Renders from an immortal `legacy` record (models/Universe.js LegacySchema),
+// not a live civ - the civ may ascend, drift, even later fall, but the legacy
+// is permanent.
+const formatAge = (years) =>
+  years >= 1e9 ? `${(years / 1e9).toFixed(1)} billion years` : `${Math.max(1, Math.round(years / 1e6))} million years`;
 
-const formatAge = (age) =>
-  age >= 1e9 ? `${(age / 1e9).toFixed(1)} billion years` : `${Math.max(1, Math.round(age / 1e6))} million years`;
+const ordinal = (n) => {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
 
-export const LegacyPanel = ({ civ, onClose }) => {
-  if (!civ) return null;
-  const name = civDesignation(civ.id);
+export const LegacyPanel = ({ legacy, onClose }) => {
+  if (!legacy) return null;
+  const name = legacy.designation || 'Your people';
+  const nth = legacy.legacyNumber || 1;
   const stats = [
-    ['Shepherded for', formatAge(civ.age || 0)],
-    ['Upliftings given', civ.uplifts || 0],
-    ['Worlds rescued', civ.rescues || 0],
-    ['Aggression tempered', civ.pacifies || 0],
+    ['Shepherded for', formatAge(legacy.shepherdedFor || 0)],
+    ['Upliftings given', legacy.uplifts || 0],
+    ['Worlds rescued', legacy.rescues || 0],
+    ['Aggression tempered', legacy.pacifies || 0],
   ];
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-void/95 backdrop-blur-sm">
       <div className="relative w-[90vw] max-w-xl text-center px-8 py-10">
         <div className="text-accent text-[11px] font-mono tracking-[0.35em] uppercase mb-4 animate-pulse">
-          ★ &nbsp; A Legacy Complete &nbsp; ★
+          ★ &nbsp; {nth > 1 ? `A ${ordinal(nth)} Legacy` : 'A Legacy Complete'} &nbsp; ★
         </div>
         <h1 className="font-sans text-3xl text-ink font-semibold mb-5 leading-tight">
           {name} has reached the heavens
@@ -30,7 +41,7 @@ export const LegacyPanel = ({ civ, onClose }) => {
         <p className="text-ink-dim text-[15px] leading-relaxed mb-8 font-sans italic max-w-lg mx-auto">
           The people you chose — that you met as primitives clinging to a single fragile world — now
           command the energy of an entire galaxy. You held their light open through every dark age.
-          From first fire to the stars, this is your legacy.
+          They ascend beyond your keeping now, and they do not forget who raised them.
         </p>
 
         <div className="grid grid-cols-2 gap-px bg-line border border-line mb-4 font-mono max-w-md mx-auto">
@@ -42,14 +53,19 @@ export const LegacyPanel = ({ civ, onClose }) => {
           ))}
         </div>
         <div className="text-[11px] font-mono tracking-wider text-ink-faint uppercase mb-8">
-          Type 0 &nbsp;→&nbsp; Type I &nbsp;→&nbsp; Type II &nbsp;→&nbsp; Type III
+          Type 0 &nbsp;→&nbsp; Type I &nbsp;→&nbsp; Type II &nbsp;→&nbsp; Type III &nbsp;·&nbsp; Ascended
         </div>
+
+        <p className="text-ink-dim text-[13px] leading-relaxed mb-6 font-sans max-w-md mx-auto">
+          The mantle is yours again. Somewhere below, another people are taking their first
+          uncertain steps. You could choose them next.
+        </p>
 
         <button
           onClick={onClose}
           className="font-mono text-[12px] tracking-wider text-ink-dim hover:text-ink border border-line-bright hover:border-accent px-6 py-2.5 transition-colors"
         >
-          Their story continues
+          Choose again
         </button>
       </div>
     </div>

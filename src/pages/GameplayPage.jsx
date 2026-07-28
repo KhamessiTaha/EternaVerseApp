@@ -345,16 +345,24 @@ const GameplayPage = () => {
     });
   }, [universe, toast]);
 
-  // The Chosen Species climax: when the civ you're shepherding reaches Type III,
-  // show the Legacy screen once.
-  const legacyCelebratedRef = useRef(new Set());
+  // The Chosen Species climax: when the people you shepherded reach Type III,
+  // the backend records an immortal legacy (and frees chosenCivId so you may
+  // champion anew). Show the Legacy screen once per new legacy record. Seeding
+  // the "seen" set on first load prevents replaying past ascensions as popups.
+  const legacyCelebratedRef = useRef(null);
   const [legacy, setLegacy] = useState(null);
   useEffect(() => {
     if (!universe) return;
-    const chosen = (universe.civilizations || []).find((c) => c.id === universe.chosenCivId && !c.extinct);
-    if (chosen && chosen.type === "Type3" && !legacyCelebratedRef.current.has(chosen.id)) {
-      legacyCelebratedRef.current.add(chosen.id);
-      setLegacy(chosen);
+    const records = universe.legacies || [];
+    if (legacyCelebratedRef.current === null) {
+      // First load: remember everything already achieved, celebrate nothing.
+      legacyCelebratedRef.current = new Set(records.map((l) => l.civId));
+      return;
+    }
+    const fresh = records.find((l) => !legacyCelebratedRef.current.has(l.civId));
+    if (fresh) {
+      legacyCelebratedRef.current.add(fresh.civId);
+      setLegacy({ ...fresh, legacyNumber: records.length });
     }
   }, [universe]);
 
@@ -623,7 +631,7 @@ const GameplayPage = () => {
         />
       )}
       {legacy && (
-        <LegacyPanel civ={legacy} onClose={() => setLegacy(null)} />
+        <LegacyPanel legacy={legacy} onClose={() => setLegacy(null)} />
       )}
       {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
     </>
