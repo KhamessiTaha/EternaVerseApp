@@ -24,6 +24,7 @@ import { narrate, narrateOnce, pick, CURATOR } from "../components/game/narrator
 import { progressOf } from "../components/game/ui/MissionsPanel";
 import { WelcomeBackPanel, buildDigest } from "../components/game/ui/WelcomeBackPanel";
 import { PetitionPanel } from "../components/game/ui/PetitionPanel";
+import { LegacyPanel } from "../components/game/ui/LegacyPanel";
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -344,6 +345,19 @@ const GameplayPage = () => {
     });
   }, [universe, toast]);
 
+  // The Chosen Species climax: when the civ you're shepherding reaches Type III,
+  // show the Legacy screen once.
+  const legacyCelebratedRef = useRef(new Set());
+  const [legacy, setLegacy] = useState(null);
+  useEffect(() => {
+    if (!universe) return;
+    const chosen = (universe.civilizations || []).find((c) => c.id === universe.chosenCivId && !c.extinct);
+    if (chosen && chosen.type === "Type3" && !legacyCelebratedRef.current.has(chosen.id)) {
+      legacyCelebratedRef.current.add(chosen.id);
+      setLegacy(chosen);
+    }
+  }, [universe]);
+
   const handlePetitionResponse = async (civId, petitionId, optionId) => {
     try {
       const data = await respondPetition(id, civId, petitionId, optionId);
@@ -598,7 +612,7 @@ const GameplayPage = () => {
           }}
         />
       )}
-      {petition && !digest && (
+      {petition && !digest && !legacy && (
         <PetitionPanel
           petition={petition}
           onRespond={handlePetitionResponse}
@@ -607,6 +621,9 @@ const GameplayPage = () => {
             setPetition(null);
           }}
         />
+      )}
+      {legacy && (
+        <LegacyPanel civ={legacy} onClose={() => setLegacy(null)} />
       )}
       {fromBigBang && <FadeFromColor color="#ffffff" duration={0.9} />}
     </>
