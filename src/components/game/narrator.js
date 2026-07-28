@@ -114,6 +114,10 @@ export function muse() {
 // Multi-line pools; call sites use pick(). Once-keys still vary per session.
 
 export const CURATOR = {
+  genesis: {
+    open: "So. A new warden, a fresh universe, and me to watch you fumble through both. I've left you a short list of first acts - top left. Complete them and I'll stop hovering. Mostly.",
+    complete: "Move, scan, descend, speak, choose. That is the whole of it - the rest is just scale. You know the loop now. Everything from here is depth. Try not to drown.",
+  },
   greetings: {
     dark_ages: "In the beginning there was nothing. Then you showed up. I'm still deciding whether that's an improvement.",
     stelliferous: "Stars are burning. Life is scheming. And you're here to poke at all of it. Wonderful.",

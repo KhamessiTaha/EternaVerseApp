@@ -27,6 +27,7 @@ import { AchievementsPanel } from "./ui/AchievementsPanel";
 import { HangarPanel } from "./ui/HangarPanel";
 import { GameMenu } from "./game/ui/GameMenu";
 import { NarratorOverlay } from "./game/ui/NarratorOverlay";
+import { GenesisDirective } from "./game/ui/GenesisDirective";
 import { narrate, narrateOnce, pick, CURATOR } from "./game/narrator";
 import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
@@ -448,6 +449,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         }}
       />
       <NarratorOverlay />
+      <GenesisDirective universe={universe} />
 
       <div id="phaser-container" className="w-full h-full" />
     </div>

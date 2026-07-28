@@ -6,6 +6,7 @@ import { playSfx } from "../audio.js";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
 import { narrateOnce, pick, CURATOR } from "../narrator.js";
+import { markBeat } from "../firstSession.js";
 
 // Movement key presets, selected via the settings menu. AZERTY (ZQSD) is the
 // game's original binding; QWERTY gives the standard WASD cluster.
@@ -344,6 +345,13 @@ export class InputSystem {
     let rotationInput = 0;
     if (this.keys.left.isDown) rotationInput -= 1;
     if (this.keys.right.isDown) rotationInput += 1;
+
+    // First-session arc: the moment the warden takes the helm (guarded no-op
+    // after the first frame it fires).
+    if (this.keys.thrust.isDown || this.keys.brake.isDown || rotationInput !== 0
+        || this.keys.strafeLeft.isDown || this.keys.strafeRight.isDown) {
+      markBeat('move');
+    }
 
     if (rotationInput !== 0) {
       this.rotationVelocity += rotationInput * scaleByDelta(this.params.ROTATION_ACCEL * sensitivity, delta);

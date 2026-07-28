@@ -23,6 +23,7 @@ import { CosmicEventSystem } from "../systems/CosmicEventSystem";
 import { getLoadoutLocal, setLoadoutLocal } from "../loadoutStore.js";
 import { HULL_CATALOG } from "../content/hullCatalog.js";
 import { narrate, narrateOnce, pick, muse, CURATOR } from "../narrator.js";
+import { markBeat } from "../firstSession.js";
 
 // Module-level, not per-scene: survives remounts (leaving and re-entering a
 // universe within the same tab) so the full orientation toast only ever
@@ -873,6 +874,7 @@ export const UniverseSceneFactory = (props) => {
       // the player out beyond it rather than on top of it.
       const spawn = this.world.scale === "planetary" ? { x: 0, y: -1150 } : { x: 0, y: 0 };
       this._enterScale(spawn.x, spawn.y);
+      markBeat('descend'); // first-session arc: they've folded down a scale
       narrate(`Descending into ${descriptor.name}. A whole ${SCALE_LABEL[this.world.scale].toLowerCase()} realm, folded inside a single point of light.`);
     }
 
