@@ -4,6 +4,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
 import { Button, Panel, Field, Eyebrow, Alert } from "../components/ui/primitives";
+import { startGuestDemo } from "../api/authApi";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -27,6 +28,20 @@ const Login = () => {
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Please try again.");
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // One-click demo: a guest session + a fresh Beginner universe, straight into
+  // the Big Bang. No signup - the "Save your universe" prompt handles that later.
+  const handleDemo = async () => {
+    setError("");
+    setIsLoading(true);
+    try {
+      const universe = await startGuestDemo(login);
+      navigate(`/big-bang/${universe._id}`, { state: { universe } });
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not start the demo. Please try again.");
       setIsLoading(false);
     }
   };
@@ -97,6 +112,17 @@ const Login = () => {
           <Button variant="secondary" className="w-full" onClick={() => navigate("/register")}>
             Create Account
           </Button>
+
+          <button
+            onClick={handleDemo}
+            disabled={isLoading}
+            className="mt-3 w-full font-mono text-[12px] tracking-wider uppercase text-accent hover:text-ink border border-accent/50 hover:border-accent px-4 py-2.5 transition-colors disabled:opacity-60"
+          >
+            ▶ Play the demo — no account needed
+          </button>
+          <p className="text-center text-ink-faint text-[10px] font-mono mt-2">
+            Jump straight in. Save your universe anytime.
+          </p>
         </Panel>
 
         <p className="text-center text-ink-faint text-xs font-mono mt-6">

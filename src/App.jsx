@@ -8,6 +8,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import UniverseCreation from "./pages/UniverseCreation";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { GuestBanner } from "./components/GuestBanner";
 import { ToastProvider } from "./components/ui/ToastProvider";
 import './index.css';
 import './App.css';
@@ -35,6 +36,9 @@ function App() {
       <div className="flex flex-col min-h-screen bg-void">
         {/* Global Navbar - Fixed height, doesn't flex */}
         <NavHeader />
+
+        {/* Demo → account conversion prompt (only visible during a guest session) */}
+        <GuestBanner />
 
         {/* Main Content Area - Takes remaining space */}
         <main className="flex-1 overflow-auto">

@@ -5,6 +5,7 @@ import { AuthContext } from "../context/AuthContext";
 import { Globe, Zap, Star, ArrowRight, Play, X } from "lucide-react";
 import { Button, Eyebrow, Panel } from "../components/ui/primitives";
 import { Starfield } from "../components/ui/Starfield";
+import { startGuestDemo } from "../api/authApi";
 
 const STATS = [
   { value: "10B+", label: "Galaxies Simulated" },
@@ -32,12 +33,27 @@ const FEATURES = [
 
 const Home = () => {
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);
+  const { user, login } = useContext(AuthContext);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
+  const [demoBusy, setDemoBusy] = useState(false);
 
   const handleGetStarted = () => {
     if (user) navigate("/dashboard");
     else navigate("/login", { state: { from: "/dashboard" } });
+  };
+
+  // Cold-visitor path: straight into a playable universe, no signup. Falls
+  // back to the login page if the guest session can't be created.
+  const handleDemo = async () => {
+    if (demoBusy) return;
+    setDemoBusy(true);
+    try {
+      const universe = await startGuestDemo(login);
+      navigate(`/big-bang/${universe._id}`, { state: { universe } });
+    } catch {
+      setDemoBusy(false);
+      navigate("/login");
+    }
   };
 
   return (
@@ -66,8 +82,14 @@ const Home = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-20">
-            <Button onClick={handleGetStarted} className="px-8 py-3.5">
-              Get Started
+            {!user && (
+              <Button onClick={handleDemo} disabled={demoBusy} className="px-8 py-3.5">
+                {demoBusy ? "Preparing…" : "Play the Demo"}
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            )}
+            <Button variant={user ? "primary" : "secondary"} onClick={handleGetStarted} className="px-8 py-3.5">
+              {user ? "Get Started" : "Sign In"}
               <ArrowRight className="w-4 h-4" />
             </Button>
             <Button variant="secondary" onClick={() => setIsVideoOpen(true)} className="px-8 py-3.5">
