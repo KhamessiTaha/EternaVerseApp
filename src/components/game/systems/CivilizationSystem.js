@@ -11,6 +11,7 @@ import { playSfx } from "../audio.js";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
 import { civVisibleAt, civLocation, civHostStructureAt, civInDistress } from "../world/civPlacement.js";
+import { cosmicProfile } from "../world/cosmicProfile.js";
 import { narrateOnce, pick, CURATOR } from "../narrator.js";
 
 // Kardashev type -> beacon color (matches the escalation feel: mundane ->
@@ -115,13 +116,19 @@ export class CivilizationSystem {
 
   renderVisible(loadedChunks) {
     const player = this.scene.player;
-    const seed = this.scene.worldSeed?.() ?? this.scene.universe?.seed ?? "seed";
+    // Civ placement derives its own per-scale seeds, so it MUST get the base
+    // universe seed - not worldSeed(), which changes on descent and would hide
+    // a civ's beacon at its own (deeper) home scale.
+    const seed = this.scene.universe?.seed ?? "seed";
     const world = this.scene.world ?? { scale: "galactic", path: [] };
+    // Place civs against the SAME density the world is rendered with, so their
+    // home galaxy/star exists on screen (Coherent Cosmos consistency).
+    const cp = cosmicProfile(this.scene.universe?.currentState);
 
     for (const beacon of this.beacons.values()) {
       // A civ only appears at the scale + descent path it actually inhabits
       // (Cosmic Scales Phase 2). Its beacon position is derived per-civ.
-      beacon.visible = civVisibleAt(seed, beacon.data, world);
+      beacon.visible = civVisibleAt(seed, beacon.data, world, cp);
       if (!beacon.visible) {
         if (beacon.visual) { this.destroyVisual(beacon.visual); beacon.visual = null; }
         continue;
@@ -141,21 +148,21 @@ export class CivilizationSystem {
       }
     }
 
-    this._renderHostMarkers(loadedChunks, seed, world);
+    this._renderHostMarkers(loadedChunks, seed, world, cp);
   }
 
   // Mark descendable structures (galaxies at galactic, stars at stellar) that
   // contain a civ living deeper, so descent is purposeful. A structure hosting
   // a civ in DISTRESS pulses urgent red (a distress signal to follow down);
   // otherwise it's a calm green "civilization present" mark.
-  _renderHostMarkers(loadedChunks, seed, world) {
+  _renderHostMarkers(loadedChunks, seed, world, cp) {
     (this._hostMarkers || []).forEach((m) => { this.scene.tweens.killTweensOf(m); m.destroy(); });
     this._hostMarkers = [];
 
     const normal = new Set();
     const distress = new Set();
     for (const beacon of this.beacons.values()) {
-      const id = civHostStructureAt(seed, beacon.data, world);
+      const id = civHostStructureAt(seed, beacon.data, world, cp);
       if (!id) continue;
       if (civInDistress(beacon.data)) distress.add(id); else normal.add(id);
     }

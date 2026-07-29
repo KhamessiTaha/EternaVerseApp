@@ -12,7 +12,6 @@
 // is re-derived every frame from the live world, so guidance advances on its
 // own as the player descends.
 import Phaser from "phaser";
-import { CHUNK_SIZE } from "../constants";
 import { cosmicProfile } from "../world/cosmicProfile.js";
 import { generateScaleObjects } from "../world/worldScales.js";
 import { nextHopToCiv, civLocation } from "../world/civPlacement.js";
@@ -68,7 +67,9 @@ export class WaypointSystem {
     const objs = generateScaleObjects(seed, cx, cy, this.scene.world.scale, parentName, cp);
     const match = objs.find((o) => o.id === structureId);
     if (match) return { x: match.x, y: match.y, name: match.name };
-    return { x: (cx + 0.5) * CHUNK_SIZE, y: (cy + 0.5) * CHUNK_SIZE, name: null };
+    // No real match: don't invent a target in empty space - the caller hides
+    // the arrow rather than pulsing a ring over nothing.
+    return null;
   }
 
   update() {
@@ -76,9 +77,15 @@ export class WaypointSystem {
     const civ = (this.scene.universe?.civilizations || []).find((c) => c.id === this.civId);
     if (!civ || civ.extinct) { this.clear(); return; }
 
-    const seed = this.scene.worldSeed();
+    // Placement is computed from the BASE universe seed (civHost/homeStarId
+    // derive their own per-scale seeds internally) - NOT worldSeed(), which
+    // changes on descent and would make the home stop matching the path.
+    const baseSeed = this.scene.universe?.seed ?? "seed";
     const name = civDesignation(civ.id);
-    const hop = nextHopToCiv(seed, civ, this.scene.world);
+    // Same profile the world is rendered with, so the civ's home is chosen from
+    // structures that actually exist on screen (not the full-density fallback).
+    const cp = cosmicProfile(this.scene.universe?.currentState);
+    const hop = nextHopToCiv(baseSeed, civ, this.scene.world, cp);
 
     if (hop.mode === "gone") { this.clear(); return; }
     if (hop.mode === "ascend") {
