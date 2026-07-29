@@ -114,6 +114,21 @@ export function muse() {
 // Multi-line pools; call sites use pick(). Once-keys still vary per session.
 
 export const CURATOR = {
+  // First Light: the scripted opening. A guaranteed, gentle anomaly spawns by
+  // the player and the Curator walks them through resolving it - which cannot
+  // be failed. This is the authored minute-one moment, so a new warden never
+  // stares into empty void wondering what to do.
+  firstLight: {
+    intro: "There you are — and the universe with you. Young, hot, and already tearing at the seams. See that fracture, just off your prow? Fly to it and press [F] to mend it. Go on. I'll watch. Watching is rather my whole thing.",
+    forgive: [
+      "Not quite — but the young cosmos forgives a first attempt. Consider it mended. We'll call that skill and never speak of it again.",
+      "Messy. Effective, though. The fracture is closed, which is what history will record. History is me.",
+    ],
+    resolve: [
+      "There. Your first repair, in a universe that will beg for ten billion more. The rest is yours now — go find what's out there. Scan a galaxy with [V] when one catches your eye.",
+      "Mended. Feel that? That was the universe deciding you're worth keeping around. Don't let it down. Off you go.",
+    ],
+  },
   genesis: {
     open: "So. A new warden, a fresh universe, and me to watch you fumble through both. I've left you a short list of first acts - top left. Complete them and I'll stop hovering. Mostly.",
     complete: "Move, scan, descend, speak, choose. That is the whole of it - the rest is just scale. You know the loop now. Everything from here is depth. Try not to drown.",

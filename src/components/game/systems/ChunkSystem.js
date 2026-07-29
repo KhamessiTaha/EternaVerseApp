@@ -12,6 +12,9 @@ export class ChunkSystem {
     this.anomalySystem = anomalySystem;
     this.loadedChunks = new Map();
     this.activeChunkRadius = 2;
+    // First Light: a scripted, guaranteed first-session anomaly (set by the
+    // scene). Injected whenever its chunk generates, until it's resolved.
+    this.forcedAnomaly = null;
   }
 
   loadNearbyChunks(centerX, centerY) {
@@ -80,6 +83,17 @@ export class ChunkSystem {
     const rng = seedrandom(chunkSeed);
     if (scale === "galactic" && rng() < Math.min(0.95, ANOMALY_SPAWN_CHANCE * cp.turbulence)) {
       this.generateProceduralAnomalies(chunk, chunkX, chunkY, rng);
+    }
+
+    // Scripted First Light anomaly: a guaranteed gentle tear right by spawn so a
+    // new warden always has an obvious first target. Persists until resolved.
+    const fa = this.forcedAnomaly;
+    if (fa && scale === "galactic" && fa.chunkX === chunkX && fa.chunkY === chunkY
+        && !this.anomalySystem.resolvedAnomalies.has(fa.id)) {
+      const anomaly = this.anomalySystem.createAnomaly(fa.x, fa.y, ANOMALY_TYPES[0], fa.severity, fa.id, false);
+      anomaly.firstLight = true;
+      chunk.anomalies.push(anomaly);
+      this.anomalySystem.discoveredAnomalies.add(fa.id);
     }
 
     return chunk;

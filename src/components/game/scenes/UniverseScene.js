@@ -85,6 +85,10 @@ export const UniverseSceneFactory = (props) => {
       this.initLighting();
       this.applyGraphicsQuality();
 
+      // Arm the scripted opening BEFORE the first chunk load, so the spawn
+      // chunk is generated with the First Light anomaly already in it.
+      this._armFirstLight();
+
       this.currentChunk = getChunkCoords(this.player.x, this.player.y);
       this.chunkSystem.loadNearbyChunks(
         this.currentChunk.chunkX,
@@ -276,10 +280,18 @@ export const UniverseSceneFactory = (props) => {
         return;
       }
 
+      // First Light cannot be failed: a botched first attempt is forgiven so
+      // the authored opening always resolves and feels good.
+      if (!result.impact.anomalyResolved && anomaly.id === this.firstLightId) {
+        result.impact.anomalyResolved = true;
+        narrate(pick(CURATOR.firstLight.forgive));
+      }
+
       // Only notify if the minigame was won (anomalyResolved = true)
       if (result.impact.anomalyResolved) {
         dlog(`✓ Game result was successful, calling anomaly resolution handler`);
-        narrateOnce('first-resolve', pick(CURATOR.firstResolve));
+        if (anomaly.id === this.firstLightId) this._completeFirstLight();
+        else narrateOnce('first-resolve', pick(CURATOR.firstResolve));
 
         // Trigger destruction animation and visual effects
         this.playAnomalyDestructionEffect(anomaly);
@@ -823,6 +835,36 @@ export const UniverseSceneFactory = (props) => {
 
     worldSeed() {
       return worldSeed(this.universe.seed ?? "seed", this.world.scale, this.world.path);
+    }
+
+    // First Light (scripted opening): on a brand-new universe, plant a
+    // guaranteed gentle anomaly right by spawn and cue the Curator to walk the
+    // player through mending it. Runs once per universe (localStorage-gated).
+    _firstLightKey() {
+      return `eterna:firstlight:${this.universe?._id ?? this.universe?.id ?? "u"}`;
+    }
+    _armFirstLight() {
+      const u = this.universe;
+      if (!u) return;
+      const fresh = (u.discoveries?.length ?? 0) === 0 && !u.chosenCivId
+        && (u.metrics?.playerInterventions ?? 0) === 0;
+      let done = false;
+      try { done = localStorage.getItem(this._firstLightKey()) === "done"; } catch { /* ignore */ }
+      if (!fresh || done) return;
+
+      this.firstLightId = "0:0:9990";
+      this.chunkSystem.forcedAnomaly = {
+        chunkX: 0, chunkY: 0, x: 380, y: 300, id: this.firstLightId, severity: 1,
+      };
+      // Speak after the era greeting (2.5s) has had its moment.
+      this.time.delayedCall(4200, () => narrateOnce("first-light-intro", CURATOR.firstLight.intro));
+    }
+
+    _completeFirstLight() {
+      this.firstLightId = null;
+      if (this.chunkSystem) this.chunkSystem.forcedAnomaly = null;
+      try { localStorage.setItem(this._firstLightKey(), "done"); } catch { /* ignore */ }
+      this.time.delayedCall(1200, () => narrate(pick(CURATOR.firstLight.resolve)));
     }
 
     // Locator bridge (called from React via sceneRef): guide the player to a

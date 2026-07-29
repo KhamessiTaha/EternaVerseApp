@@ -21,21 +21,17 @@ import { narrate, CURATOR } from '../narrator';
 
 export const GenesisDirective = ({ universe }) => {
   const [snap, setSnap] = useState({ active: false, finished: false, done: new Set() });
-  const openedRef = useRef(false);
   const finishedRef = useRef(false);
 
   // Subscribe to the arc store.
   useEffect(() => onGenesis(setSnap), []);
 
-  // Evaluate on universe id change; re-derive state beats on every refresh.
+  // Evaluate on universe id change. The spoken opening now belongs to the
+  // scripted First Light sequence (scene-side); the checklist here stays as
+  // silent visual reinforcement, so the Curator doesn't welcome you twice.
   const uid = universe?._id || universe?.id;
   useEffect(() => {
-    if (!universe) return;
-    const started = considerStart(universe);
-    if (started && !openedRef.current) {
-      openedRef.current = true;
-      narrate(CURATOR.genesis.open);
-    }
+    if (universe) considerStart(universe);
   }, [uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
