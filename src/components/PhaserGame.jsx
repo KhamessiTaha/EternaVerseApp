@@ -462,14 +462,21 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         universe={universe}
         activeCivId={waypointCivId}
         onGuide={(civId) => {
+          // If the running scene predates this code (Vite HMR keeps the old
+          // Phaser scene alive), setCivWaypoint won't exist - tell the player
+          // to reload rather than fail silently.
+          if (typeof sceneRef.current?.setCivWaypoint !== 'function') {
+            showHint('Reload the page to enable the Locator (Ctrl+Shift+R).', 'warn', 8000);
+            return;
+          }
           setWaypointCivId(civId);
-          sceneRef.current?.setCivWaypoint(civId);
+          sceneRef.current.setCivWaypoint(civId);
           setIsLocatorOpen(false);
           showHint('Locator engaged — follow the green arrow. ENTER to descend into a marked structure.', 'info', 7000);
         }}
         onStop={() => {
           setWaypointCivId(null);
-          sceneRef.current?.clearCivWaypoint();
+          sceneRef.current?.clearCivWaypoint?.();
         }}
       />
       <NarratorOverlay />
