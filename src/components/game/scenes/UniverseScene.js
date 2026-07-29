@@ -16,6 +16,7 @@ import { InputSystem } from "../systems/InputSystem";
 import { HUD } from "../systems/HUD";
 import { PlayerObject } from "../systems/PlayerObject";
 import { CivilizationSystem } from "../systems/CivilizationSystem";
+import { WaypointSystem } from "../systems/WaypointSystem";
 import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
 import { AbilitySystem } from "../systems/AbilitySystem";
@@ -180,6 +181,7 @@ export const UniverseSceneFactory = (props) => {
       this.scanSystem.seedScanned((this.universe.discoveries || []).map((d) => d.id));
       this.chunkSystem = new ChunkSystem(this, this.anomalySystem);
       this.civilizationSystem = new CivilizationSystem(this);
+      this.waypointSystem = new WaypointSystem(this);
       this.hazardSystem = new HazardSystem(this);
       this.salvageSystem = new SalvageSystem(this);
       this.abilitySystem = new AbilitySystem(this);
@@ -692,6 +694,9 @@ export const UniverseSceneFactory = (props) => {
         this.civilizationSystem.update(time, delta); // hostile-civ missiles
         this.cosmicEventSystem.update(time, delta);
       }
+      // Cross-scale civ waypoint (Locator): re-derives its next hop every frame
+      // from the live world, so it advances on its own as the player descends.
+      this.waypointSystem.update();
 
       // Update minimap (now sends data to React)
       this.minimapSystem.update(
@@ -812,6 +817,12 @@ export const UniverseSceneFactory = (props) => {
     worldSeed() {
       return worldSeed(this.universe.seed ?? "seed", this.world.scale, this.world.path);
     }
+
+    // Locator bridge (called from React via sceneRef): guide the player to a
+    // civilization across the cosmic scales, or stop guiding.
+    setCivWaypoint(civId) { this.waypointSystem?.setTarget(civId); }
+    clearCivWaypoint() { this.waypointSystem?.clear(); }
+    getWaypointCivId() { return this.waypointSystem?.civId ?? null; }
 
     initScaleNavigation() {
       const w = this.scale.width;

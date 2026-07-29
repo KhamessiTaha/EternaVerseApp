@@ -28,6 +28,7 @@ import { HangarPanel } from "./ui/HangarPanel";
 import { GameMenu } from "./game/ui/GameMenu";
 import { NarratorOverlay } from "./game/ui/NarratorOverlay";
 import { GenesisDirective } from "./game/ui/GenesisDirective";
+import { CivilizationLocatorPanel } from "./game/ui/CivilizationLocatorPanel";
 import { narrate, narrateOnce, pick, CURATOR } from "./game/narrator";
 import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
@@ -60,6 +61,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [isHangarOpen, setIsHangarOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLocatorOpen, setIsLocatorOpen] = useState(false);
+  const [waypointCivId, setWaypointCivId] = useState(null);
   const [showPerformanceTelemetry, setShowPerformanceTelemetry] = useState(getSettings().performanceTelemetry);
   const [performanceMetrics, setPerformanceMetrics] = useState({ fps: 0, delta: 0 });
   const [performanceHistory, setPerformanceHistory] = useState([]);
@@ -186,8 +189,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       if (e.key === 'h' || e.key === 'H') {
         setIsHangarOpen(prev => !prev);
       }
+      if (e.key === 'b' || e.key === 'B') {
+        setIsLocatorOpen(prev => !prev);
+      }
       if (e.key === 'Escape') {
         if (sceneRef.current?.inputSystem?.isMinigameActive) return;
+        if (isLocatorOpen) { setIsLocatorOpen(false); return; }
         if (isDevOpen) { setIsDevOpen(false); return; }
         if (contactCivId) { setContactCivId(null); return; }
         if (isMissionsOpen) { setIsMissionsOpen(false); return; }
@@ -205,7 +212,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen, isSettingsOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen, isSettingsOpen, isLocatorOpen]);
 
   useEffect(() => {
     // Wait for the saved loadout so the ship never spawns/pops from a
@@ -443,9 +450,26 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
             chronicle: setIsChronicleOpen,
             achievements: setIsAchievementsOpen,
             map: setIsFullMapOpen,
+            locator: setIsLocatorOpen,
             settings: setIsSettingsOpen,
           }[id];
           open?.(true);
+        }}
+      />
+      <CivilizationLocatorPanel
+        isOpen={isLocatorOpen}
+        onClose={() => setIsLocatorOpen(false)}
+        universe={universe}
+        activeCivId={waypointCivId}
+        onGuide={(civId) => {
+          setWaypointCivId(civId);
+          sceneRef.current?.setCivWaypoint(civId);
+          setIsLocatorOpen(false);
+          showHint('Locator engaged — follow the green arrow. ENTER to descend into a marked structure.', 'info', 7000);
+        }}
+        onStop={() => {
+          setWaypointCivId(null);
+          sceneRef.current?.clearCivWaypoint();
         }}
       />
       <NarratorOverlay />

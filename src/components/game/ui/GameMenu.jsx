@@ -12,6 +12,7 @@ const ENTRIES = [
   { id: 'outfitting', label: 'Outfitting', hotkey: 'U' },
   { id: 'hangar', label: 'Hangar', hotkey: 'H' },
   { id: 'chronicle', label: 'Chronicle', hotkey: 'L' },
+  { id: 'locator', label: 'Locate Civilizations', hotkey: 'B' },
   { id: 'achievements', label: 'Achievements', hotkey: 'P' },
   { id: 'map', label: 'Full Map', hotkey: 'M' },
   { id: 'settings', label: 'Settings', hotkey: null },

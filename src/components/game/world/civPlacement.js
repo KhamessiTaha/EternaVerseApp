@@ -6,7 +6,7 @@
 // placement needs no server world-gen: the client, which already generates the
 // world, computes it. When the backend promotes a civ's type across a scale
 // boundary, this automatically shows it one scale up. That IS the ascension.
-import { generateScaleObjects, worldSeed } from "./worldScales.js";
+import { generateScaleObjects, worldSeed, SCALES, DESCEND_CATEGORY } from "./worldScales.js";
 
 const hashStr = (s) => {
   let h = 2166136261;
@@ -98,6 +98,34 @@ export function civInDistress(civ) {
   if (!civ || civ.extinct) return false;
   if (civ.petition && civ.petition.kind === "crisis") return true;
   return (civ.resourceDepletion ?? 0) > 0.7 || (civ.stability ?? 0.5) < 0.28;
+}
+
+// The single next move to reach a civ from wherever the player currently is.
+// This is what powers the Locator's waypoint: it collapses the whole nested
+// journey (fly to galaxy -> descend -> fly to star -> descend -> arrive) into
+// one instruction at a time.
+//   { mode: "here" }                      civ is at this scale + path
+//   { mode: "descend", structureId, category }  head to this structure, enter it
+//   { mode: "ascend", reason }            you're on the wrong branch / too deep
+export function nextHopToCiv(seed, civ, world) {
+  if (!civ || civ.extinct) return { mode: "gone" };
+  const targetScale = civScale(civ.type);
+  const host = civHost(seed, civ); // structure ids from galactic down to the civ's parent
+  const curIdx = SCALES.indexOf(world.scale);
+  const tgtIdx = SCALES.indexOf(targetScale);
+  const depth = world.path.length;
+
+  // If our descent path diverges from the civ's home path, we're inside the
+  // wrong structure - back out until the prefix matches again.
+  for (let i = 0; i < Math.min(depth, host.length); i++) {
+    if (world.path[i] !== host[i]) return { mode: "ascend", reason: "branch" };
+  }
+  if (curIdx > tgtIdx || depth > host.length) return { mode: "ascend", reason: "toodeep" };
+  if (curIdx === tgtIdx) return { mode: "here" };
+
+  const structureId = host[depth];
+  if (!structureId) return { mode: "ascend", reason: "nohost" };
+  return { mode: "descend", structureId, category: DESCEND_CATEGORY[world.scale] };
 }
 
 // Which structure id (at the CURRENT scale) does this civ live inside? Used to
