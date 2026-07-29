@@ -164,6 +164,37 @@ export const claimEventReward = async (universeId, kind) => {
   }
 };
 
+// Commit to (or clear) a build-identity doctrine. Server-authoritative.
+export const setDoctrine = async (universeId, doctrine) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/doctrine`,
+      { doctrine },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error("Error setting doctrine:", error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Register the loss of the player's vessel - the death penalty. The server
+// applies a stability hit + time-skip and returns the drifted universe.
+export const registerVesselLost = async (universeId) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/vessel-lost`,
+      {},
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error("Error registering vessel loss:", error.response?.data || error.message);
+    throw error;
+  }
+};
+
 // Claim a completed mission. The server validates completion against live
 // universe state and issues a replacement objective.
 export const claimMission = async (universeId, missionId) => {

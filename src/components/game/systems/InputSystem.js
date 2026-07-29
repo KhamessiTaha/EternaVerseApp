@@ -7,6 +7,7 @@ import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
 import { narrateOnce, pick, CURATOR } from "../narrator.js";
 import { markBeat } from "../firstSession.js";
+import { dlog } from "../../../devLog.js";
 
 // Movement key presets, selected via the settings menu. AZERTY (ZQSD) is the
 // game's original binding; QWERTY gives the standard WASD cluster.
@@ -98,7 +99,7 @@ export class InputSystem {
       player.setVelocity(0, 0);
       player.setAcceleration(0, 0);
       
-      console.log('[InputSystem] Spacecraft paused - velocity zeroed');
+      dlog('[InputSystem] Spacecraft paused - velocity zeroed');
     }
   }
   
@@ -108,7 +109,7 @@ export class InputSystem {
   resumeMovement() {
     this.isMinigameActive = false;
     this.resolvingAnomalyId = null; // Clear the resolving anomaly
-    console.log('[InputSystem] Movement control restored');
+    dlog('[InputSystem] Movement control restored');
   }
 
   setupControls() {
@@ -187,7 +188,7 @@ export class InputSystem {
     if (nearestAnomaly) {
       // Prevent duplicate resolution attempts
       if (this.resolvingAnomalyId === nearestAnomaly.id) {
-        console.log('[Input] Anomaly resolution already in progress');
+        dlog('[Input] Anomaly resolution already in progress');
         return;
       }
 
@@ -195,12 +196,12 @@ export class InputSystem {
       // between checks) - only backend anomalies have a fast map lookup;
       // procedural ones were already filtered to unresolved in the scan above
       if (nearestAnomaly.isBackend && !this.scene.anomalySystem.backendAnomalies.has(nearestAnomaly.id)) {
-        console.log('[Input] Anomaly no longer available (already resolved)');
+        dlog('[Input] Anomaly no longer available (already resolved)');
         return;
       }
 
-      console.log(`[Input] Anomaly interaction: ${nearestAnomaly.type} (${nearestAnomaly.category}) at (${nearestAnomaly.location.x.toFixed(0)}, ${nearestAnomaly.location.y.toFixed(0)})`);
-      console.log(`[Input] Anomaly ID: ${nearestAnomaly.id}, Severity: ${nearestAnomaly.severity}`);
+      dlog(`[Input] Anomaly interaction: ${nearestAnomaly.type} (${nearestAnomaly.category}) at (${nearestAnomaly.location.x.toFixed(0)}, ${nearestAnomaly.location.y.toFixed(0)})`);
+      dlog(`[Input] Anomaly ID: ${nearestAnomaly.id}, Severity: ${nearestAnomaly.severity}`);
 
       // Mark this anomaly as being resolved
       this.resolvingAnomalyId = nearestAnomaly.id;
@@ -214,7 +215,7 @@ export class InputSystem {
       // Start minigame scene (this pauses the current scene)
       this.scene.scene.launch(gameScene, { anomaly: nearestAnomaly });
     } else {
-      console.log('[Input] No anomalies nearby');
+      dlog('[Input] No anomalies nearby');
       this.scene.events.emit('hint', {
         message: 'No anomaly within range. Fly toward a glowing reticle and press F to resolve it.',
         variant: 'info',
@@ -293,7 +294,7 @@ export class InputSystem {
     }
 
     if (nearest) {
-      console.log('[InputSystem] Found nearest anomaly:', {
+      dlog('[InputSystem] Found nearest anomaly:', {
         id: nearest.id,
         type: nearest.type,
         category: nearest.category,
@@ -313,7 +314,7 @@ export class InputSystem {
 
     // Ship-upgrade stat multipliers (Ion Thrusters / Boost Reactor). Read
     // live from the scene's universe so a purchase applies immediately.
-    const mods = getShipModifiers(this.scene.universe?.upgrades);
+    const mods = getShipModifiers(this.scene.universe?.upgrades, this.scene.universe?.doctrine);
 
     // Hull flight characteristics stack multiplicatively on the upgrade
     // mods (getShipModifiers returns a fresh object each call, so mutating

@@ -77,7 +77,7 @@ export class ScanSystem {
   // Scanner Array upgrade widens range and shortens channel time; read live
   // from the scene's universe so a purchase applies immediately.
   _mods() {
-    return getShipModifiers(this.scene.universe?.upgrades);
+    return getShipModifiers(this.scene.universe?.upgrades, this.scene.universe?.doctrine);
   }
 
   tryStartScan() {

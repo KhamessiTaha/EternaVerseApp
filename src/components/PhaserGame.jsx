@@ -34,7 +34,7 @@ import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine }) => {
   const { user } = useContext(AuthContext);
   const toast = useToast();
 
@@ -236,6 +236,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       // this from create(), when it actually exists.
       onSceneReady: (scene) => { sceneRef.current = scene; },
       onEventReward,
+      onVesselLost,
       onHint: showHint,
     });
 
@@ -391,6 +392,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         onClose={() => setIsOutfittingOpen(false)}
         universe={universe}
         onPurchase={onPurchaseUpgrade}
+        onSetDoctrine={onSetDoctrine}
       />
       <SettingsPanel
         isOpen={isSettingsOpen}

@@ -25,6 +25,7 @@ import { getLoadoutLocal, setLoadoutLocal } from "../loadoutStore.js";
 import { HULL_CATALOG } from "../content/hullCatalog.js";
 import { narrate, narrateOnce, pick, muse, CURATOR } from "../narrator.js";
 import { markBeat } from "../firstSession.js";
+import { dlog } from "../../../devLog.js";
 
 // Module-level, not per-scene: survives remounts (leaving and re-entering a
 // universe within the same tab) so the full orientation toast only ever
@@ -32,7 +33,7 @@ import { markBeat } from "../firstSession.js";
 let welcomeHintShown = false;
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onHint } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onVesselLost, onHint } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -47,6 +48,7 @@ export const UniverseSceneFactory = (props) => {
       this.onCivContact = onCivContact;
       this.onSceneReady = onSceneReady;
       this.onEventReward = onEventReward;
+      this.onVesselLost = onVesselLost;
       this.onHint = onHint;
     }
 
@@ -257,11 +259,11 @@ export const UniverseSceneFactory = (props) => {
     handleMinigameComplete(data) {
       const { anomaly, result } = data;
 
-      console.log(`✅ Minigame completed: ${result.status}`);
-      console.log(`   Score: ${result.score}`);
-      console.log(`   Accuracy: ${result.accuracy}%`);
-      console.log(`   Anomaly object:`, anomaly);
-      console.log(`   Impact: ${JSON.stringify(result.impact)}`);
+      dlog(`✅ Minigame completed: ${result.status}`);
+      dlog(`   Score: ${result.score}`);
+      dlog(`   Accuracy: ${result.accuracy}%`);
+      dlog(`   Anomaly object:`, anomaly);
+      dlog(`   Impact: ${JSON.stringify(result.impact)}`);
 
       // Validate anomaly object has required fields
       if (!anomaly || typeof anomaly !== 'object') {
@@ -276,7 +278,7 @@ export const UniverseSceneFactory = (props) => {
 
       // Only notify if the minigame was won (anomalyResolved = true)
       if (result.impact.anomalyResolved) {
-        console.log(`✓ Game result was successful, calling anomaly resolution handler`);
+        dlog(`✓ Game result was successful, calling anomaly resolution handler`);
         narrateOnce('first-resolve', pick(CURATOR.firstResolve));
 
         // Trigger destruction animation and visual effects
@@ -290,11 +292,11 @@ export const UniverseSceneFactory = (props) => {
             severity: anomaly.severity,
             gameResult: result
           };
-          console.log(`✓ Passing anomaly to resolution handler:`, anomalyToResolve);
+          dlog(`✓ Passing anomaly to resolution handler:`, anomalyToResolve);
           this.onAnomalyResolved(anomalyToResolve);
         }
       } else {
-        console.log(`⚠️ Game result was not successful (${result.status}) - no backend resolution attempted`);
+        dlog(`⚠️ Game result was not successful (${result.status}) - no backend resolution attempted`);
       }
     }
 
@@ -321,7 +323,7 @@ export const UniverseSceneFactory = (props) => {
           return;
         }
 
-        console.log(`🎆 Playing anomaly destruction effect at (${x.toFixed(0)}, ${y.toFixed(0)})`);
+        dlog(`🎆 Playing anomaly destruction effect at (${x.toFixed(0)}, ${y.toFixed(0)})`);
 
         playSfx('explosion');
         // Cinematic containment-collapse burst (shake, shockwaves, spokes,
@@ -345,7 +347,7 @@ export const UniverseSceneFactory = (props) => {
           resolved: (prev.resolved || 0) + 1,
         }));
 
-        console.log(`✓ Anomaly destruction complete: ${anomaly.id}`);
+        dlog(`✓ Anomaly destruction complete: ${anomaly.id}`);
 
       } catch (err) {
         console.error('❌ Error playing anomaly destruction effect:', err);
@@ -354,7 +356,7 @@ export const UniverseSceneFactory = (props) => {
 
     handleMinigameAbort(data) {
       const { anomaly } = data;
-      console.log(`⚠️ Minigame aborted for ${anomaly.type}`);
+      dlog(`⚠️ Minigame aborted for ${anomaly.type}`);
     }
 
     /**
@@ -375,6 +377,11 @@ export const UniverseSceneFactory = (props) => {
     handleShipDestroyed() {
       if (this.respawning) return;
       this.respawning = true;
+
+      // The fail state: death is no longer free. The server applies a stability
+      // hit + time-skip (the universe drifts while you recover). Fired once,
+      // here, guarded by `respawning`.
+      this.onVesselLost?.();
 
       const x = this.player.x;
       const y = this.player.y;

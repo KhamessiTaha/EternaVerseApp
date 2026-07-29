@@ -1,6 +1,7 @@
 import { useParams, useLocation } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import PhaserGame from "../components/PhaserGame";
+import { dlog } from "../devLog";
 import {
   getUniverse,
   simulateUniverse,
@@ -14,6 +15,8 @@ import {
   claimMission,
   resolveMinorAnomaly,
   claimEventReward,
+  registerVesselLost,
+  setDoctrine,
 } from "../api/universeApi";
 import { Button, Eyebrow } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
@@ -136,10 +139,10 @@ const GameplayPage = () => {
         // "While you were away" digest - only materializes after a real
         // absence with something to report (buildDigest returns null otherwise)
         setDigest(buildDigest(uni));
-        console.log(`🌌 Universe loaded: ${uni.name}`);
-        console.log(`   Galaxies: ${uni.currentState.galaxyCount}`);
-        console.log(`   Stars: ${uni.currentState.starCount}`);
-        console.log(`   Backend Anomalies: ${uni.anomalies.length}`);
+        dlog(`🌌 Universe loaded: ${uni.name}`);
+        dlog(`   Galaxies: ${uni.currentState.galaxyCount}`);
+        dlog(`   Stars: ${uni.currentState.starCount}`);
+        dlog(`   Backend Anomalies: ${uni.anomalies.length}`);
       } catch (err) {
         console.error("Failed to fetch universe:", err);
         setError(err.response?.data?.error || "Failed to load universe");
@@ -164,13 +167,13 @@ const GameplayPage = () => {
 
       // Check if we've already resolved this anomaly
       if (resolvedAnomaliesRef.current.has(anomaly.id)) {
-        console.log(`✓ Anomaly ${anomaly.id} already resolved in this session`);
+        dlog(`✓ Anomaly ${anomaly.id} already resolved in this session`);
         return;
       }
 
       // Check if we're already resolving this anomaly
       if (resolvingAnomaliesRef.current.has(anomaly.id)) {
-        console.log(`⏳ Anomaly ${anomaly.id} is already being resolved, skipping duplicate request`);
+        dlog(`⏳ Anomaly ${anomaly.id} is already being resolved, skipping duplicate request`);
         return;
       }
 
@@ -182,11 +185,11 @@ const GameplayPage = () => {
       // Procedural anomaly IDs look like: "chunkX:chunkY:index" (e.g., "0:0:0")
       const isBackendAnomaly = anomaly.id && !anomaly.id.includes(":");
 
-      console.log(`🎯 Resolving ${isBackendAnomaly ? 'BACKEND' : 'procedural'} anomaly`);
-      console.log(`   ID: ${anomaly.id}`);
-      console.log(`   Type: ${anomaly.type}`);
-      console.log(`   Severity: ${anomaly.severity}`);
-      console.log(`   Game result: ${anomaly.gameResult?.status}, Score: ${anomaly.gameResult?.score}`);
+      dlog(`🎯 Resolving ${isBackendAnomaly ? 'BACKEND' : 'procedural'} anomaly`);
+      dlog(`   ID: ${anomaly.id}`);
+      dlog(`   Type: ${anomaly.type}`);
+      dlog(`   Severity: ${anomaly.severity}`);
+      dlog(`   Game result: ${anomaly.gameResult?.status}, Score: ${anomaly.gameResult?.score}`);
 
       if (isBackendAnomaly) {
         // Sync with backend for physics-based anomalies
@@ -198,9 +201,9 @@ const GameplayPage = () => {
             resolvedAnomaliesRef.current.add(anomaly.id);
 
             setUniverse(data.universe);
-            console.log(`✅ Backend anomaly resolved!`);
-            console.log(`   Stability boost: +${(data.stabilityBoost * 100).toFixed(2)}%`);
-            console.log(`   New stability: ${(data.universe.currentState.stabilityIndex * 100).toFixed(1)}%`);
+            dlog(`✅ Backend anomaly resolved!`);
+            dlog(`   Stability boost: +${(data.stabilityBoost * 100).toFixed(2)}%`);
+            dlog(`   New stability: ${(data.universe.currentState.stabilityIndex * 100).toFixed(1)}%`);
           } else {
             console.error("❌ Backend returned not ok:", data);
           }
@@ -209,7 +212,7 @@ const GameplayPage = () => {
 
           // If anomaly is already resolved, mark it as such locally
           if (errorMsg && errorMsg.includes('already resolved')) {
-            console.log(`✓ Anomaly was already resolved on backend`);
+            dlog(`✓ Anomaly was already resolved on backend`);
             resolvedAnomaliesRef.current.add(anomaly.id);
           } else {
             console.error("❌ Failed to resolve backend anomaly:", errorMsg);
@@ -228,7 +231,7 @@ const GameplayPage = () => {
           if (data.ok && data.universe) {
             setUniverse(data.universe);
             announceAchievements(data.newAchievements);
-            console.log(`✅ Minor anomaly resolved (+${data.reward} RP)`);
+            dlog(`✅ Minor anomaly resolved (+${data.reward} RP)`);
           }
         } catch (apiErr) {
           const errorMsg = apiErr.response?.data?.error || apiErr.message;
@@ -285,7 +288,7 @@ const GameplayPage = () => {
       const data = await purchaseUpgrade(id, track);
       if (data.ok) {
         setUniverse((prev) => (prev ? { ...prev, upgrades: data.upgrades, research: data.research } : prev));
-        console.log(`🔧 Upgrade installed: ${track}`, data.upgrades);
+        dlog(`🔧 Upgrade installed: ${track}`, data.upgrades);
         announceAchievements(data.newAchievements);
         narrateOnce('first-upgrade', pick(CURATOR.firstUpgrade));
       }
@@ -412,6 +415,44 @@ const GameplayPage = () => {
     }
   };
 
+  // Commit to a build-identity doctrine. Server owns the reward-affecting part;
+  // the movement/scan effects apply live because the scene reads universe.doctrine.
+  const handleSetDoctrine = async (doctrine) => {
+    try {
+      const data = await setDoctrine(id, doctrine);
+      if (data.ok) {
+        setUniverse((prev) => (prev ? { ...prev, doctrine: data.doctrine } : prev));
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.response?.data?.error || "Failed to set doctrine" };
+    }
+  };
+
+  // The death penalty (fail state): the vessel is lost, so the universe drifts
+  // while you recover - a stability hit + forced time-skip, server-authoritative.
+  // The scene has already played the destruction; here we book the consequence
+  // and surface it, so death finally means losing ground.
+  const handleVesselLost = async () => {
+    try {
+      const data = await registerVesselLost(id);
+      if (data.ok && data.universe) {
+        setUniverse(data.universe);
+        const p = data.penalty || {};
+        const myr = Math.round((p.yearsSkipped || 0) / 1e6);
+        const stabPct = Math.abs((p.stabilityDelta || 0) * 100).toFixed(0);
+        toast(`Vessel lost — ${myr} Myr drifted, stability −${stabPct}%`, 'critical', 8000);
+        if (p.hasEnded) {
+          narrate("Your recovery came too late. The universe you were keeping is gone.");
+        } else if ((p.stabilityDelta || 0) <= -0.08) {
+          narrate("You are back — but the cosmos frayed while you were away. Deaths are not free out here.");
+        }
+      }
+    } catch {
+      // Non-fatal: the destruction/respawn already happened client-side.
+    }
+  };
+
   // Admin dev/test actions - server re-validates the admin flag per request
   const handleDevAction = async (action, payload) => {
     try {
@@ -450,7 +491,7 @@ const GameplayPage = () => {
           }
         }
 
-        console.log(`🔄 Running background simulation...`);
+        dlog(`🔄 Running background simulation...`);
 
         const data = await simulateUniverse(id, playerPositionRef.current);
 
@@ -460,17 +501,17 @@ const GameplayPage = () => {
           announceAchievements(data.newAchievements);
 
           const stats = data.stats;
-          console.log(`✅ Simulation complete:`);
-          console.log(`   Age: ${stats.ageGyr} Gyr (${stats.cosmicPhase})`);
-          console.log(`   Galaxies: ${stats.galaxies}`);
-          console.log(`   Stars: ${stats.stars}`);
-          console.log(`   Stability: ${stats.stability}`);
-          console.log(`   Backend Anomalies: ${stats.anomaliesActive}/${stats.anomaliesTotal}`);
+          dlog(`✅ Simulation complete:`);
+          dlog(`   Age: ${stats.ageGyr} Gyr (${stats.cosmicPhase})`);
+          dlog(`   Galaxies: ${stats.galaxies}`);
+          dlog(`   Stars: ${stats.stars}`);
+          dlog(`   Stability: ${stats.stability}`);
+          dlog(`   Backend Anomalies: ${stats.anomaliesActive}/${stats.anomaliesTotal}`);
 
           if (data.createdAnomalies?.length > 0) {
-            console.log(`⚠️  Generated ${data.createdAnomalies.length} new backend anomalies:`);
+            dlog(`⚠️  Generated ${data.createdAnomalies.length} new backend anomalies:`);
             data.createdAnomalies.forEach(a => {
-              console.log(`     - ${a.type} (severity ${a.severity}) at (${a.location.x.toFixed(0)}, ${a.location.y.toFixed(0)})`);
+              dlog(`     - ${a.type} (severity ${a.severity}) at (${a.location.x.toFixed(0)}, ${a.location.y.toFixed(0)})`);
             });
           }
 
@@ -507,12 +548,12 @@ const GameplayPage = () => {
 
         // Only cleanup if we have more than 100 resolved anomalies
         if (resolvedCount > 100) {
-          console.log(`🧹 Cleaning up ${resolvedCount} resolved anomalies...`);
+          dlog(`🧹 Cleaning up ${resolvedCount} resolved anomalies...`);
 
           const data = await cleanupAnomalies(id, 10); // Keep last 10 minutes
 
           if (data.ok) {
-            console.log(`✅ Cleaned ${data.removed} old anomalies (${data.remaining} remaining)`);
+            dlog(`✅ Cleaned ${data.removed} old anomalies (${data.remaining} remaining)`);
 
             // Refresh universe data
             const uni = await getUniverse(id);
@@ -610,6 +651,8 @@ const GameplayPage = () => {
         onDevAction={handleDevAction}
         onClaimMission={handleClaimMission}
         onEventReward={handleEventReward}
+        onVesselLost={handleVesselLost}
+        onSetDoctrine={handleSetDoctrine}
       />
       {digest && (
         <WelcomeBackPanel

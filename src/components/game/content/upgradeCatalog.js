@@ -32,17 +32,22 @@ export const UPGRADE_TRACKS = {
   },
 };
 
+import { doctrineModifiers } from "./doctrineCatalog.js";
+
 // Derived stat multipliers for the Phaser systems and reward math. Levels
-// default to 0 (stock ship) when upgrades are absent. Cheap enough to call
-// per-frame.
-export const getShipModifiers = (upgrades) => {
+// default to 0 (stock ship) when upgrades are absent. A doctrine (build
+// identity) then multiplies the whole set - a Voidrunner's thrust stacks on
+// top of Ion Thruster marks, a Warden's slowness cuts into them. Cheap enough
+// to call per-frame.
+export const getShipModifiers = (upgrades, doctrine) => {
   const lvl = (track) => upgrades?.[track] || 0;
+  const d = doctrineModifiers(doctrine);
   return {
-    thrust: 1 + lvl("thrusters") * 0.15,
-    maxSpeed: 1 + lvl("thrusters") * 0.08,
-    boostRecharge: 1 + lvl("boostReactor") * 0.3,
-    scanRange: 1 + lvl("scanner") * 0.25,
-    scanDuration: Math.pow(0.85, lvl("scanner")),
-    containment: 1 + lvl("containment") * 0.08,
+    thrust: (1 + lvl("thrusters") * 0.15) * d.thrust,
+    maxSpeed: (1 + lvl("thrusters") * 0.08) * d.maxSpeed,
+    boostRecharge: (1 + lvl("boostReactor") * 0.3) * d.boostRecharge,
+    scanRange: (1 + lvl("scanner") * 0.25) * d.scanRange,
+    scanDuration: Math.pow(0.85, lvl("scanner")) * d.scanDuration,
+    containment: (1 + lvl("containment") * 0.08) * d.containment,
   };
 };
