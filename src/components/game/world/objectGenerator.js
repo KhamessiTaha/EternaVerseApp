@@ -7,6 +7,7 @@ import seedrandom from "seedrandom";
 import { CHUNK_SIZE } from "../constants.js";
 import { getChunkWeb } from "./densityField.js";
 import { OBJECT_CLASSES, MORPH_SUBTYPES } from "./researchValues.js";
+import { NEUTRAL_PROFILE } from "./cosmicProfile.js";
 
 // Galaxy counts / hero odds per web class. Morphology-density relation:
 // ellipticals dominate clusters, spirals dominate the field (real astronomy).
@@ -33,13 +34,18 @@ const pickMorph = (rng, weights) => {
 const catalogName = (seed, id) =>
   `EVC ${100 + Math.floor(seedrandom(`${seed}#name#${id}`)() * 9900)}`;
 
-export function generateChunkObjects(seed, chunkX, chunkY) {
+// `cp` is a cosmic profile (see cosmicProfile.js) that ties this chunk's
+// contents to the universe's real evolutionary state. Omitted -> NEUTRAL
+// (a full stellar-peak field), so legacy callers and tests are unchanged.
+export function generateChunkObjects(seed, chunkX, chunkY, cp = NEUTRAL_PROFILE) {
   const { webClass } = getChunkWeb(seed, chunkX, chunkY);
   const profile = PROFILE[webClass];
   const rng = seedrandom(`${seed}#obj#${chunkX}:${chunkY}`);
   const objects = [];
   let index = 0;
 
+  // Era mood dims proto/late structure; young galaxies also read fainter until
+  // their stars ignite.
   const place = (objectClass, scale, alpha) => {
     const info = OBJECT_CLASSES[objectClass];
     const id = `obj:${chunkX}:${chunkY}:${index++}`;
@@ -54,25 +60,39 @@ export function generateChunkObjects(seed, chunkX, chunkY) {
       y: chunkY * CHUNK_SIZE + rng() * CHUNK_SIZE,
       scale,
       rotation: rng() * Math.PI * 2,
-      alpha,
+      alpha: Math.max(0.12, alpha * cp.dim),
       webClass,
     });
   };
 
-  const galaxyCount = intIn(rng, profile.galaxies);
+  // Scale counts by the era's structural density (0 galaxies -> empty sky).
+  // A fractional remainder is rolled so sparse eras still vary chunk to chunk
+  // instead of hard-flooring to the same integer everywhere.
+  const scaleCount = (n, factor) => {
+    const scaled = n * factor;
+    return Math.floor(scaled) + (rng() < (scaled % 1) ? 1 : 0);
+  };
+
+  // Early eras skew irregular/clumpy (proto-galaxies); mature eras keep the
+  // real morphology mix. Blend toward irregular as ignition drops.
+  const galaxyCount = scaleCount(intIn(rng, profile.galaxies), cp.galaxyDensity);
   for (let i = 0; i < galaxyCount; i++) {
-    const morph = pickMorph(rng, profile.morphWeights);
+    const proto = rng() > cp.starIgnition; // unlit -> still assembling
+    const morph = proto ? "irregular" : pickMorph(rng, profile.morphWeights);
     const subtypes = MORPH_SUBTYPES[morph];
-    place(subtypes[Math.floor(rng() * subtypes.length)], 0.35 + rng() * 0.5, 0.8 + rng() * 0.2);
+    const scale = (0.35 + rng() * 0.5) * (proto ? 0.7 : 1);
+    place(subtypes[Math.floor(rng() * subtypes.length)], scale, 0.8 + rng() * 0.2);
   }
 
-  const nebulaCount = intIn(rng, profile.nebulae);
+  // Gas is more prominent before it condenses into stars.
+  const nebulaCount = scaleCount(intIn(rng, profile.nebulae), cp.nebulaDensity);
   for (let i = 0; i < nebulaCount; i++) {
     place("nebula", 0.5 + rng() * 0.7, 0.35 + rng() * 0.25);
   }
 
-  if (rng() < profile.quasar) place("quasar", 0.8 + rng() * 0.3, 1);
-  if (rng() < profile.merger) place("merger", 0.7 + rng() * 0.3, 0.9);
+  // AGN peaked in the young universe; quasar odds scale with the era.
+  if (rng() < profile.quasar * cp.quasarBoost) place("quasar", 0.8 + rng() * 0.3, 1);
+  if (rng() < profile.merger * cp.galaxyDensity) place("merger", 0.7 + rng() * 0.3, 0.9);
 
   return objects;
 }

@@ -16,6 +16,18 @@ const ascensionProgress = (civ) => {
   return Math.max(0, Math.min(100, (((civ.technology || 0) - lo) / (hi - lo)) * 100));
 };
 
+// The ambient half of the unified anomaly model: as the universe's stability
+// falls, the fabric frays and more field anomalies spawn around the player
+// (ChunkSystem turbulence). This turns the raw stability number into the same
+// language as the "Critical" (authored) anomalies - one threat, two tiers.
+const fabricState = (stabilityIndex) => {
+  const s = stabilityIndex ?? 1;
+  if (s >= 0.7) return { label: 'Calm', cls: 'text-good' };
+  if (s >= 0.45) return { label: 'Rippling', cls: 'text-good text-[10px]' };
+  if (s >= 0.25) return { label: 'Fraying', cls: 'text-warn' };
+  return { label: 'Tearing', cls: 'text-critical' };
+};
+
 export const PrimaryInstrument = ({ universe }) => {
   const cs = universe?.currentState;
   if (!cs) return null;
@@ -101,6 +113,9 @@ export const Console = ({ universe, stats }) => {
         <StatLine label="Stars" value={formatNumber(cs.starCount)} />
         <StatLine label="Black Holes" value={formatNumber(cs.blackHoleCount)} />
         <StatLine label="Metallicity" value={`${((cs.metallicity ?? 0) * 100).toFixed(1)}%`} />
+        <div className="mt-1.5 text-[9px] text-ink-faint leading-snug">
+          ≈ estimated across the cosmos · you explore one representative region
+        </div>
       </ConsoleSection>
 
       <ConsoleSection icon={icons.vitals} title="Cosmic Vitals">
@@ -140,6 +155,7 @@ export const Console = ({ universe, stats }) => {
           <StatLine label="Discovered" value={stats.discovered} />
           <StatLine label="Resolved" value={stats.resolved} />
           <StatLine label="Critical Active" value={activeBackendAnomalies} valueClass="text-warn" />
+          <StatLine label="Fabric" value={fabricState(cs.stabilityIndex).label} valueClass={fabricState(cs.stabilityIndex).cls} />
         </ConsoleSection>
       )}
     </div>

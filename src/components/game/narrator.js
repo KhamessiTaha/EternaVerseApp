@@ -120,8 +120,12 @@ export const CURATOR = {
   },
   greetings: {
     dark_ages: "In the beginning there was nothing. Then you showed up. I'm still deciding whether that's an improvement.",
-    stelliferous: "Stars are burning. Life is scheming. And you're here to poke at all of it. Wonderful.",
-    degenerate: "Welcome to the long twilight. The stars are dying, the dwarfs are cooling, and you're still here. So am I. Awkward.",
+    reionization: "First light. The fog is burning off, the first stars are screaming into existence, and you've arrived just in time to take the credit. Welcome.",
+    galaxy_formation: "The galaxies are still condensing out of the dark - proto-things, unfinished, luminous. A young universe, and you its first witness. Try not to break it before it's grown.",
+    stellar_peak: "Stars are burning at their fullest. Life is scheming on a billion worlds. And you're here to poke at all of it. Wonderful.",
+    gradual_decline: "The great star-forming is behind us now. Still bright, still busy - but the gas is thinning. Enjoy the light while it's generous.",
+    twilight_era: "The long evening has begun. Red suns, cooling worlds, the last great civilizations arguing over the embers. A beautiful time to arrive. A sad one to stay.",
+    degenerate_era: "Welcome to the long twilight. The stars are dying, the dwarfs are cooling, and you're still here. So am I. Awkward.",
     fallback: "Ah. You're back. The universe continued without you, in case you were wondering. It does that.",
   },
   firstScan: [

@@ -3,6 +3,7 @@ import seedrandom from 'seedrandom';
 import { CHUNK_SIZE, ANOMALY_SPAWN_CHANCE, ANOMALIES_PER_CHUNK, ANOMALY_TYPES } from '../constants';
 import { getChunkKey } from '../utils';
 import { generateScaleObjects } from '../world/worldScales.js';
+import { cosmicProfile } from '../world/cosmicProfile.js';
 import { TextureFactory } from '../graphics/TextureFactory.js';
 
 export class ChunkSystem {
@@ -60,7 +61,11 @@ export class ChunkSystem {
     const labels = this.scene.world?.labels ?? [];
     const parentName = labels[labels.length - 1];
 
-    for (const descriptor of generateScaleObjects(seed, chunkX, chunkY, scale, parentName)) {
+    // Coherent Cosmos: the same authoritative state the HUD shows drives what
+    // this chunk actually contains - density, era mood, and fabric turbulence.
+    const cp = cosmicProfile(this.scene.universe?.currentState);
+
+    for (const descriptor of generateScaleObjects(seed, chunkX, chunkY, scale, parentName, cp)) {
       chunk.objects.push(this.renderObject(descriptor));
     }
 
@@ -68,10 +73,12 @@ export class ChunkSystem {
 
     // Procedural anomalies only at the galactic scale for now - their ids are
     // "chunkX:chunkY:index" and would collide across scales (Cosmic Scales
-    // Phase 1 keeps anomaly/civ gameplay at the top scale).
+    // Phase 1 keeps anomaly/civ gameplay at the top scale). Ambient turbulence
+    // scales inversely with the universe's stability: a failing cosmos frays
+    // and spawns more field anomalies around the player.
     const chunkSeed = seed + getChunkKey(chunkX, chunkY);
     const rng = seedrandom(chunkSeed);
-    if (scale === "galactic" && rng() < ANOMALY_SPAWN_CHANCE) {
+    if (scale === "galactic" && rng() < Math.min(0.95, ANOMALY_SPAWN_CHANCE * cp.turbulence)) {
       this.generateProceduralAnomalies(chunk, chunkX, chunkY, rng);
     }
 

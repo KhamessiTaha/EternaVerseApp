@@ -8,6 +8,7 @@
 import seedrandom from "seedrandom";
 import { CHUNK_SIZE } from "../constants.js";
 import { generateChunkObjects } from "./objectGenerator.js";
+import { NEUTRAL_PROFILE } from "./cosmicProfile.js";
 
 export const SCALES = ["galactic", "stellar", "planetary"];
 
@@ -169,13 +170,20 @@ export function generateSystem(seed, parentName) {
  * vast); planetary returns a BOUNDED system's objects for this chunk only.
  * `parentName` is the descended-into structure's name (used to name planets).
  */
-export function generateScaleObjects(seed, chunkX, chunkY, scale, parentName) {
-  if (scale === "galactic") return generateChunkObjects(seed, chunkX, chunkY);
+export function generateScaleObjects(seed, chunkX, chunkY, scale, parentName, cp = NEUTRAL_PROFILE) {
+  if (scale === "galactic") return generateChunkObjects(seed, chunkX, chunkY, cp);
   if (scale === "stellar") {
-    return placeFrom([], seed, chunkX, chunkY, scale, STAR_CLASSES, (rng) => intIn(rng, 3, 7));
+    // Star field density tracks the universe's real star count, so a young or
+    // dying galaxy reads sparse and a stellar-peak one teems.
+    const count = (rng) => {
+      const scaled = intIn(rng, 3, 7) * cp.starDensity;
+      return Math.max(1, Math.floor(scaled) + (rng() < (scaled % 1) ? 1 : 0));
+    };
+    return placeFrom([], seed, chunkX, chunkY, scale, STAR_CLASSES, count);
   }
   if (scale === "planetary") {
-    // The system sits at the origin; only its chunks have anything.
+    // The system sits at the origin; only its chunks have anything. A bounded
+    // real system, so its planet count is intrinsic - not era-scaled.
     return generateSystem(seed, parentName).filter(
       (o) => Math.floor(o.x / CHUNK_SIZE) === chunkX && Math.floor(o.y / CHUNK_SIZE) === chunkY
     );
