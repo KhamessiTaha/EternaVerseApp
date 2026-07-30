@@ -7,7 +7,7 @@
 // pitched to the emotion. Everything is driven by content/curatorEmotions.js
 // and morphs SMOOTHLY between feelings (CSS transitions on every pose value).
 import { useEffect, useRef, useState } from 'react';
-import { onNarration } from '../narrator.js';
+import { onNarration, onPrompt, answerCurator } from '../narrator.js';
 import { emotionOf } from '../content/curatorEmotions.js';
 import { playSfx } from '../audio.js';
 
@@ -86,17 +86,23 @@ const CuratorEye = ({ e, speaking }) => {
 
 export const NarratorOverlay = () => {
   const [line, setLine] = useState(null);
+  const [prompt, setPrompt] = useState(null);
   const [shown, setShown] = useState('');
   const [typing, setTyping] = useState(false);
   const blipRef = useRef(0);
 
   useEffect(() => onNarration(setLine), []);
+  useEffect(() => onPrompt(setPrompt), []);
 
-  // Typewriter reveal + voice blips, restarted whenever a new line arrives.
+  // A live question owns the panel; otherwise the current line does.
+  const active = prompt ? { ...prompt, isPrompt: true } : line;
+  const activeKey = active ? `${active.isPrompt ? 'p' : 'l'}:${active.id}` : null;
+
+  // Typewriter reveal + voice blips, restarted whenever the active content changes.
   useEffect(() => {
-    if (!line) { setShown(''); setTyping(false); return; }
-    const e = emotionOf(line.mood);
-    const text = line.text;
+    if (!active) { setShown(''); setTyping(false); return; }
+    const e = emotionOf(active.mood);
+    const text = active.text;
     let i = 0;
     setShown('');
     setTyping(true);
@@ -117,10 +123,26 @@ export const NarratorOverlay = () => {
     }, e.typeSpeed);
 
     return () => clearInterval(tick);
-  }, [line]);
+  }, [activeKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!line) return null;
-  const e = emotionOf(line.mood);
+  // Answer the active question with number keys once its options are showing.
+  const optionsReady = !!prompt && !typing;
+  useEffect(() => {
+    if (!optionsReady) return;
+    const onKey = (ev) => {
+      const n = parseInt(ev.key, 10);
+      if (n >= 1 && n <= (prompt.options?.length || 0)) {
+        ev.stopPropagation();
+        playSfx('uiClick');
+        answerCurator(n - 1);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [optionsReady, prompt]);
+
+  if (!active) return null;
+  const e = emotionOf(active.mood);
 
   return (
     <div
@@ -154,14 +176,32 @@ export const NarratorOverlay = () => {
         <div style={{ filter: `drop-shadow(0 0 6px ${e.color}88)`, transition: 'filter .6s' }}>
           <CuratorEye e={e} speaking={typing} />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="font-mono text-[9px] uppercase tracking-[0.3em] mb-1" style={{ color: `${e.color}cc`, transition: 'color .6s' }}>
-            {e.label}
+            {active.isPrompt ? `${e.label} · asks` : e.label}
           </div>
           <p className="font-sans text-[15px] leading-relaxed text-ink/95 italic">
             {shown}
             {typing && <span className="cur-caret" style={{ color: e.color }}>▌</span>}
           </p>
+
+          {/* A question's answers, once it's finished asking. Keyboard [1]/[2]
+              or click - either way it shifts how the Curator regards you. */}
+          {active.isPrompt && optionsReady && (
+            <div className="mt-2.5 flex flex-col gap-1.5" style={{ animation: 'toast-in 0.3s ease-out' }}>
+              {prompt.options.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => { playSfx('uiClick'); answerCurator(i); }}
+                  className="pointer-events-auto flex items-center gap-2.5 text-left font-mono text-[12px] px-2.5 py-1.5 border transition-colors hover:bg-void-raised"
+                  style={{ borderColor: `${e.color}44`, color: '#c9cbe0' }}
+                >
+                  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center border text-[9px]" style={{ borderColor: `${e.color}88`, color: e.color }}>{i + 1}</span>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

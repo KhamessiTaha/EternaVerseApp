@@ -6,16 +6,52 @@
 // through it; NarratorOverlay renders whatever is currently being said.
 // One line at a time, queued, auto-paced by line length.
 
+import { pickUnaskedPrompt } from "./content/curatorPrompts.js";
+
 let listeners = new Set();
 let historyListeners = new Set();
+let promptListeners = new Set();
 let queue = [];
 let current = null;
+let currentPrompt = null; // an active two-choice question, if any
+let promptTimer = null;
 const said = new Set();
 const history = []; // everything the Curator has said this session (for the log)
 let seq = 0;
 
 const emit = () => listeners.forEach((fn) => fn(current));
 const emitHistory = () => historyListeners.forEach((fn) => fn(history));
+const emitPrompt = () => promptListeners.forEach((fn) => fn(currentPrompt));
+
+// ----------------------------------------------------------------- rapport
+// How the Curator regards YOU. Persisted GLOBALLY (not per-universe): the
+// Curator is an eternal entity that remembers you across every universe it has
+// watched you tend. Choices in its two-choice prompts nudge this, and it
+// quietly biases the tone of ambient lines (biasMood).
+const CUR_KEY = "eterna:curator";
+let rapport = 0;
+const askedPrompts = new Set();
+(function loadRapport() {
+  try {
+    const s = JSON.parse(localStorage.getItem(CUR_KEY) || "null");
+    if (s) { rapport = s.rapport || 0; (s.asked || []).forEach((id) => askedPrompts.add(id)); }
+  } catch { /* first run / private mode */ }
+})();
+function saveRapport() {
+  try { localStorage.setItem(CUR_KEY, JSON.stringify({ rapport, asked: [...askedPrompts] })); } catch { /* ignore */ }
+}
+export const getRapport = () => rapport;
+export const hasAskedPrompt = (id) => askedPrompts.has(id);
+
+// Warm rapport occasionally softens a neutral line to warm/amused; cold rapport
+// sharpens it to annoyed. Only ever nudges the baseline "dry" tone, and only
+// when a call site didn't set an explicit mood.
+function biasMood(mood) {
+  if (mood !== "dry") return mood;
+  if (rapport > 0.3 && Math.random() < 0.35) return Math.random() < 0.5 ? "warm" : "amused";
+  if (rapport < -0.3 && Math.random() < 0.35) return "annoyed";
+  return "dry";
+}
 
 // The Curator's tone, inferred from the words when a call site doesn't set it.
 // Mood drives the Eye's colour + motion, the text tint, and the voice-blip
@@ -39,7 +75,8 @@ export function deriveMood(text) {
 }
 
 function pump() {
-  if (current || queue.length === 0) return;
+  // A live prompt owns the channel - don't talk over a question you asked.
+  if (current || currentPrompt || queue.length === 0) return;
   current = queue.shift();
   history.push(current);
   if (history.length > 80) history.shift();
@@ -58,7 +95,9 @@ function pump() {
 /** Say a line (queued; at most 3 waiting - the Curator doesn't backlog). */
 export function narrate(text, mood) {
   if (queue.length >= 3) queue.shift();
-  queue.push({ id: ++seq, text, mood: mood || deriveMood(text), at: Date.now() });
+  // Explicit mood wins; otherwise infer, then let rapport tint the baseline.
+  const m = mood || biasMood(deriveMood(text));
+  queue.push({ id: ++seq, text, mood: m, at: Date.now() });
   pump();
 }
 
@@ -82,6 +121,52 @@ export function onCuratorHistory(fn) {
 }
 export function getCuratorHistory() {
   return history;
+}
+
+// ------------------------------------------------------------ interaction
+// The Curator asks you a two-choice question. Only fires when the channel is
+// idle (never interrupts a line or another prompt). Auto-declines after a
+// while so an ignored question doesn't sit forever.
+export function onPrompt(fn) {
+  promptListeners.add(fn);
+  fn(currentPrompt);
+  return () => promptListeners.delete(fn);
+}
+
+export function askCurator(prompt) {
+  if (current || currentPrompt || !prompt) return false;
+  currentPrompt = prompt;
+  askedPrompts.add(prompt.id);
+  saveRapport();
+  emitPrompt();
+  clearTimeout(promptTimer);
+  promptTimer = setTimeout(() => {
+    if (currentPrompt && currentPrompt.id === prompt.id) declineCurator();
+  }, 17000);
+  return true;
+}
+
+/** Answer the active prompt by option index - applies rapport + a reply. */
+export function answerCurator(index) {
+  if (!currentPrompt) return;
+  const opt = currentPrompt.options[index];
+  clearTimeout(promptTimer);
+  currentPrompt = null;
+  emitPrompt();
+  if (!opt) { pump(); return; }
+  rapport = Math.max(-1, Math.min(1, rapport + (opt.rapport || 0)));
+  saveRapport();
+  if (opt.reply) narrate(opt.reply, opt.mood);
+  else pump();
+}
+
+/** Let the question pass unanswered (timeout, or player dismiss). */
+export function declineCurator() {
+  if (!currentPrompt) return;
+  clearTimeout(promptTimer);
+  currentPrompt = null;
+  emitPrompt();
+  narrate("No answer, then. I'll file the silence — it says as much as words, usually.", "dry");
 }
 
 export const pick = (lines) =>
@@ -138,7 +223,12 @@ const TIPS = [
 let museBag = [];
 let tipBag = [];
 export function muse() {
-  // ~1 in 3 idle lines is a teaching; the rest are atmosphere
+  // Sometimes the Curator turns the silence into a question for YOU instead of
+  // a musing - the moment the monologue becomes a conversation. Only when idle.
+  if (!current && !currentPrompt && Math.random() < 0.3) {
+    if (askCurator(pickUnaskedPrompt(hasAskedPrompt))) return;
+  }
+  // ~1 in 3 remaining idle lines is a teaching; the rest are atmosphere
   if (Math.random() < 0.35) {
     if (tipBag.length === 0) tipBag = [...TIPS].sort(() => Math.random() - 0.5);
     narrate(tipBag.pop());
