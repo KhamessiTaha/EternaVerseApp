@@ -48,7 +48,8 @@ export class HUD {
       ability: this.scene.abilitySystem?.getHUD() ?? null,
       gamma: this.scene.gamma ?? 1,
       survey: this.scene.scanSystem?.getSurvey() ?? null,
-      traversal: this.scene.gravitySlingSystem?.getTraversal() ?? null
+      traversal: this.scene.gravitySlingSystem?.getTraversal() ?? null,
+      surge: this.scene.surgeSystem?.getSurge() ?? null
     };
   }
 

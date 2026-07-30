@@ -15,6 +15,7 @@ import { PrimaryInstrument, Console, ControlsHint } from "./game/ui/Panels";
 import { HUDPanel } from "./game/ui/HUDPanel";
 import { SurveyStreakOverlay } from "./game/ui/SurveyStreakOverlay";
 import SpeedLinesOverlay from "./game/ui/SpeedLinesOverlay";
+import SurgeAlarmOverlay from "./game/ui/SurgeAlarmOverlay";
 import { MinimapPanel } from "./game/ui/MinimapPanel";
 import { FullMapPanel } from "./game/ui/FullMapPanel";
 import { CodexPanel } from "./game/ui/CodexPanel";
@@ -358,6 +359,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
       {/* Survey streak - the scanning flow-game counter (top center) */}
       <SurveyStreakOverlay survey={hudData?.survey} />
+
+      {/* Anomaly surge alarm (top center, above the streak) */}
+      <SurgeAlarmOverlay surge={hudData?.surge} />
 
       {/* Full Map Overlay */}
       <FullMapPanel

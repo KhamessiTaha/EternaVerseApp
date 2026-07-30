@@ -163,6 +163,13 @@ const SFX = {
     tone({ freq: 240, end: 720, type: "sine", dur: 0.26, vol: 0.16 });
     tone({ freq: 480, end: 1120, type: "triangle", dur: 0.2, vol: 0.09, at: 0.04 });
   },
+  // Anomaly surge: a descending klaxon warns of the rift cluster.
+  surgeAlarm: () => {
+    tone({ freq: 440, end: 220, type: "sawtooth", dur: 0.5, vol: 0.14 });
+    tone({ freq: 330, end: 165, type: "square", dur: 0.5, vol: 0.08, at: 0.12 });
+  },
+  // Surge contained: a resolving rise of relief.
+  surgeContained: () => notes([392, 523.25, 659.25, 783.99], { spacing: 0.08, dur: 0.2, type: "triangle", vol: 0.17 }),
   // The Curator's "voice": a tiny blip per revealed character, pitched + timbred
   // by the emotion (freq/type passed in from content/curatorEmotions.js). Kept
   // very short and quiet so a rapid stream reads as speech, not buzz. `i` varies

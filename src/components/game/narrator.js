@@ -338,6 +338,26 @@ export const CURATOR = {
   firstSalvage: [
     "You caught a drifting shard and fed it to your hull. Frugal. The void approves of recycling.",
   ],
+  surge: {
+    start: [
+      "The fabric is fraying - a whole cluster of it, right on top of you. An anomaly surge. Contain it or ride it out; either way it noticed you first.",
+      "Rift storm. Several tears at once, and the universe is very much hoping you're the tidy sort. Get in there.",
+      "There - the void just tore in a dozen places at once. This is the work, warden. All of it. At once. Have fun.",
+    ],
+    escalate: [
+      "You're too slow. The tears are spreading - they always spread when ignored. Fewer choices now, and worse ones.",
+      "It's growing. I did mention rifts breed. You have less time than you did, and I have less optimism.",
+    ],
+    contained: [
+      "Contained. All of it, before it could root. THAT is what a warden is for - not the scanning, not the sightseeing. This.",
+      "Surge sealed. The fabric holds because you made it. Enjoy the quiet; I'll arrange for it to end eventually.",
+      "Every tear closed. I've watched wardens flee smaller storms. You stayed. Noted - and not in the usual ledger.",
+    ],
+    fizzled: [
+      "The surge burned itself out while you were elsewhere. It'll leave scars, but it won't be your triumph. Pity.",
+      "You let that one go. The universe healed the hard way, without you. It does that, when it must.",
+    ],
+  },
   slingshot: [
     "A textbook gravity assist. Newton would weep - with joy, I think. Hard to tell with Newton.",
     "You stole momentum from a star and it didn't even notice. That's the good kind of theft.",

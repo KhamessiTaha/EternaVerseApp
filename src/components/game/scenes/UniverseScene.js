@@ -18,6 +18,7 @@ import { PlayerObject } from "../systems/PlayerObject";
 import { CivilizationSystem } from "../systems/CivilizationSystem";
 import { WaypointSystem } from "../systems/WaypointSystem";
 import { GravitySlingSystem } from "../systems/GravitySlingSystem";
+import { SurgeSystem } from "../systems/SurgeSystem";
 import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
 import { AbilitySystem } from "../systems/AbilitySystem";
@@ -191,6 +192,7 @@ export const UniverseSceneFactory = (props) => {
       this.waypointSystem = new WaypointSystem(this);
       this.hazardSystem = new HazardSystem(this);
       this.gravitySlingSystem = new GravitySlingSystem(this);
+      this.surgeSystem = new SurgeSystem(this);
       this.salvageSystem = new SalvageSystem(this);
       this.abilitySystem = new AbilitySystem(this);
       this.cosmicEventSystem = new CosmicEventSystem(this);
@@ -720,6 +722,9 @@ export const UniverseSceneFactory = (props) => {
       // Cross-scale civ waypoint (Locator): re-derives its next hop every frame
       // from the live world, so it advances on its own as the player descends.
       this.waypointSystem.update();
+      // Anomaly surges (the loop's tension spikes) - self-gates to the galactic
+      // scale and manages its own calm/spike cadence.
+      this.surgeSystem.update(time);
 
       // Update minimap (now sends data to React)
       this.minimapSystem.update(
