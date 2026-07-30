@@ -263,7 +263,9 @@ const GameplayPage = () => {
         ],
         research: {
           ...(prev.research || {}),
-          points: (prev.research?.points || 0) + (discovery.research || 0),
+          // Optimistically include the survey-streak bonus; the server clamps
+          // and reconciles on ack.
+          points: (prev.research?.points || 0) + Math.round((discovery.research || 0) * (discovery.surveyMult || 1)),
         },
       };
     });

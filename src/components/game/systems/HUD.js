@@ -46,7 +46,8 @@ export class HUD {
       boostLocked: this.scene.player?.boostLocked || false,
       hull: Math.round(this.scene.player?.state?.health ?? 100),
       ability: this.scene.abilitySystem?.getHUD() ?? null,
-      gamma: this.scene.gamma ?? 1
+      gamma: this.scene.gamma ?? 1,
+      survey: this.scene.scanSystem?.getSurvey() ?? null
     };
   }
 

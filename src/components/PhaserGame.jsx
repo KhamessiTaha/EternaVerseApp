@@ -13,6 +13,7 @@ import { StructuralRealignmentScene } from "./game/scenes/StructuralRealignmentS
 import { PolarityBalanceScene } from "./game/scenes/PolarityBalanceScene";
 import { PrimaryInstrument, Console, ControlsHint } from "./game/ui/Panels";
 import { HUDPanel } from "./game/ui/HUDPanel";
+import { SurveyStreakOverlay } from "./game/ui/SurveyStreakOverlay";
 import { MinimapPanel } from "./game/ui/MinimapPanel";
 import { FullMapPanel } from "./game/ui/FullMapPanel";
 import { CodexPanel } from "./game/ui/CodexPanel";
@@ -350,6 +351,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10">
         <HUDPanel hudData={hudData} />
       </div>
+
+      {/* Survey streak - the scanning flow-game counter (top center) */}
+      <SurveyStreakOverlay survey={hudData?.survey} />
 
       {/* Full Map Overlay */}
       <FullMapPanel

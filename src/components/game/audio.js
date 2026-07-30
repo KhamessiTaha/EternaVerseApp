@@ -150,6 +150,14 @@ const SFX = {
     tone({ freq: 330, end: 660, type: "sawtooth", dur: 0.16, vol: 0.12 });
     tone({ freq: 660, end: 990, dur: 0.14, vol: 0.12, at: 0.1 });
   },
+  // Survey streak: a rising chain tick whose pitch climbs with the combo, so a
+  // hot streak literally sounds like it's escalating. Milestones get a chord.
+  surveyTick: ({ streak = 1 } = {}) => {
+    const f = 470 + Math.min(streak, 18) * 52;
+    tone({ freq: f, end: f * 1.18, type: "triangle", dur: 0.09, vol: 0.13 });
+  },
+  surveyMilestone: () => notes([523.25, 659.25, 783.99], { spacing: 0.06, dur: 0.15, type: "triangle", vol: 0.17 }),
+  surveyBreak: () => tone({ freq: 300, end: 150, type: "sine", dur: 0.28, vol: 0.1 }),
   // The Curator's "voice": a tiny blip per revealed character, pitched + timbred
   // by the emotion (freq/type passed in from content/curatorEmotions.js). Kept
   // very short and quiet so a rapid stream reads as speech, not buzz. `i` varies

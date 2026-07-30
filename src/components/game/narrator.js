@@ -275,6 +275,20 @@ export const CURATOR = {
     "You pointed an instrument at something and wrote down what you saw. Congratulations - that's science. Keep doing it. [V]",
     "Your first catalog entry. Billions of objects to go. I'd pace yourself, but the universe won't.",
   ],
+  survey: {
+    rhythm: [
+      "Five in a row. There it is - the surveyor's rhythm. Keep the chain and the instruments warm up; they scan faster when they're not bored.",
+      "A streak. You've found the flow every good cartographer eventually does. Don't stop now - momentum is the only currency the void respects.",
+    ],
+    hot: [
+      "Ten unbroken. You're not exploring anymore, you're DEVOURING. I've curated tidier surveys, but never a hungrier one.",
+      "A ten-chain. The catalog can barely keep up with you. Neither, frankly, can I.",
+    ],
+    blazing: [
+      "The streak is incandescent. Slow down and you'll lose it; keep going and I'll run out of superlatives. Pick your poison.",
+      "Still going. At this point the universe is just handing itself to you. Take it. Take all of it.",
+    ],
+  },
   firstResolve: [
     "One anomaly contained. The universe has taken notice. The universe also forgets very quickly.",
     "Containment successful. The fabric of spacetime thanks you, in its way, which is silence.",

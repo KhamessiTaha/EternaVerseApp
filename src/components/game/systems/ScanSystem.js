@@ -10,12 +10,37 @@ import { SCAN_RANGE, SCAN_DURATION_MS, SCAN_CANCEL_RANGE, ANOMALY_TYPE_MAP } fro
 import { ANOMALY_SCAN_BASE } from "../world/researchValues.js";
 import { getShipModifiers } from "../content/upgradeCatalog.js";
 import { playSfx } from "../audio.js";
+import { narrate, narrateOnce, pick, CURATOR } from "../narrator.js";
+
+// Survey streak: chaining scans builds a combo that makes scans FASTER and
+// worth more RP, but a decay window means you have to keep moving/finding.
+// Turns the game's most-repeated action from a passive wait into a flow game.
+const STREAK_WINDOW_MS = 5200; // idle longer than this and the streak breaks
+const STREAK_MAX_SPEEDUP = 9;  // streaks past this don't get faster
+const STREAK_RP_PER = 0.05;    // +5% RP per streak step...
+const STREAK_RP_CAP = 0.6;     // ...up to +60%
 
 export class ScanSystem {
   constructor(scene) {
     this.scene = scene;
     this.scannedIds = new Set();
     this.active = null; // { target, elapsed, gfx }
+    this.streak = 0;
+    this.best = 0;
+    this.lastScanAt = -Infinity;
+  }
+
+  // Multiplier the streak grants to research (mirrored/clamped server-side).
+  surveyMult() {
+    return 1 + Math.min(this.streak * STREAK_RP_PER, STREAK_RP_CAP);
+  }
+
+  // Streak state for the HUD: current, best, and the decay bar (1 -> 0).
+  getSurvey() {
+    const remaining = this.streak > 0
+      ? Math.max(0, 1 - (this.scene.time.now - this.lastScanAt) / STREAK_WINDOW_MS)
+      : 0;
+    return { streak: this.streak, best: this.best, remaining, mult: this.surveyMult() };
   }
 
   seedScanned(ids) {
@@ -100,6 +125,11 @@ export class ScanSystem {
   }
 
   update(delta) {
+    // Streak decay runs whether or not a scan is in progress.
+    if (this.streak > 0 && this.scene.time.now - this.lastScanAt > STREAK_WINDOW_MS) {
+      this._breakStreak();
+    }
+
     if (!this.active) return;
     const { target, gfx } = this.active;
     const player = this.scene.player;
@@ -113,8 +143,10 @@ export class ScanSystem {
       return;
     }
 
+    // A hot streak scans faster - flow is self-reinforcing.
+    const speed = Math.max(0.45, 1 - Math.min(this.streak, STREAK_MAX_SPEEDUP) * 0.06);
     this.active.elapsed += delta;
-    const t = Math.min(1, this.active.elapsed / (SCAN_DURATION_MS * mods.scanDuration));
+    const t = Math.min(1, this.active.elapsed / (SCAN_DURATION_MS * mods.scanDuration * speed));
 
     gfx.clear();
     gfx.lineStyle(1.5, 0x4ec9e0, 0.5);
@@ -129,13 +161,34 @@ export class ScanSystem {
     if (t >= 1) this._complete();
   }
 
+  _breakStreak() {
+    if (this.streak >= 3) playSfx('surveyBreak');
+    this.streak = 0;
+  }
+
   _complete() {
     const { target, gfx } = this.active;
     gfx.destroy();
     this.active = null;
 
+    // Advance the survey streak: chain, juice, milestones.
+    this.streak += 1;
+    this.best = Math.max(this.best, this.streak);
+    this.lastScanAt = this.scene.time.now;
+    playSfx('surveyTick', { streak: this.streak });
+
+    if (this.streak > 0 && this.streak % 5 === 0) {
+      playSfx('surveyMilestone');
+      this.scene.cameras.main.flash(180, 78, 200, 220, false);
+      if (this.streak === 5) narrateOnce('survey-5', pick(CURATOR.survey.rhythm), 'amused');
+      else if (this.streak === 10) narrateOnce('survey-10', pick(CURATOR.survey.hot), 'awe');
+      else if (this.streak >= 15) narrate(pick(CURATOR.survey.blazing), 'awe');
+    }
+
     playSfx('scanComplete');
     this.scannedIds.add(target.id);
+    target.discovery.surveyStreak = this.streak;
+    target.discovery.surveyMult = this.surveyMult();
 
     // Pulse effect
     const pulse = this.scene.add.graphics({ x: target.x, y: target.y }).setDepth(50);
