@@ -338,6 +338,12 @@ export const CURATOR = {
   firstSalvage: [
     "You caught a drifting shard and fed it to your hull. Frugal. The void approves of recycling.",
   ],
+  slingshot: [
+    "A textbook gravity assist. Newton would weep - with joy, I think. Hard to tell with Newton.",
+    "You stole momentum from a star and it didn't even notice. That's the good kind of theft.",
+    "Whipping around masses to go faster. Every probe humanity ever launched did the same. You're just prettier about it.",
+    "That's how you cross a void, warden - let the universe's own gravity do the pushing. Elegant. Lazy. I approve of both.",
+  ],
   firstUpgrade: [
     "New hardware bolted on. The ship is now marginally less likely to disintegrate. Progress.",
   ],

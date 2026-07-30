@@ -17,6 +17,7 @@ import { HUD } from "../systems/HUD";
 import { PlayerObject } from "../systems/PlayerObject";
 import { CivilizationSystem } from "../systems/CivilizationSystem";
 import { WaypointSystem } from "../systems/WaypointSystem";
+import { GravitySlingSystem } from "../systems/GravitySlingSystem";
 import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
 import { AbilitySystem } from "../systems/AbilitySystem";
@@ -189,6 +190,7 @@ export const UniverseSceneFactory = (props) => {
       this.civilizationSystem = new CivilizationSystem(this);
       this.waypointSystem = new WaypointSystem(this);
       this.hazardSystem = new HazardSystem(this);
+      this.gravitySlingSystem = new GravitySlingSystem(this);
       this.salvageSystem = new SalvageSystem(this);
       this.abilitySystem = new AbilitySystem(this);
       this.cosmicEventSystem = new CosmicEventSystem(this);
@@ -655,6 +657,8 @@ export const UniverseSceneFactory = (props) => {
       this.inputSystem.handlePlayerMovement(this.player, delta);
       // Anomaly forces stack on top of the acceleration input just set
       this.hazardSystem.update(time);
+      // Usable gravity from stars/galaxies: curves the path + slingshots
+      this.gravitySlingSystem.update(time, delta);
       this.salvageSystem.update();
       this.applyBanking(delta);
 

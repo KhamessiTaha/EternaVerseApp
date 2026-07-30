@@ -47,7 +47,8 @@ export class HUD {
       hull: Math.round(this.scene.player?.state?.health ?? 100),
       ability: this.scene.abilitySystem?.getHUD() ?? null,
       gamma: this.scene.gamma ?? 1,
-      survey: this.scene.scanSystem?.getSurvey() ?? null
+      survey: this.scene.scanSystem?.getSurvey() ?? null,
+      traversal: this.scene.gravitySlingSystem?.getTraversal() ?? null
     };
   }
 

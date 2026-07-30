@@ -14,6 +14,7 @@ import { PolarityBalanceScene } from "./game/scenes/PolarityBalanceScene";
 import { PrimaryInstrument, Console, ControlsHint } from "./game/ui/Panels";
 import { HUDPanel } from "./game/ui/HUDPanel";
 import { SurveyStreakOverlay } from "./game/ui/SurveyStreakOverlay";
+import SpeedLinesOverlay from "./game/ui/SpeedLinesOverlay";
 import { MinimapPanel } from "./game/ui/MinimapPanel";
 import { FullMapPanel } from "./game/ui/FullMapPanel";
 import { CodexPanel } from "./game/ui/CodexPanel";
@@ -326,6 +327,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
   return (
     <div className="w-full h-full bg-void relative overflow-hidden">
+      {/* Speed lines - traversal juice, behind all the UI */}
+      <SpeedLinesOverlay velocity={hudData?.velocity} slip={hudData?.traversal?.slip} />
+
       {/* Primary instrument - top left */}
       <div className="absolute top-5 left-5 z-10">
         <PrimaryInstrument universe={universe} />

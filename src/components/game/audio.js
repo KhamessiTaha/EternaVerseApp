@@ -158,6 +158,11 @@ const SFX = {
   },
   surveyMilestone: () => notes([523.25, 659.25, 783.99], { spacing: 0.06, dur: 0.15, type: "triangle", vol: 0.17 }),
   surveyBreak: () => tone({ freq: 300, end: 150, type: "sine", dur: 0.28, vol: 0.1 }),
+  // Gravity slingshot: a rising whoosh as the assist flings you out.
+  slingshot: () => {
+    tone({ freq: 240, end: 720, type: "sine", dur: 0.26, vol: 0.16 });
+    tone({ freq: 480, end: 1120, type: "triangle", dur: 0.2, vol: 0.09, at: 0.04 });
+  },
   // The Curator's "voice": a tiny blip per revealed character, pitched + timbred
   // by the emotion (freq/type passed in from content/curatorEmotions.js). Kept
   // very short and quiet so a rapid stream reads as speech, not buzz. `i` varies
