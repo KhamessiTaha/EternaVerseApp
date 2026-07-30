@@ -275,6 +275,16 @@ export const CURATOR = {
     "You pointed an instrument at something and wrote down what you saw. Congratulations - that's science. Keep doing it. [V]",
     "Your first catalog entry. Billions of objects to go. I'd pace yourself, but the universe won't.",
   ],
+  // THE main goal, stated plainly once - the north star every session works
+  // toward (The Ascension). Reinforced always by the Purpose panel.
+  purpose: [
+    "Here is the only goal that matters, warden. This universe will die - they all do. The single question worth answering is what you raise before it does. Find a people. Take them from first fire to the stars. Everything else is how you pass the time until then.",
+    "You'll want a purpose out here, so I'll give you the true one: choose a people, and shepherd them all the way to transcendence before the dark takes this universe. Do that, and you'll have made the one thing that outlasts an ending.",
+  ],
+  needPeople: [
+    "You've no chosen people yet. Find a civilization, meet them [G], and champion one - that's where the real game begins. The rest is prologue.",
+    "Still no people to your name. Somewhere below, a species is taking its first steps. Go choose them, or the universe ends with nothing to show for you.",
+  ],
   survey: {
     rhythm: [
       "Five in a row. There it is - the surveyor's rhythm. Keep the chain and the instruments warm up; they scan faster when they're not bored.",

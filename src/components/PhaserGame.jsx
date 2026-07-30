@@ -12,6 +12,7 @@ import { ExpansionContainmentScene } from "./game/scenes/ExpansionContainmentSce
 import { StructuralRealignmentScene } from "./game/scenes/StructuralRealignmentScene";
 import { PolarityBalanceScene } from "./game/scenes/PolarityBalanceScene";
 import { PrimaryInstrument, Console, ControlsHint } from "./game/ui/Panels";
+import { PurposePanel } from "./game/ui/PurposePanel";
 import { HUDPanel } from "./game/ui/HUDPanel";
 import { SurveyStreakOverlay } from "./game/ui/SurveyStreakOverlay";
 import SpeedLinesOverlay from "./game/ui/SpeedLinesOverlay";
@@ -331,9 +332,10 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       {/* Speed lines - traversal juice, behind all the UI */}
       <SpeedLinesOverlay velocity={hudData?.velocity} slip={hudData?.traversal?.slip} />
 
-      {/* Primary instrument - top left */}
-      <div className="absolute top-5 left-5 z-10">
+      {/* Primary instrument + the main-goal tracker - top left */}
+      <div className="absolute top-5 left-5 z-10 flex flex-col gap-3">
         <PrimaryInstrument universe={universe} />
+        <PurposePanel universe={universe} />
       </div>
 
       {/* Right column: radar, console, controls hint - stacked in normal

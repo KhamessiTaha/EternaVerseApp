@@ -152,6 +152,14 @@ export const UniverseSceneFactory = (props) => {
         narrateOnce(`greet:${phase}`, CURATOR.greetings[phase] || CURATOR.greetings.fallback);
       });
 
+      // THE main goal, stated once the world has opened - so a new player is
+      // never left asking "what am I working toward?" (The Ascension).
+      this.time.delayedCall(9500, () => narrateOnce('the-purpose', pick(CURATOR.purpose), 'awe'));
+      // A one-time nudge if they still have no people to shepherd.
+      this.time.delayedCall(48000, () => {
+        if (!this.universe?.chosenCivId) narrateOnce('need-people', pick(CURATOR.needPeople), 'curious');
+      });
+
       // Idle chatter: every ~2 minutes there's a decent chance the Curator
       // simply says something (shuffle-bag, no repeats until exhausted) -
       // the Solar 2 touch that makes the entity feel present, not scripted

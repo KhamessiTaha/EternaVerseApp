@@ -52,9 +52,25 @@ export const LegacyPanel = ({ legacy, onClose }) => {
             </div>
           ))}
         </div>
-        <div className="text-[11px] font-mono tracking-wider text-ink-faint uppercase mb-8">
+        <div className="text-[11px] font-mono tracking-wider text-ink-faint uppercase mb-6">
           Type 0 &nbsp;→&nbsp; Type I &nbsp;→&nbsp; Type II &nbsp;→&nbsp; Type III &nbsp;·&nbsp; Ascended
         </div>
+
+        {/* The main goal, achieved - and the eternal Warden rank it earns. */}
+        {legacy.warden && (
+          <div className="mb-8 border border-accent/40 bg-accent/5 py-3 px-4 max-w-md mx-auto">
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-accent mb-1">
+              ✦ The Ascension · complete
+            </div>
+            <div className="font-sans text-[15px] text-ink">
+              You are now <span className="text-accent">{legacy.warden.title}</span>
+            </div>
+            <div className="font-mono text-[10px] text-ink-faint mt-1">
+              {legacy.warden.ascensions} {legacy.warden.ascensions === 1 ? 'people' : 'peoples'} raised to the heavens
+              {legacy.warden.next ? ` · ${legacy.warden.next.at - legacy.warden.ascensions} more to ${legacy.warden.next.title}` : ''}
+            </div>
+          </div>
+        )}
 
         <p className="text-ink-dim text-[13px] leading-relaxed mb-6 font-sans max-w-md mx-auto">
           The mantle is yours again. Somewhere below, another people are taking their first

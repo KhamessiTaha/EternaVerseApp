@@ -28,6 +28,7 @@ import { progressOf } from "../components/game/ui/MissionsPanel";
 import { WelcomeBackPanel, buildDigest } from "../components/game/ui/WelcomeBackPanel";
 import { PetitionPanel } from "../components/game/ui/PetitionPanel";
 import { LegacyPanel } from "../components/game/ui/LegacyPanel";
+import { recordAscension } from "../components/game/wardenProgress";
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -367,7 +368,10 @@ const GameplayPage = () => {
     const fresh = records.find((l) => !legacyCelebratedRef.current.has(l.civId));
     if (fresh) {
       legacyCelebratedRef.current.add(fresh.civId);
-      setLegacy({ ...fresh, legacyNumber: records.length });
+      // The Ascension is the main goal - completing one advances the eternal
+      // Warden rank across all universes.
+      const warden = recordAscension();
+      setLegacy({ ...fresh, legacyNumber: records.length, warden });
     }
   }, [universe]);
 
