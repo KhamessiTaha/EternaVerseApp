@@ -21,10 +21,17 @@ const emitHistory = () => historyListeners.forEach((fn) => fn(history));
 // Mood drives the Eye's colour + motion, the text tint, and the voice-blip
 // pitch - so a warning reads and SOUNDS different from an idle musing without
 // having to retag hundreds of existing lines.
+// Order matters: earlier patterns win. See content/curatorEmotions.js for the
+// eight emotions these map to.
 const MOOD_PATTERNS = [
-  ["warning", /collapse|imminent|critical|dying|distress|incoming|supernova|detonat|unstable|\btear|fray|hostile|missile|shooting|weaponized|erupts|war\b/i],
-  ["grim", /\bgone\b|\bdead\b|exploded|extinct|destroyed|ends here|lost to|\bfell\b|tragedy|too late|no un-seeing|\bomen\b|silence/i],
-  ["awe", /heavens|transcend|ascend|legacy|legend|worship|billion|magnificent|miracle|exceptional|reached the stars|first fire|the light/i],
+  ["warning", /collapse|imminent|critical|dying|distress|incoming|supernova|detonat|unstable|\btear|fray|hostile|missile|shooting|weaponized|erupts|\bwar\b|danger|too fast/i],
+  ["grim", /\bgone\b|\bdead\b|exploded|extinct|destroyed|ends here|lost to|\bfell\b|tragedy|too late|\bmourn|eulogy|no un-seeing|\bomen\b|silence|dark age/i],
+  ["awe", /heavens|transcend|ascend|legacy|legend|worship|billion|magnificent|miracle|exceptional|reached the stars|first fire|the light|colossal|monument|forged inside/i],
+  ["annoyed", /poisoned|weaponized|\bbold\b|historic|angrily|declined|must you|sweet that you|it bites|remarkable\.|nine seconds|patience/i],
+  ["proud", /noted|recorded|etched|impressed|well done|\bprogress\b|worthy|ledger|achievement|congratulations|almost impressed/i],
+  ["warm", /came down|worship the memory|held.*open|mercy|shepherd|your people|will never.*forget|faith/i],
+  ["curious", /\?|wonder|curious|interesting|somewhere|debating|scheming|question|\bwhy\b/i],
+  ["amused", /charming|adorable|frankly|honestly|I'll admit|top twenty|I once|I named|don't quote me|awkward|delegation|jazz/i],
 ];
 export function deriveMood(text) {
   for (const [mood, re] of MOOD_PATTERNS) if (re.test(text)) return mood;

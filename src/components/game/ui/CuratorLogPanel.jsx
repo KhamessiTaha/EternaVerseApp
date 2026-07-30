@@ -6,8 +6,7 @@
 // who flew past a line catch up. Mood-coloured, newest first.
 import { useEffect, useState } from 'react';
 import { onCuratorHistory } from '../narrator.js';
-
-const MOOD_COLOR = { dry: '#57c7d4', warning: '#e0524a', grim: '#9a8fb0', awe: '#f5cf7a' };
+import { emotionOf } from '../content/curatorEmotions.js';
 
 const ago = (t) => {
   const s = Math.max(0, Math.round((Date.now() - t) / 1000));
@@ -48,7 +47,7 @@ export const CuratorLogPanel = ({ isOpen, onClose }) => {
             </p>
           )}
           {lines.map((l) => {
-            const color = MOOD_COLOR[l.mood] || MOOD_COLOR.dry;
+            const color = emotionOf(l.mood).color;
             return (
               <div key={l.id} className="flex items-start gap-3 px-5 py-3 border-b border-line/50">
                 <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }} />
