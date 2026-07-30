@@ -150,6 +150,14 @@ const SFX = {
     tone({ freq: 330, end: 660, type: "sawtooth", dur: 0.16, vol: 0.12 });
     tone({ freq: 660, end: 990, dur: 0.14, vol: 0.12, at: 0.1 });
   },
+  // The Curator's "voice": a tiny blip per revealed character, pitched + timbred
+  // by mood. Kept very short and quiet so a rapid stream reads as speech, not
+  // buzz. `i` varies pitch slightly char-to-char for an organic cadence.
+  curatorBlip: ({ mood = "dry", i = 0 } = {}) => {
+    const base = { dry: 430, warning: 605, grim: 240, awe: 615 }[mood] ?? 430;
+    const type = mood === "warning" ? "square" : mood === "grim" ? "sawtooth" : "triangle";
+    tone({ freq: base + (i % 3) * 22 - 22, type, dur: 0.035, vol: 0.04, attack: 0.002 });
+  },
 };
 
 /** Fire a named one-shot effect. Safe to call unconditionally. */

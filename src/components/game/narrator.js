@@ -7,43 +7,74 @@
 // One line at a time, queued, auto-paced by line length.
 
 let listeners = new Set();
+let historyListeners = new Set();
 let queue = [];
 let current = null;
 const said = new Set();
+const history = []; // everything the Curator has said this session (for the log)
+let seq = 0;
 
 const emit = () => listeners.forEach((fn) => fn(current));
+const emitHistory = () => historyListeners.forEach((fn) => fn(history));
+
+// The Curator's tone, inferred from the words when a call site doesn't set it.
+// Mood drives the Eye's colour + motion, the text tint, and the voice-blip
+// pitch - so a warning reads and SOUNDS different from an idle musing without
+// having to retag hundreds of existing lines.
+const MOOD_PATTERNS = [
+  ["warning", /collapse|imminent|critical|dying|distress|incoming|supernova|detonat|unstable|\btear|fray|hostile|missile|shooting|weaponized|erupts|war\b/i],
+  ["grim", /\bgone\b|\bdead\b|exploded|extinct|destroyed|ends here|lost to|\bfell\b|tragedy|too late|no un-seeing|\bomen\b|silence/i],
+  ["awe", /heavens|transcend|ascend|legacy|legend|worship|billion|magnificent|miracle|exceptional|reached the stars|first fire|the light/i],
+];
+export function deriveMood(text) {
+  for (const [mood, re] of MOOD_PATTERNS) if (re.test(text)) return mood;
+  return "dry"; // the Curator's baseline: dry, ancient, faintly amused
+}
 
 function pump() {
   if (current || queue.length === 0) return;
   current = queue.shift();
+  history.push(current);
+  if (history.length > 80) history.shift();
   emit();
-  // Generous reading pace: ~6s floor plus time per character, capped at 14s.
-  // Players are usually flying while reading - err on the long side.
-  const holdMs = Math.min(14000, 6000 + current.length * 55);
+  emitHistory();
+  // Generous pace: the typewriter needs time to finish, then a read buffer.
+  // ~6.5s floor plus per-character time, capped at 15s.
+  const holdMs = Math.min(15000, 6500 + current.text.length * 60);
   setTimeout(() => {
     current = null;
     emit();
-    setTimeout(pump, 600); // breath between lines
+    setTimeout(pump, 700); // breath between lines
   }, holdMs);
 }
 
 /** Say a line (queued; at most 3 waiting - the Curator doesn't backlog). */
-export function narrate(text) {
+export function narrate(text, mood) {
   if (queue.length >= 3) queue.shift();
-  queue.push(text);
+  queue.push({ id: ++seq, text, mood: mood || deriveMood(text), at: Date.now() });
   pump();
 }
 
 /** Say a line only once per session (first-time guidance, greetings). */
-export function narrateOnce(key, text) {
+export function narrateOnce(key, text, mood) {
   if (said.has(key)) return;
   said.add(key);
-  narrate(text);
+  narrate(text, mood);
 }
 
 export function onNarration(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);
+}
+
+/** Subscribe to the transmissions log (fires immediately with the backlog). */
+export function onCuratorHistory(fn) {
+  historyListeners.add(fn);
+  fn(history);
+  return () => historyListeners.delete(fn);
+}
+export function getCuratorHistory() {
+  return history;
 }
 
 export const pick = (lines) =>

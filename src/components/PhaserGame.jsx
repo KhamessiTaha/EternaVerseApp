@@ -27,6 +27,7 @@ import { AchievementsPanel } from "./ui/AchievementsPanel";
 import { HangarPanel } from "./ui/HangarPanel";
 import { GameMenu } from "./game/ui/GameMenu";
 import { NarratorOverlay } from "./game/ui/NarratorOverlay";
+import { CuratorLogPanel } from "./game/ui/CuratorLogPanel";
 import { GenesisDirective } from "./game/ui/GenesisDirective";
 import { CivilizationLocatorPanel } from "./game/ui/CivilizationLocatorPanel";
 import { narrate, narrateOnce, pick, CURATOR } from "./game/narrator";
@@ -63,6 +64,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLocatorOpen, setIsLocatorOpen] = useState(false);
   const [waypointCivId, setWaypointCivId] = useState(null);
+  const [isCuratorLogOpen, setIsCuratorLogOpen] = useState(false);
   const [showPerformanceTelemetry, setShowPerformanceTelemetry] = useState(getSettings().performanceTelemetry);
   const [performanceMetrics, setPerformanceMetrics] = useState({ fps: 0, delta: 0 });
   const [performanceHistory, setPerformanceHistory] = useState([]);
@@ -192,8 +194,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       if (e.key === 'b' || e.key === 'B') {
         setIsLocatorOpen(prev => !prev);
       }
+      if (e.key === 't' || e.key === 'T') {
+        setIsCuratorLogOpen(prev => !prev);
+      }
       if (e.key === 'Escape') {
         if (sceneRef.current?.inputSystem?.isMinigameActive) return;
+        if (isCuratorLogOpen) { setIsCuratorLogOpen(false); return; }
         if (isLocatorOpen) { setIsLocatorOpen(false); return; }
         if (isDevOpen) { setIsDevOpen(false); return; }
         if (contactCivId) { setContactCivId(null); return; }
@@ -212,7 +218,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen, isSettingsOpen, isLocatorOpen]);
+  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen, isSettingsOpen, isLocatorOpen, isCuratorLogOpen]);
 
   useEffect(() => {
     // Wait for the saved loadout so the ship never spawns/pops from a
@@ -453,6 +459,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
             achievements: setIsAchievementsOpen,
             map: setIsFullMapOpen,
             locator: setIsLocatorOpen,
+            transmissions: setIsCuratorLogOpen,
             settings: setIsSettingsOpen,
           }[id];
           open?.(true);
@@ -482,6 +489,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         }}
       />
       <NarratorOverlay />
+      <CuratorLogPanel isOpen={isCuratorLogOpen} onClose={() => setIsCuratorLogOpen(false)} />
       <GenesisDirective universe={universe} />
 
       <div id="phaser-container" className="w-full h-full" />
