@@ -16,6 +16,7 @@ const ENTRIES = [
   { id: 'locator', label: 'Locate Civilizations', hotkey: 'B' },
   { id: 'achievements', label: 'Achievements', hotkey: 'P' },
   { id: 'map', label: 'Full Map', hotkey: 'M' },
+  { id: 'replay-tutorial', label: 'Replay Tutorial', hotkey: null },
   { id: 'settings', label: 'Settings', hotkey: null },
 ];
 

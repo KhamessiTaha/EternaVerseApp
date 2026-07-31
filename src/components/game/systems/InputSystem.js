@@ -312,6 +312,11 @@ export class InputSystem {
       return;
     }
 
+    // First-session arc: "take the helm" completes the moment the ship is
+    // actually moving - checked HERE (before the direct-model early return) so
+    // it fires for BOTH flight models, not just rotate-then-thrust.
+    if ((player.body?.velocity?.length?.() ?? 0) > 15) markBeat('move');
+
     // Ship-upgrade stat multipliers (Ion Thrusters / Boost Reactor). Read
     // live from the scene's universe so a purchase applies immediately.
     const mods = getShipModifiers(this.scene.universe?.upgrades, this.scene.universe?.doctrine);
@@ -346,13 +351,6 @@ export class InputSystem {
     let rotationInput = 0;
     if (this.keys.left.isDown) rotationInput -= 1;
     if (this.keys.right.isDown) rotationInput += 1;
-
-    // First-session arc: the moment the warden takes the helm (guarded no-op
-    // after the first frame it fires).
-    if (this.keys.thrust.isDown || this.keys.brake.isDown || rotationInput !== 0
-        || this.keys.strafeLeft.isDown || this.keys.strafeRight.isDown) {
-      markBeat('move');
-    }
 
     if (rotationInput !== 0) {
       this.rotationVelocity += rotationInput * scaleByDelta(this.params.ROTATION_ACCEL * sensitivity, delta);

@@ -35,6 +35,7 @@ import { CuratorLogPanel } from "./game/ui/CuratorLogPanel";
 import { GenesisDirective } from "./game/ui/GenesisDirective";
 import { CivilizationLocatorPanel } from "./game/ui/CivilizationLocatorPanel";
 import { narrate, narrateOnce, pick, CURATOR } from "./game/narrator";
+import { resetTutorial } from "./game/tutorialGate";
 import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
@@ -161,6 +162,20 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
     return () => window.clearTimeout(timeoutId);
   }, [showPerformanceTelemetry]);
 
+  // Real pause: freeze the game whenever a blocking menu/panel is open (but
+  // never during a minigame, which drives its own scene). Fixes "pausing
+  // doesn't pause the game" - opening the ESC menu now actually stops the ship,
+  // surges, hazards and timers.
+  const anyPanelOpen = isMenuOpen || isCodexOpen || isOutfittingOpen || isSettingsOpen
+    || isChronicleOpen || !!contactCivId || isMissionsOpen || isAchievementsOpen
+    || isHangarOpen || isDevOpen || isFullMapOpen || isLocatorOpen || isCuratorLogOpen;
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene?.pauseGame) return;
+    if (anyPanelOpen && !scene.inputSystem?.isMinigameActive) scene.pauseGame();
+    else scene.resumeGame();
+  }, [anyPanelOpen]);
+
   // Map toggle handler
   const handleMapToggle = () => {
     setIsFullMapOpen(prev => !prev);
@@ -240,6 +255,11 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       onCivContact: (civId) => {
         narrateOnce('first-contact', pick(CURATOR.firstContact));
         setContactCivId(civId);
+        // Reaching a civ you were guided to ends the guidance.
+        setWaypointCivId((cur) => {
+          if (cur === civId) sceneRef.current?.clearCivWaypoint?.();
+          return cur === civId ? null : cur;
+        });
       },
       // Phaser boots async - getScene() right after construction returns
       // null, which left sceneRef dead for every consumer. The scene calls
@@ -247,6 +267,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       onSceneReady: (scene) => { sceneRef.current = scene; },
       onEventReward,
       onVesselLost,
+      onWaypointArrive: () => setWaypointCivId(null),
       onHint: showHint,
     });
 
@@ -475,6 +496,10 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
             locator: setIsLocatorOpen,
             transmissions: setIsCuratorLogOpen,
             settings: setIsSettingsOpen,
+            'replay-tutorial': () => {
+              resetTutorial();
+              showHint('Tutorial re-enabled — start a new universe to replay the guided opening.', 'info', 7000);
+            },
           }[id];
           open?.(true);
         }}

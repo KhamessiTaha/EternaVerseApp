@@ -47,6 +47,8 @@ export const GENESIS_BEATS = [
   },
 ];
 
+import { isTutorialDone, markTutorialDone } from './tutorialGate.js';
+
 const STORAGE_PREFIX = 'eterna:genesis:';
 const storageKey = (uid) => `${STORAGE_PREFIX}${uid}`;
 
@@ -121,8 +123,9 @@ export function considerStart(universe) {
   state.done = new Set();
   state.finished = false;
 
-  if (readDone(uid) || !isFresh(universe)) {
-    // Veteran or already-completed: opt out permanently and stay silent.
+  // The checklist is part of the once-per-account tutorial: a returning warden
+  // who's done it, or anyone already past the fresh state, is opted out.
+  if (readDone(uid) || isTutorialDone() || !isFresh(universe)) {
     writeDone(uid);
     state.active = false;
     emit();
@@ -157,6 +160,7 @@ export function syncUniverse(universe) {
 /** Dismiss the arc for good - completion flourish finished, or player skipped. */
 export function dismissGenesis() {
   if (state.universeId) writeDone(state.universeId);
+  markTutorialDone(); // engaging with (or skipping) the checklist counts as done
   state.active = false;
   emit();
 }

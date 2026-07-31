@@ -101,7 +101,13 @@ export class WaypointSystem {
       pos = civLocation(civ);
       prefix = name;
       const d = Phaser.Math.Distance.Between(this.scene.player.x, this.scene.player.y, pos.x, pos.y);
-      hint = d < ARRIVED_DIST ? "arrived · hail [G]" : "here";
+      // Reached them: stop guiding automatically (the arrow's job is done).
+      if (d < ARRIVED_DIST) {
+        this.scene.onWaypointArrive?.(this.civId);
+        this.clear();
+        return;
+      }
+      hint = "here";
     } else {
       pos = this._structurePos(hop.structureId);
       if (!pos) { this._hide(); return; }
@@ -114,33 +120,32 @@ export class WaypointSystem {
 
   _draw(pos, text) {
     const player = this.scene.player;
-    const ang = Math.atan2(pos.y - player.y, pos.x - player.x);
+    const cam = this.scene.cameras.main;
     const dist = Phaser.Math.Distance.Between(player.x, player.y, pos.x, pos.y);
     const distText = dist >= 1000 ? ` · ${(dist / 1000).toFixed(1)}k` : ` · ${Math.round(dist)}`;
 
-    // Arrow orbits the ship, pointed at the target. Hidden once basically on it.
-    if (dist > 120) {
-      const ax = player.x + Math.cos(ang) * ORBIT_R;
-      const ay = player.y + Math.sin(ang) * ORBIT_R;
-      this.arrow.clear();
-      this.arrow.fillStyle(ARROW_COLOR, 0.95);
-      this.arrow.fillTriangle(22, 0, -13, -12, -13, 12);
-      this.arrow.lineStyle(2, 0x0a0f14, 0.9);
-      this.arrow.strokeTriangle(22, 0, -13, -12, -13, 12);
-      this.arrow.setPosition(ax, ay).setRotation(ang).setVisible(true);
-    } else {
-      this.arrow.setVisible(false);
-    }
-
-    // Ring on the target when it's within the current view.
-    const cam = this.scene.cameras.main;
+    // If the target is on screen, ring it; otherwise show the arrow. The arrow
+    // orbits the CAMERA CENTRE (not the ship) so camera lookahead / boost can
+    // never push it off-screen - the bug where fast up/down flight lost it.
     if (cam.worldView.contains(pos.x, pos.y)) {
       const t = 0.5 + 0.5 * Math.sin(this.scene.time.now / 220);
       this.ring.clear();
       this.ring.lineStyle(2.5, ARROW_COLOR, 0.55 + 0.35 * t);
       this.ring.strokeCircle(0, 0, 24 + 8 * t);
       this.ring.setPosition(pos.x, pos.y).setVisible(true);
+      this.arrow.setVisible(false);
     } else {
+      const cx = cam.midPoint.x;
+      const cy = cam.midPoint.y;
+      const ang = Math.atan2(pos.y - cy, pos.x - cx);
+      const ax = cx + Math.cos(ang) * ORBIT_R;
+      const ay = cy + Math.sin(ang) * ORBIT_R;
+      this.arrow.clear();
+      this.arrow.fillStyle(ARROW_COLOR, 0.95);
+      this.arrow.fillTriangle(22, 0, -13, -12, -13, 12);
+      this.arrow.lineStyle(2, 0x0a0f14, 0.9);
+      this.arrow.strokeTriangle(22, 0, -13, -12, -13, 12);
+      this.arrow.setPosition(ax, ay).setRotation(ang).setVisible(true);
       this.ring.setVisible(false);
     }
 

@@ -27,6 +27,7 @@ import { getLoadoutLocal, setLoadoutLocal } from "../loadoutStore.js";
 import { HULL_CATALOG } from "../content/hullCatalog.js";
 import { narrate, narrateOnce, pick, muse, CURATOR } from "../narrator.js";
 import { markBeat } from "../firstSession.js";
+import { isTutorialDone, markTutorialDone } from "../tutorialGate.js";
 import { dlog } from "../../../devLog.js";
 
 // Module-level, not per-scene: survives remounts (leaving and re-entering a
@@ -35,7 +36,7 @@ import { dlog } from "../../../devLog.js";
 let welcomeHintShown = false;
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onVesselLost, onHint } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onVesselLost, onWaypointArrive, onHint } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -51,6 +52,7 @@ export const UniverseSceneFactory = (props) => {
       this.onSceneReady = onSceneReady;
       this.onEventReward = onEventReward;
       this.onVesselLost = onVesselLost;
+      this.onWaypointArrive = onWaypointArrive;
       this.onHint = onHint;
     }
 
@@ -632,6 +634,9 @@ export const UniverseSceneFactory = (props) => {
     }
 
     update(time, delta) {
+      // Paused (a blocking menu/panel is open): freeze everything.
+      if (this.paused) return;
+
       // Poll the loadout store: Hangar saves (from any panel, any tab
       // state) apply on the next frame with no cross-boundary wiring
       const lo = getLoadoutLocal();
@@ -863,6 +868,9 @@ export const UniverseSceneFactory = (props) => {
     _armFirstLight() {
       const u = this.universe;
       if (!u) return;
+      // The guided opening is a once-per-ACCOUNT tutorial, not a per-universe
+      // one - a returning warden's fresh universes skip it (Replay in the menu).
+      if (isTutorialDone()) return;
       const fresh = (u.discoveries?.length ?? 0) === 0 && !u.chosenCivId
         && (u.metrics?.playerInterventions ?? 0) === 0;
       let done = false;
@@ -881,7 +889,22 @@ export const UniverseSceneFactory = (props) => {
       this.firstLightId = null;
       if (this.chunkSystem) this.chunkSystem.forcedAnomaly = null;
       try { localStorage.setItem(this._firstLightKey(), "done"); } catch { /* ignore */ }
+      markTutorialDone(); // the account has now seen the guided opening
       this.time.delayedCall(1200, () => narrate(pick(CURATOR.firstLight.resolve)));
+    }
+
+    // Real pause (called from React when a blocking menu/panel opens): freeze
+    // physics AND the update loop, so the ship, surges, hazards and timers all
+    // stop while you're in a menu. Momentum is preserved across the pause.
+    pauseGame() {
+      if (this.paused) return;
+      this.paused = true;
+      this.physics.world.pause();
+    }
+    resumeGame() {
+      if (!this.paused) return;
+      this.paused = false;
+      this.physics.world.resume();
     }
 
     // Locator bridge (called from React via sceneRef): guide the player to a

@@ -6,9 +6,19 @@
 // effectively unfindable by wandering. This lists every living civ and, on
 // "Guide me", plants a cross-scale waypoint (WaypointSystem) that arrows the
 // player straight to it, one descent at a time.
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { civDesignation, civAttitude } from '../utils';
 import { civScale, civInDistress } from '../world/civPlacement.js';
+
+// Filters mirror the attitude buckets a player thinks in.
+const FILTERS = [
+  { id: 'all', label: 'All', match: () => true },
+  { id: 'distress', label: '⚠ Distress', match: (c) => civInDistress(c) },
+  { id: 'friendly', label: 'Friendly', match: (c) => ['worship', 'friendly'].includes(civAttitude(c)) },
+  { id: 'neutral', label: 'Neutral', match: (c) => civAttitude(c) === 'neutral' },
+  { id: 'wary', label: 'Wary', match: (c) => civAttitude(c) === 'wary' },
+  { id: 'hostile', label: 'Hostile', match: (c) => civAttitude(c) === 'hostile' },
+];
 
 const SCALE_LABEL = {
   Type0: 'Type 0 · Planetary',
@@ -28,7 +38,9 @@ const ATTITUDE_STYLE = {
 const depthOf = (type) => ({ galactic: 0, stellar: 1, planetary: 2 }[civScale(type)] ?? 0);
 
 export const CivilizationLocatorPanel = ({ isOpen, onClose, universe, activeCivId, onGuide, onStop }) => {
-  const civs = useMemo(() => {
+  const [filter, setFilter] = useState('all');
+
+  const allCivs = useMemo(() => {
     const list = (universe?.civilizations || []).filter((c) => !c.extinct && c.location);
     // Distressed first (they're the ones who need you), then by scale depth.
     return list.sort((a, b) => {
@@ -37,6 +49,9 @@ export const CivilizationLocatorPanel = ({ isOpen, onClose, universe, activeCivI
       return depthOf(a.type) - depthOf(b.type);
     });
   }, [universe?.civilizations]);
+
+  const matcher = FILTERS.find((f) => f.id === filter)?.match ?? (() => true);
+  const civs = allCivs.filter(matcher);
 
   if (!isOpen) return null;
 
@@ -47,7 +62,7 @@ export const CivilizationLocatorPanel = ({ isOpen, onClose, universe, activeCivI
           <div>
             <h2 className="font-sans text-ink font-medium text-lg tracking-wide">Civilization Locator</h2>
             <p className="text-ink-faint text-[10px] font-mono tracking-wider uppercase">
-              {civs.length} known {civs.length === 1 ? 'civilization' : 'civilizations'}
+              {civs.length} of {allCivs.length} {allCivs.length === 1 ? 'civilization' : 'civilizations'}
             </p>
           </div>
           <button
@@ -58,11 +73,30 @@ export const CivilizationLocatorPanel = ({ isOpen, onClose, universe, activeCivI
           </button>
         </div>
 
+        {/* Attitude filters */}
+        <div className="flex flex-wrap gap-1.5 px-5 py-2.5 border-b border-line">
+          {FILTERS.map((f) => {
+            const n = allCivs.filter(f.match).length;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={`font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 border transition-colors ${
+                  filter === f.id ? 'border-accent text-accent' : 'border-line text-ink-faint hover:text-ink hover:border-line-bright'
+                }`}
+              >
+                {f.label} {n > 0 ? `· ${n}` : ''}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="flex-1 overflow-y-auto">
           {civs.length === 0 && (
             <p className="font-mono text-xs text-ink-faint p-5">
-              No living civilizations yet. Life takes billions of years to arise — let the universe
-              age, or seed some in the Dev panel.
+              {allCivs.length === 0
+                ? 'No living civilizations yet. Life takes billions of years to arise — let the universe age, or seed some in the Dev panel.'
+                : 'None match this filter.'}
             </p>
           )}
           {civs.map((civ) => {
