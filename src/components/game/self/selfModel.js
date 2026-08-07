@@ -18,6 +18,16 @@ export const comprehensionForDiscovery = (rarity) => DISCOVERY_COMPREHENSION[rar
 export const MASTERY_ASCENSION = 50; // the headline act
 export const MASTERY_RESOLVE = 2;    // an anomaly contained
 
+// The Eternal is the rare convergence: high in BOTH the understanding side
+// (observer + wanderer) AND the mastery side (gardener). Each side must clear
+// this gate for the synthesis to resolve instead of a single leading self.
+export const ETERNAL_GATE = 40;
+
+// Neglect weights (the pull toward The Unmaker).
+export const NEGLECT_STABILITY = 15; // letting the universe tear into crisis
+export const NEGLECT_CIV = 10;       // a people you'd met, left to die
+const CRITICAL_THRESHOLD = 0.15;     // mirrors the backend stability crisis band
+
 // Tie/priority order when reading the strongest pull.
 const SELF_ORDER = ["observer", "gardener", "wanderer", "unmaker"];
 
@@ -70,8 +80,34 @@ export function pickMemory(pool, affinity, recoveredIds) {
 }
 
 // The realized self - only at/after the summit, and only one the game can
-// actually reveal (available = the authored selves).
+// actually reveal (available = the authored selves). The Eternal wins when
+// BOTH sides clear the gate; otherwise the strongest single pull (excluding
+// eternal, which has no affinity bucket of its own).
 export function resolveSelf(affinity, recollection, available) {
   if (recollection < SUMMIT) return null;
-  return leadingSelf(affinity, available);
+  const understanding = affinity.observer + affinity.wanderer;
+  const mastery = affinity.gardener;
+  if (available.includes("eternal") && understanding >= ETERNAL_GATE && mastery >= ETERNAL_GATE) {
+    return "eternal";
+  }
+  return leadingSelf(affinity, available.filter((s) => s !== "eternal"));
+}
+
+// Neglect scored from one universe-state transition: stability tearing INTO
+// crisis, and any civilization you had met going newly extinct. Pure so it
+// unit-tests; GameplayPage feeds it prev/next universe each refresh.
+export function neglectDelta(prev, next) {
+  if (!prev || !next) return 0;
+  let weight = 0;
+
+  const prevStab = prev.currentState?.stabilityIndex ?? 1;
+  const nextStab = next.currentState?.stabilityIndex ?? 1;
+  if (prevStab >= CRITICAL_THRESHOLD && nextStab < CRITICAL_THRESHOLD) weight += NEGLECT_STABILITY;
+
+  const wasExtinct = new Set((prev.civilizations || []).filter((c) => c.extinct).map((c) => c.id));
+  for (const c of next.civilizations || []) {
+    const met = c.observed || (c.relationship || 0) !== 0;
+    if (c.extinct && met && !wasExtinct.has(c.id)) weight += NEGLECT_CIV;
+  }
+  return weight;
 }

@@ -29,7 +29,7 @@ import { WelcomeBackPanel, buildDigest } from "../components/game/ui/WelcomeBack
 import { PetitionPanel } from "../components/game/ui/PetitionPanel";
 import { LegacyPanel } from "../components/game/ui/LegacyPanel";
 import { recordAscension, recordAxis } from "../components/game/wardenProgress";
-import { comprehensionForDiscovery, MASTERY_ASCENSION, MASTERY_RESOLVE } from "../components/game/self/selfModel";
+import { comprehensionForDiscovery, MASTERY_ASCENSION, MASTERY_RESOLVE, neglectDelta } from "../components/game/self/selfModel";
 import { RevelationOverlay } from "../components/game/ui/RevelationOverlay";
 
 const GameplayPage = () => {
@@ -277,8 +277,12 @@ const GameplayPage = () => {
       };
     });
 
-    // The Self: cataloging the cosmos is the core act of Comprehension.
-    applySelfResult(recordAxis('comprehension', comprehensionForDiscovery(discovery.rarity)));
+    // The Self: cataloging the cosmos is the core act of Comprehension. Deep
+    // finds - things you had to DESCEND the scales to reach, or the exceptional
+    // rarities - carry the "hidden" tag, which also feeds the Wanderer.
+    const hidden = discovery.rarity === 'exceptional'
+      || discovery.category === 'star' || discovery.category === 'planet';
+    applySelfResult(recordAxis('comprehension', comprehensionForDiscovery(discovery.rarity), { hidden }));
 
     try {
       const data = await submitDiscoveries(id, [discovery]);
@@ -368,6 +372,8 @@ const GameplayPage = () => {
   const [legacy, setLegacy] = useState(null);
   // The Self: an ascension is the headline act of Mastery.
   const [pendingRevelation, setPendingRevelation] = useState(null);
+  // Previous universe snapshot for scoring Neglect (the pull toward The Unmaker).
+  const prevUniverseForNeglectRef = useRef(null);
 
   // Surface the fallout of an axis event: the Curator voices each recovered
   // Memory, and a realized Self triggers the Revelation sequence.
@@ -396,6 +402,17 @@ const GameplayPage = () => {
       applySelfResult(recordAxis('mastery', MASTERY_ASCENSION));
       setLegacy({ ...fresh, legacyNumber: records.length, warden });
     }
+  }, [universe]);
+
+  // The Self: score Neglect from each universe transition - the fabric tearing
+  // into crisis, or a people you had met left to go extinct. Feeds The Unmaker.
+  useEffect(() => {
+    if (!universe) return;
+    const prev = prevUniverseForNeglectRef.current;
+    prevUniverseForNeglectRef.current = universe;
+    if (!prev) return; // first snapshot: nothing to compare against
+    const weight = neglectDelta(prev, universe);
+    if (weight > 0) applySelfResult(recordAxis('neglect', weight));
   }, [universe]);
 
   const handlePetitionResponse = async (civId, petitionId, optionId) => {

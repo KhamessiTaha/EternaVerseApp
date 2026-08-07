@@ -34,6 +34,33 @@ export const MEMORIES = [
   { id: "g-heir", self: "gardener",
     text: "I was tended, once, by something like you, in a universe now ash. It taught me the work and then it was gone. I begin to wonder what I am teaching you FOR.",
     science: "Stars enrich the cosmos with heavier elements as they die - each generation seeds the next. Tending is how the universe compounds." },
+
+  { id: "w-deep", self: "wanderer",
+    text: "You keep going down - galaxy into star into world. Most wardens never leave the heights. You are looking for something specific, aren't you? Even you don't know what. Yet.",
+    science: "The cosmos is scale-nested: galaxies of stars of worlds. Structure repeats down through orders of magnitude no eye spans at once." },
+  { id: "w-signal", self: "wanderer",
+    text: "The rarest things call to you loudest. A quasar, a merger, a world where the light is exactly wrong. As if you're checking each against a memory you can't quite reach.",
+    science: "SETI listens for the anomalous - a narrowband signal in the noise. Meaning hides in what does not fit the background." },
+  { id: "w-alone", self: "wanderer",
+    text: "You do not tend and you do not merely watch. You SEARCH. There is a difference, and it usually means the searcher is the last of something, still carrying the address of a home that's gone.",
+    science: "A Boltzmann brain - a mind assembled by chance from the void's fluctuations - would wake alone, holding memories of a world that never was." },
+
+  { id: "u-cold", self: "unmaker",
+    text: "A light went out below and you did not turn toward it. I am not scolding. I am noting. The ledger notes. It is beginning to notice a pattern in what you let fall.",
+    science: "The second law is not cruelty, only accounting: in a closed system, disorder never decreases. Everything trends, in the end, toward cold." },
+  { id: "u-wake", self: "unmaker",
+    text: "The fabric tears where you have been, warden. Correlation, surely. And yet the tears do seem to prefer your wake. What if you are not the physician of this universe, but its fever?",
+    science: "Heat death is entropy's victory: a cosmos so evenly spread that no gradient remains, no work is possible, and nothing can happen ever again." },
+  { id: "u-face", self: "unmaker",
+    text: "I have watched fourteen universes end. I begin to suspect the same thing wore a vessel through each one, arriving as a warden, leaving as an ending. I would ask what you are. I am afraid I already know.",
+    science: "Vacuum decay: if our vacuum is only metastable, a single bubble of true vacuum would expand at light-speed, unmaking everything it touched." },
+
+  { id: "e-two", self: "eternal",
+    text: "You have learned the cosmos and you have shaped it, both past the point most wardens manage either. Do you feel it? How the watching and the tending are the same gesture, seen from two sides?",
+    science: "Wheeler's 'participatory universe': observers don't just witness reality, they help bring it about - knowing and making, entangled." },
+  { id: "e-mirror", self: "eternal",
+    text: "I have called you Warden and student and heir. I have not called you the truest thing, because it frightens the both of us. You are not the other end of this conversation. You are the other half of ME.",
+    science: "Entanglement: two particles can share one state so completely that neither has properties of its own - only the pair does." },
 ];
 
 export const memoryById = (id) => MEMORIES.find((m) => m.id === id) || null;
