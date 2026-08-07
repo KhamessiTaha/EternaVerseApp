@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MEMORIES } from "./memories.js";
 import { REVELATIONS, AUTHORED_SELVES } from "./revelations.js";
+import { INSIGHTS } from "./insights.js";
 import { pickMemory, emptyAffinity } from "../self/selfModel.js";
 
 const SELVES = ["neutral", "observer", "gardener", "wanderer", "unmaker", "eternal"];
@@ -32,6 +33,21 @@ test("the pool can be fully drawn without a null before exhaustion", () => {
     recovered.push(m.id);
   }
   assert.equal(pickMemory(MEMORIES, affinity, recovered), null);
+});
+
+test("every insight chain references only real memories and is well-formed", () => {
+  const memIds = new Set(MEMORIES.map((m) => m.id));
+  const insIds = new Set();
+  for (const ins of INSIGHTS) {
+    assert.ok(ins.id && !insIds.has(ins.id), `unique insight id: ${ins.id}`);
+    insIds.add(ins.id);
+    assert.ok(typeof ins.title === "string" && ins.title.length > 0, ins.id);
+    assert.ok(typeof ins.text === "string" && ins.text.length > 0, ins.id);
+    assert.ok(Array.isArray(ins.memoryIds) && ins.memoryIds.length >= 2, ins.id);
+    for (const mid of ins.memoryIds) {
+      assert.ok(memIds.has(mid), `insight ${ins.id} references real memory ${mid}`);
+    }
+  }
 });
 
 test("all five selves are authored", () => {

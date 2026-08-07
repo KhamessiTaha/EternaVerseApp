@@ -31,6 +31,7 @@ import { LegacyPanel } from "../components/game/ui/LegacyPanel";
 import { recordAscension, recordAxis } from "../components/game/wardenProgress";
 import { comprehensionForDiscovery, MASTERY_ASCENSION, MASTERY_RESOLVE, neglectDelta } from "../components/game/self/selfModel";
 import { RevelationOverlay } from "../components/game/ui/RevelationOverlay";
+import { ANAMNESIS_LINE } from "../components/game/content/revelations";
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -382,7 +383,11 @@ const GameplayPage = () => {
     for (const m of res.recoveredMemories || []) {
       narrate(m.text, 'curious');
     }
+    for (const ins of res.newInsights || []) {
+      narrate(ins.text, 'proud');
+    }
     if (res.revelation) setPendingRevelation(res.revelation);
+    if (res.anamnesisComplete) narrate(ANAMNESIS_LINE, 'awe');
   };
 
   useEffect(() => {

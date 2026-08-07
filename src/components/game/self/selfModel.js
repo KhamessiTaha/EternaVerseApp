@@ -23,6 +23,10 @@ export const MASTERY_RESOLVE = 2;    // an anomaly contained
 // this gate for the synthesis to resolve instead of a single leading self.
 export const ETERNAL_GATE = 40;
 
+// Completing an Insight (connecting a chain of related memories) grants a
+// burst of Recollection - understanding the connections advances the self.
+export const INSIGHT_BONUS = 6;
+
 // Neglect weights (the pull toward The Unmaker).
 export const NEGLECT_STABILITY = 15; // letting the universe tear into crisis
 export const NEGLECT_CIV = 10;       // a people you'd met, left to die
@@ -38,8 +42,10 @@ export const emptyAffinity = () => ({ observer: 0, gardener: 0, wanderer: 0, unm
 export function applyAxis(state, kind, weight, tags = {}) {
   const affinity = { ...state.affinity };
   if (kind === "comprehension") {
-    affinity.observer += weight;
+    // Broad cataloging is the Observer's; hunting the deep and rare (the
+    // "hidden" tag) is the Wanderer's. Both count as understanding.
     if (tags.hidden) affinity.wanderer += weight;
+    else affinity.observer += weight;
   } else if (kind === "mastery") {
     affinity.gardener += weight;
   } else if (kind === "neglect") {
@@ -91,6 +97,15 @@ export function resolveSelf(affinity, recollection, available) {
     return "eternal";
   }
   return leadingSelf(affinity, available.filter((s) => s !== "eternal"));
+}
+
+// Which insight chains are fully recovered (every memory in the chain in hand).
+// Pure - the caller supplies the insight list to avoid a content dependency.
+export function insightsCompleted(recoveredIds, insights) {
+  const have = new Set(recoveredIds);
+  return insights
+    .filter((ins) => ins.memoryIds.every((id) => have.has(id)))
+    .map((ins) => ins.id);
 }
 
 // Neglect scored from one universe-state transition: stability tearing INTO

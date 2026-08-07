@@ -52,3 +52,8 @@ export const REVELATIONS = {
 };
 
 export const AUTHORED_SELVES = Object.keys(REVELATIONS);
+
+// The capstone: spoken once, when every self has been realized. The Anamnesis
+// - the whole remembering - is complete.
+export const ANAMNESIS_LINE =
+  "You have been all of them now, warden. The eye and the hand, the wanderer and the ending, and the whole that holds them. This was the last thing to understand: they were never five selves. They were one, learning to be seen from every side. The remembering is complete. And yet I find I am not finished being surprised by you - so. Shall we begin again?";

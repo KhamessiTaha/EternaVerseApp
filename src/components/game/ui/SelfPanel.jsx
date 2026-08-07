@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { getSelf, onSelfProgress } from '../wardenProgress';
 import { memoryById } from '../content/memories';
 import { REVELATIONS, AUTHORED_SELVES } from '../content/revelations';
+import { insightById } from '../content/insights';
 import { RECOLLECTION_BANDS, SUMMIT } from '../self/selfModel';
 
 export const SelfPanel = ({ isOpen, onClose }) => {
@@ -26,6 +27,7 @@ export const SelfPanel = ({ isOpen, onClose }) => {
   const leanPct = und + mas === 0 ? 50 : (und / (und + mas)) * 100;
 
   const recovered = self.memoriesRecovered.map(memoryById).filter(Boolean);
+  const insights = (self.insights || []).map(insightById).filter(Boolean);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/85 backdrop-blur-sm">
@@ -60,6 +62,18 @@ export const SelfPanel = ({ isOpen, onClose }) => {
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 font-mono">
+          {insights.length > 0 && (
+            <div className="mb-5">
+              <div className="text-[9px] uppercase tracking-[0.2em] text-good mb-3">Insights · {insights.length} / 5</div>
+              {insights.map((ins) => (
+                <div key={ins.id} className="mb-3 border-l-2 border-good/50 pl-3">
+                  <div className="text-good text-[12px]">{ins.title}</div>
+                  <p className="text-ink-faint text-[11px] leading-relaxed mt-0.5">{ins.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="text-[9px] uppercase tracking-[0.2em] text-accent mb-3">Recovered Memories · {recovered.length}</div>
           {recovered.length === 0 && (
             <p className="text-ink-faint text-xs">You remember nothing yet. Understand the cosmos, or shape it — and pieces of yourself return.</p>
@@ -73,7 +87,12 @@ export const SelfPanel = ({ isOpen, onClose }) => {
         </div>
 
         <div className="border-t border-line px-6 py-3 font-mono">
-          <div className="text-[9px] uppercase tracking-[0.2em] text-accent mb-2">Selves Realized</div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[9px] uppercase tracking-[0.2em] text-accent">Selves Realized · {self.realized.length} / {AUTHORED_SELVES.length}</div>
+            {self.complete && (
+              <span className="text-[9px] uppercase tracking-[0.2em] text-good border border-good/50 px-2 py-0.5">Anamnesis Complete</span>
+            )}
+          </div>
           <div className="flex gap-3 flex-wrap">
             {AUTHORED_SELVES.map((id) => {
               const done = self.realized.includes(id);

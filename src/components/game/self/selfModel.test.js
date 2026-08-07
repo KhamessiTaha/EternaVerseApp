@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   RECOLLECTION_BANDS, SUMMIT, comprehensionForDiscovery, MASTERY_ASCENSION,
   emptyAffinity, applyAxis, bandsPassed, leadingSelf, pickMemory, resolveSelf,
-  ETERNAL_GATE, neglectDelta,
+  ETERNAL_GATE, neglectDelta, insightsCompleted, INSIGHT_BONUS,
 } from "./selfModel.js";
 
 const s0 = () => ({ recollection: 0, affinity: emptyAffinity() });
@@ -22,9 +22,9 @@ test("mastery raises recollection and the gardener pull", () => {
   assert.equal(s.affinity.gardener, MASTERY_ASCENSION);
 });
 
-test("comprehension tagged hidden also feeds the wanderer", () => {
+test("comprehension tagged hidden feeds the wanderer, not the observer", () => {
   const s = applyAxis(s0(), "comprehension", 5, { hidden: true });
-  assert.equal(s.affinity.observer, 5);
+  assert.equal(s.affinity.observer, 0);
   assert.equal(s.affinity.wanderer, 5);
 });
 
@@ -83,6 +83,17 @@ test("resolveSelf: wanderer counts toward the understanding side of the Eternal 
     observer: 5, wanderer: ETERNAL_GATE, gardener: ETERNAL_GATE + 5, unmaker: 0,
   };
   assert.equal(resolveSelf(explorerAscendant, SUMMIT, ALL), "eternal");
+});
+
+test("insightsCompleted returns only fully-recovered chains", () => {
+  const insights = [
+    { id: "a", memoryIds: ["x", "y"] },
+    { id: "b", memoryIds: ["y", "z"] },
+  ];
+  assert.ok(INSIGHT_BONUS > 0);
+  assert.deepEqual(insightsCompleted(["x", "y"], insights), ["a"]);
+  assert.deepEqual(insightsCompleted(["x", "y", "z"], insights), ["a", "b"]);
+  assert.deepEqual(insightsCompleted(["x"], insights), []);
 });
 
 test("neglectDelta scores stability tearing and met civs left to die", () => {

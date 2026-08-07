@@ -8,6 +8,7 @@
 import * as model from "./self/selfModel.js";
 import { MEMORIES } from "./content/memories.js";
 import { AUTHORED_SELVES } from "./content/revelations.js";
+import { INSIGHTS } from "./content/insights.js";
 
 const KEY = "eterna:warden";
 
@@ -22,17 +23,23 @@ const RANKS = [
 
 const defaults = () => ({
   ascensions: 0,
-  recollection: 0,
-  affinity: model.emptyAffinity(),
-  memoriesRecovered: [],
-  identitiesRealized: [],
+  recollection: 0,             // resets each cycle (on a Revelation)
+  affinity: model.emptyAffinity(), // resets each cycle
+  bandPointer: 0,              // memory-bands consumed THIS cycle
+  memoriesRecovered: [],       // cumulative, persists across cycles
+  insightsCompleted: [],       // cumulative
+  identitiesRealized: [],      // the selves you've been - the collection
+  anamnesisSeen: false,        // capstone shown once
 });
 
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || "null");
     if (s && typeof s.ascensions === "number") {
-      return { ...defaults(), ...s, affinity: { ...model.emptyAffinity(), ...(s.affinity || {}) } };
+      const merged = { ...defaults(), ...s, affinity: { ...model.emptyAffinity(), ...(s.affinity || {}) } };
+      // Migrate a pre-cycle save (no bandPointer): don't re-owe already-read memories.
+      if (typeof s.bandPointer !== "number") merged.bandPointer = merged.memoriesRecovered.length;
+      return merged;
     }
   } catch { /* first run / private mode */ }
   return defaults();
@@ -75,15 +82,33 @@ export function getSelf() {
     recollection: s.recollection,
     affinity: s.affinity,
     memoriesRecovered: s.memoriesRecovered,
+    insights: s.insightsCompleted,
     realized: s.identitiesRealized,
     leading: model.leadingSelf(s.affinity, AUTHORED_SELVES),
+    complete: s.identitiesRealized.length >= AUTHORED_SELVES.length,
   };
 }
 
+// Recover any Memories the current Recollection owes this cycle. Mutates s
+// (memoriesRecovered, bandPointer); returns the newly recovered Memory objects.
+function recoverOwed(s) {
+  const out = [];
+  let owed = model.bandsPassed(s.recollection) - s.bandPointer;
+  while (owed-- > 0) {
+    const m = model.pickMemory(MEMORIES, s.affinity, s.memoriesRecovered);
+    s.bandPointer += 1; // count the band even if the pool is dry (no infinite loop)
+    if (!m) continue;
+    s.memoriesRecovered.push(m.id);
+    out.push(m);
+  }
+  return out;
+}
+
 /**
- * Feed one axis event into The Self. Persists, recovers any Memories the new
- * Recollection has earned, and - at the summit - realizes a Self. Returns what
- * to surface: { recoveredMemories, revelation }.
+ * Feed one axis event into The Self. Persists; recovers owed Memories; completes
+ * any Insight chains (a Recollection burst); and - at the summit - realizes a
+ * Self, which begins a new cycle (the climb resets, the collection does not).
+ * Returns what to surface: { recoveredMemories, newInsights, revelation, anamnesisComplete }.
  */
 export function recordAxis(kind, weight, tags = {}) {
   const s = load();
@@ -91,25 +116,39 @@ export function recordAxis(kind, weight, tags = {}) {
   s.recollection = next.recollection;
   s.affinity = next.affinity;
 
-  const recoveredMemories = [];
-  let owed = model.bandsPassed(s.recollection) - s.memoriesRecovered.length;
-  while (owed-- > 0) {
-    const m = model.pickMemory(MEMORIES, s.affinity, s.memoriesRecovered);
-    if (!m) break;
-    s.memoriesRecovered.push(m.id);
-    recoveredMemories.push(m);
-  }
+  const recoveredMemories = recoverOwed(s);
 
+  // Insights: newly-completed chains grant a Recollection burst, which may
+  // itself owe another Memory.
+  const newInsights = [];
+  for (const id of model.insightsCompleted(s.memoriesRecovered, INSIGHTS)) {
+    if (s.insightsCompleted.includes(id)) continue;
+    s.insightsCompleted.push(id);
+    s.recollection += model.INSIGHT_BONUS;
+    newInsights.push(INSIGHTS.find((i) => i.id === id));
+  }
+  if (newInsights.length) recoveredMemories.push(...recoverOwed(s));
+
+  // Realize a Self at the summit, then begin a new cycle.
   let revelation = null;
   const realized = model.resolveSelf(s.affinity, s.recollection, AUTHORED_SELVES);
   if (realized && !s.identitiesRealized.includes(realized)) {
     s.identitiesRealized.push(realized);
     revelation = realized;
+    s.recollection = 0;
+    s.affinity = model.emptyAffinity();
+    s.bandPointer = 0;
+  }
+
+  let anamnesisComplete = false;
+  if (s.identitiesRealized.length >= AUTHORED_SELVES.length && !s.anamnesisSeen) {
+    s.anamnesisSeen = true;
+    anamnesisComplete = true;
   }
 
   save(s);
   emitSelf();
-  return { recoveredMemories, revelation };
+  return { recoveredMemories, newInsights, revelation, anamnesisComplete };
 }
 
 /** Subscribe to Self changes (fires immediately with the current snapshot). */
