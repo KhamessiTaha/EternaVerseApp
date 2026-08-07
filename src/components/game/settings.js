@@ -16,7 +16,7 @@ export const DEFAULT_SETTINGS = {
   // the default so new players aren't dropped into a hard flight sim.
   // "assisted" (lateral grip + auto-brake) and "newtonian" (full inertia) are the
   // rotate-then-thrust models for players who want the sim feel.
-  flightModel: "direct", // "direct" | "assisted" | "newtonian"
+  flightModel: "assisted", // "direct" | "assisted" | "newtonian"
   turnSensitivity: 1.0,     // 0.2 - 2.0 multiplier on rotation accel + max turn rate
   cameraShake: true,        // all camera shake effects (boost rumble, hits, breaches)
   graphicsQuality: "high", // "low" | "medium" | "high" - overall rendering detail
