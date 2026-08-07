@@ -383,6 +383,12 @@ const GameplayPage = () => {
     for (const m of res.recoveredMemories || []) {
       narrate(m.text, 'curious');
     }
+    if ((res.recoveredMemories || []).length > 0) {
+      // Teach the panel the first time a memory ever surfaces (session-once;
+      // effectively account-once since veterans will have heard it already).
+      narrateOnce('self-panel-hint',
+        "That was a memory, warden - a piece of what you are, come back. I keep what you recover where you can read it. Press [J] when you want to look at yourself.");
+    }
     for (const ins of res.newInsights || []) {
       narrate(ins.text, 'proud');
     }

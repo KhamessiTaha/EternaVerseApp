@@ -9,6 +9,7 @@ import { Key } from './primitives';
 const ENTRIES = [
   { id: 'missions', label: 'Objectives', hotkey: 'O' },
   { id: 'codex', label: 'Codex', hotkey: 'C' },
+  { id: 'self', label: 'The Self', hotkey: 'J' },
   { id: 'outfitting', label: 'Outfitting', hotkey: 'U' },
   { id: 'hangar', label: 'Hangar', hotkey: 'H' },
   { id: 'chronicle', label: 'Chronicle', hotkey: 'L' },

@@ -495,6 +495,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
           const open = {
             missions: setIsMissionsOpen,
             codex: setIsCodexOpen,
+            self: setIsSelfOpen,
             outfitting: setIsOutfittingOpen,
             hangar: setIsHangarOpen,
             chronicle: setIsChronicleOpen,
