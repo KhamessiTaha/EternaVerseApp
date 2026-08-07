@@ -28,7 +28,9 @@ import { progressOf } from "../components/game/ui/MissionsPanel";
 import { WelcomeBackPanel, buildDigest } from "../components/game/ui/WelcomeBackPanel";
 import { PetitionPanel } from "../components/game/ui/PetitionPanel";
 import { LegacyPanel } from "../components/game/ui/LegacyPanel";
-import { recordAscension } from "../components/game/wardenProgress";
+import { recordAscension, recordAxis } from "../components/game/wardenProgress";
+import { comprehensionForDiscovery, MASTERY_ASCENSION, MASTERY_RESOLVE } from "../components/game/self/selfModel";
+import { RevelationOverlay } from "../components/game/ui/RevelationOverlay";
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -181,6 +183,10 @@ const GameplayPage = () => {
       // Mark this anomaly as being resolved
       resolvingAnomaliesRef.current.add(anomaly.id);
 
+      // The Self: containing an anomaly (the minigame was won to reach here) is
+      // an act of Mastery, whichever tier of anomaly it was.
+      applySelfResult(recordAxis('mastery', MASTERY_RESOLVE));
+
       // Check if it's a backend anomaly (has proper UUID format from backend)
       // Backend anomaly IDs look like: "673ab123_1234567890_123456"
       // Procedural anomaly IDs look like: "chunkX:chunkY:index" (e.g., "0:0:0")
@@ -271,6 +277,9 @@ const GameplayPage = () => {
       };
     });
 
+    // The Self: cataloging the cosmos is the core act of Comprehension.
+    applySelfResult(recordAxis('comprehension', comprehensionForDiscovery(discovery.rarity)));
+
     try {
       const data = await submitDiscoveries(id, [discovery]);
       if (data.ok && data.research) {
@@ -357,6 +366,19 @@ const GameplayPage = () => {
   // the "seen" set on first load prevents replaying past ascensions as popups.
   const legacyCelebratedRef = useRef(null);
   const [legacy, setLegacy] = useState(null);
+  // The Self: an ascension is the headline act of Mastery.
+  const [pendingRevelation, setPendingRevelation] = useState(null);
+
+  // Surface the fallout of an axis event: the Curator voices each recovered
+  // Memory, and a realized Self triggers the Revelation sequence.
+  const applySelfResult = (res) => {
+    if (!res) return;
+    for (const m of res.recoveredMemories || []) {
+      narrate(m.text, 'curious');
+    }
+    if (res.revelation) setPendingRevelation(res.revelation);
+  };
+
   useEffect(() => {
     if (!universe) return;
     const records = universe.legacies || [];
@@ -371,6 +393,7 @@ const GameplayPage = () => {
       // The Ascension is the main goal - completing one advances the eternal
       // Warden rank across all universes.
       const warden = recordAscension();
+      applySelfResult(recordAxis('mastery', MASTERY_ASCENSION));
       setLegacy({ ...fresh, legacyNumber: records.length, warden });
     }
   }, [universe]);
@@ -660,6 +683,7 @@ const GameplayPage = () => {
         onVesselLost={handleVesselLost}
         onSetDoctrine={handleSetDoctrine}
       />
+      <RevelationOverlay selfId={pendingRevelation} onDone={() => setPendingRevelation(null)} />
       {digest && (
         <WelcomeBackPanel
           digest={digest}

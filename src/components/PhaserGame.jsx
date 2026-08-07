@@ -20,6 +20,7 @@ import SurgeAlarmOverlay from "./game/ui/SurgeAlarmOverlay";
 import { MinimapPanel } from "./game/ui/MinimapPanel";
 import { FullMapPanel } from "./game/ui/FullMapPanel";
 import { CodexPanel } from "./game/ui/CodexPanel";
+import { SelfPanel } from "./game/ui/SelfPanel";
 import { DiscoveryToast } from "./game/ui/DiscoveryToast";
 import { OutfittingPanel } from "./game/ui/OutfittingPanel";
 import { SettingsPanel } from "./game/ui/SettingsPanel";
@@ -58,6 +59,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   const [isFullMapOpen, setIsFullMapOpen] = useState(false);
   const [discoveryToast, setDiscoveryToast] = useState(null);
   const [isCodexOpen, setIsCodexOpen] = useState(false);
+  const [isSelfOpen, setIsSelfOpen] = useState(false);
   const [isOutfittingOpen, setIsOutfittingOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChronicleOpen, setIsChronicleOpen] = useState(false);
@@ -166,7 +168,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
   // never during a minigame, which drives its own scene). Fixes "pausing
   // doesn't pause the game" - opening the ESC menu now actually stops the ship,
   // surges, hazards and timers.
-  const anyPanelOpen = isMenuOpen || isCodexOpen || isOutfittingOpen || isSettingsOpen
+  const anyPanelOpen = isMenuOpen || isCodexOpen || isSelfOpen || isOutfittingOpen || isSettingsOpen
     || isChronicleOpen || !!contactCivId || isMissionsOpen || isAchievementsOpen
     || isHangarOpen || isDevOpen || isFullMapOpen || isLocatorOpen || isCuratorLogOpen;
   useEffect(() => {
@@ -191,6 +193,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
       }
       if (e.key === 'c' || e.key === 'C') {
         setIsCodexOpen(prev => !prev);
+      }
+      if (e.key === 'j' || e.key === 'J') {
+        setIsSelfOpen(prev => !prev);
       }
       if (e.key === 'u' || e.key === 'U') {
         setIsOutfittingOpen(prev => !prev);
@@ -227,6 +232,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         if (isHangarOpen) { setIsHangarOpen(false); return; }
         if (isFullMapOpen) { setIsFullMapOpen(false); return; }
         if (isCodexOpen) { setIsCodexOpen(false); return; }
+        if (isSelfOpen) { setIsSelfOpen(false); return; }
         if (isOutfittingOpen) { setIsOutfittingOpen(false); return; }
         if (isChronicleOpen) { setIsChronicleOpen(false); return; }
         if (isSettingsOpen) { setIsSettingsOpen(false); return; }
@@ -237,7 +243,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen, isSettingsOpen, isLocatorOpen, isCuratorLogOpen]);
+  }, [isFullMapOpen, isCodexOpen, isSelfOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen, isSettingsOpen, isLocatorOpen, isCuratorLogOpen]);
 
   useEffect(() => {
     // Wait for the saved loadout so the ship never spawns/pops from a
@@ -428,6 +434,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPos
         onClose={() => setIsCodexOpen(false)}
         universe={universe}
       />
+      <SelfPanel isOpen={isSelfOpen} onClose={() => setIsSelfOpen(false)} />
       <OutfittingPanel
         isOpen={isOutfittingOpen}
         onClose={() => setIsOutfittingOpen(false)}
