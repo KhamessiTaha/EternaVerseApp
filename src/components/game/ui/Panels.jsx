@@ -190,6 +190,7 @@ export const ControlsHint = () => {
     <div className="text-[10px] text-ink-faint text-right leading-loose font-mono pointer-events-auto select-none">
       <div><Key>{moveKeys}</Key>move</div>
       <div><Key>F</Key>resolve anomaly</div>
+      <div><Key>X</Key>fire</div>
       <div><Key>V</Key>scan object</div>
       <div><Key>G</Key>first contact</div>
       <div><Key>SPACE</Key>ability</div>

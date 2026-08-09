@@ -3,7 +3,7 @@ const BOOST_SEGMENTS = 10;
 export const HUDPanel = ({ hudData }) => {
   if (!hudData) return null;
 
-  const { velocity, position, boostEnergy, isBoosting, boostLocked, hull = 100, ability, gamma = 1 } = hudData;
+  const { velocity, position, boostEnergy, isBoosting, boostLocked, hull = 100, ability, gamma = 1, weapon } = hudData;
   const showGamma = gamma > 1.02;
 
   const hullColor = hull > 60 ? 'bg-good' : hull > 30 ? 'bg-warn' : 'bg-critical';
@@ -68,6 +68,31 @@ export const HUDPanel = ({ hudData }) => {
           ))}
         </div>
       </div>
+
+      {/* Weapon heat: only surfaces once the gun has been fired - a cold,
+          silent gauge would be noise for players who never fight */}
+      {weapon && weapon.heat > 0 && (
+        <>
+          <div className="w-px h-4 bg-line" />
+          <div className="flex items-center gap-2">
+            <span className={`text-[9px] uppercase tracking-wider ${weapon.locked ? 'text-critical animate-pulse' : 'text-ink-faint'}`}>
+              {weapon.locked ? 'Venting' : 'Heat'}
+            </span>
+            <div className="flex gap-[2px]">
+              {Array.from({ length: BOOST_SEGMENTS }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-1.5 h-2.5 ${
+                    i < Math.round((weapon.heat / 100) * BOOST_SEGMENTS)
+                      ? weapon.locked || weapon.heat > 75 ? 'bg-critical' : 'bg-accent'
+                      : 'bg-line'
+                  } ${weapon.locked ? 'animate-pulse' : ''}`}
+                />
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {ability && (
         <>

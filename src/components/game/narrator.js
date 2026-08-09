@@ -368,6 +368,20 @@ export const CURATOR = {
       "You let that one go. The universe healed the hard way, without you. It does that, when it must.",
     ],
   },
+  siege: {
+    gate: [
+      "That anomaly has grown teeth, warden - the tear is defending itself. Clear the rift-spawn first [X], then contain it.",
+      "You can't mend a wound while it's biting. Deal with the spawn - hold [X] to fire - and THEN we'll talk containment.",
+    ],
+    firstKill: [
+      "You shot a piece of the unraveling and it died. File that under 'things I did not know were possible'. Carry on.",
+      "First blood against the void itself. The universe notices its defenders, warden. So do I.",
+    ],
+    cleared: [
+      "Siege broken. The tear stands naked now - go and close it before it grows new teeth.",
+      "The last of the spawn is stardust. The anomaly is undefended. Finish the work.",
+    ],
+  },
   slingshot: [
     "A textbook gravity assist. Newton would weep - with joy, I think. Hard to tell with Newton.",
     "You stole momentum from a star and it didn't even notice. That's the good kind of theft.",

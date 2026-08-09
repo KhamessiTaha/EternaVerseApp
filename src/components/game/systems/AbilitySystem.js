@@ -80,6 +80,8 @@ export class AbilitySystem {
 
   _cutter(now) {
     this.scene.civilizationSystem.clearMissilesNear(this.scene.player.x, this.scene.player.y, 520);
+    // The pulse also staggers rift-spawn caught in the blast (combat interplay)
+    this.scene.riftSpawnSystem?.staggerNear(this.scene.player.x, this.scene.player.y, 520);
     this.scene.player.invulnerableUntil = now + 2000;
     this._pulseRing(0x4ec9e0, 520, 550);
   }

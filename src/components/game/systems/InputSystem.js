@@ -158,6 +158,7 @@ export class InputSystem {
       map: Phaser.Input.Keyboard.KeyCodes.M,
       fix: Phaser.Input.Keyboard.KeyCodes.F,
       scan: Phaser.Input.Keyboard.KeyCodes.V,
+      fire: Phaser.Input.Keyboard.KeyCodes.X,
       // Arrow keys drive the "direct" arcade flight model (layout-independent).
       // In direct mode the WASD/ZQSD movement cluster also works directionally.
       arrowUp: Phaser.Input.Keyboard.KeyCodes.UP,
@@ -197,6 +198,18 @@ export class InputSystem {
       // procedural ones were already filtered to unresolved in the scan above
       if (nearestAnomaly.isBackend && !this.scene.anomalySystem.backendAnomalies.has(nearestAnomaly.id)) {
         dlog('[Input] Anomaly no longer available (already resolved)');
+        return;
+      }
+
+      // Rift siege gate: a severity-4+ anomaly defends itself - its guards
+      // must fall before containment can begin (the two-phase encounter).
+      if (this.scene.riftSpawnSystem?.isBesieged(nearestAnomaly.id)) {
+        this.scene.events.emit('hint', {
+          message: 'The anomaly is defended — destroy its rift-spawn first. Hold [X] to fire.',
+          variant: 'warn',
+          duration: 6000,
+        });
+        narrateOnce('first-besieged', pick(CURATOR.siege.gate));
         return;
       }
 

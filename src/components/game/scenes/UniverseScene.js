@@ -16,6 +16,8 @@ import { InputSystem } from "../systems/InputSystem";
 import { HUD } from "../systems/HUD";
 import { PlayerObject } from "../systems/PlayerObject";
 import { CivilizationSystem } from "../systems/CivilizationSystem";
+import { CombatSystem } from "../systems/CombatSystem";
+import { RiftSpawnSystem } from "../systems/RiftSpawnSystem";
 import { WaypointSystem } from "../systems/WaypointSystem";
 import { GravitySlingSystem } from "../systems/GravitySlingSystem";
 import { SurgeSystem } from "../systems/SurgeSystem";
@@ -211,7 +213,14 @@ export const UniverseSceneFactory = (props) => {
       this.inputSystem = new InputSystem(this);
       this.hud = new HUD(this);
 
+      // Combat pillar: the player's gun + the rift-spawn that defend
+      // severity-4+ anomalies. The gun shoots whatever registers as a target.
+      this.combatSystem = new CombatSystem(this);
+      this.riftSpawnSystem = new RiftSpawnSystem(this);
+      this.riftSpawnSystem.registerWith(this.combatSystem);
+
       this.anomalySystem.syncBackendAnomalies();
+      this.riftSpawnSystem.sync();
       // Server-side dedup history: minor anomalies resolved in past sessions
       // must not re-render when their chunk regenerates
       (this.universe.resolvedMinorAnomalies || []).forEach((id) =>
@@ -731,7 +740,9 @@ export const UniverseSceneFactory = (props) => {
       if (this.world.scale === "galactic") {
         this.civilizationSystem.update(time, delta); // hostile-civ missiles
         this.cosmicEventSystem.update(time, delta);
+        this.riftSpawnSystem.update(time, delta);    // siege AI + enemy bolts
       }
+      this.combatSystem.update(time, delta);         // the gun cools at any scale
       // Cross-scale civ waypoint (Locator): re-derives its next hop every frame
       // from the live world, so it advances on its own as the player descends.
       this.waypointSystem.update();
@@ -993,6 +1004,8 @@ export const UniverseSceneFactory = (props) => {
       this.anomalySystem.clearBackendVisuals();
       this.civilizationSystem.clearVisuals();
       this.cosmicEventSystem.clear();
+      this.riftSpawnSystem.clear();
+      this.combatSystem.clear();
       this.chunkSystem.reset();
 
       // A planetary system is small and bounded, so load a wider area (cheap -
@@ -1190,6 +1203,8 @@ export const UniverseSceneFactory = (props) => {
       this.scanSystem.seedScanned((newUniverse.discoveries || []).map((d) => d.id));
       this.civilizationSystem.sync();
       this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
+      // New/escalated anomalies may have grown (or lost) their siege escort
+      this.riftSpawnSystem.sync();
     }
 
     shutdown() {
@@ -1216,6 +1231,8 @@ export const UniverseSceneFactory = (props) => {
       
       this.backgroundSystem?.destroy();
       this.scanSystem?.destroy();
+      this.combatSystem?.destroy();
+      this.riftSpawnSystem?.destroy();
       this.inputSystem?.destroy();
       this.civilizationSystem?.destroy();
       this.cosmicEventSystem?.destroy();
