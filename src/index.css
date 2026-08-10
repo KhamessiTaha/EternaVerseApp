@@ -13,6 +13,20 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Used by the Revelation sequence to bring each authored line in. */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Research-point gain: a brief "+N" that rises off the counter and fades,
+   so the player always sees WHICH action paid. */
+@keyframes rp-gain {
+  0%   { opacity: 0; transform: translateY(4px); }
+  18%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-16px); }
+}
+
 /* Themed scrollbars - overflow panels (Settings, Chronicle, Missions,
    Achievements, Dashboard, ...) otherwise show the browser's native chrome,
    which breaks the observatory look. Colors mirror the Tailwind tokens

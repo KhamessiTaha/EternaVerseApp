@@ -149,9 +149,10 @@ export const Console = ({ universe, stats }) => {
         </ConsoleSection>
       )}
 
-      {stats && (stats.discovered > 0 || activeBackendAnomalies > 0 || (universe?.research?.points ?? 0) > 0) && (
+      {/* Research lives in the headline ResearchCounter (top-left) now - the
+          currency gets one authoritative readout, not two. */}
+      {stats && (stats.discovered > 0 || activeBackendAnomalies > 0) && (
         <ConsoleSection icon={icons.mission} title="Mission">
-          <StatLine label="Research" value={`${universe?.research?.points ?? 0} RP`} valueClass="text-accent" />
           <StatLine label="Discovered" value={stats.discovered} />
           <StatLine label="Resolved" value={stats.resolved} />
           <StatLine label="Critical Active" value={activeBackendAnomalies} valueClass="text-warn" />
