@@ -42,7 +42,7 @@ import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onUniverseUpdate, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine }) => {
   const { user } = useContext(AuthContext);
   const toast = useToast();
 
