@@ -18,6 +18,7 @@ import { PlayerObject } from "../systems/PlayerObject";
 import { CivilizationSystem } from "../systems/CivilizationSystem";
 import { CombatSystem } from "../systems/CombatSystem";
 import { RiftSpawnSystem } from "../systems/RiftSpawnSystem";
+import { CivFleetSystem } from "../systems/CivFleetSystem";
 import { WaypointSystem } from "../systems/WaypointSystem";
 import { GravitySlingSystem } from "../systems/GravitySlingSystem";
 import { SurgeSystem } from "../systems/SurgeSystem";
@@ -38,7 +39,7 @@ import { dlog } from "../../../devLog.js";
 let welcomeHintShown = false;
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onVesselLost, onWaypointArrive, onHint } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onVesselLost, onWaypointArrive, onHint, onWarStrike } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -56,6 +57,7 @@ export const UniverseSceneFactory = (props) => {
       this.onVesselLost = onVesselLost;
       this.onWaypointArrive = onWaypointArrive;
       this.onHint = onHint;
+      this.onWarStrike = onWarStrike;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -218,6 +220,14 @@ export const UniverseSceneFactory = (props) => {
       this.combatSystem = new CombatSystem(this);
       this.riftSpawnSystem = new RiftSpawnSystem(this);
       this.riftSpawnSystem.registerWith(this.combatSystem);
+
+      // Civilization vessels: patrols, hostile raiders, and the fleets that
+      // besiege a world at war. Kills are reported up to React, which lets the
+      // server decide the diplomatic and war-score consequences.
+      this.civFleetSystem = new CivFleetSystem(this);
+      this.civFleetSystem.registerWith(this.combatSystem);
+      this.civFleetSystem.onStrike = (civId, kills, context) =>
+        this.onWarStrike?.(civId, kills, context);
 
       this.anomalySystem.syncBackendAnomalies();
       this.riftSpawnSystem.sync();
@@ -742,6 +752,8 @@ export const UniverseSceneFactory = (props) => {
         this.cosmicEventSystem.update(time, delta);
         this.riftSpawnSystem.update(time, delta);    // siege AI + enemy bolts
       }
+      // Civ fleets exist at every scale a civilization can be met at
+      this.civFleetSystem.update(time, delta);
       this.combatSystem.update(time, delta);         // the gun cools at any scale
       // Cross-scale civ waypoint (Locator): re-derives its next hop every frame
       // from the live world, so it advances on its own as the player descends.
@@ -1005,6 +1017,7 @@ export const UniverseSceneFactory = (props) => {
       this.civilizationSystem.clearVisuals();
       this.cosmicEventSystem.clear();
       this.riftSpawnSystem.clear();
+      this.civFleetSystem.clear();
       this.combatSystem.clear();
       this.chunkSystem.reset();
 
@@ -1205,6 +1218,8 @@ export const UniverseSceneFactory = (props) => {
       this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
       // New/escalated anomalies may have grown (or lost) their siege escort
       this.riftSpawnSystem.sync();
+      // Wars start and end server-side: re-derive who is besieging whom
+      this.civFleetSystem.sync();
     }
 
     shutdown() {
@@ -1233,6 +1248,7 @@ export const UniverseSceneFactory = (props) => {
       this.scanSystem?.destroy();
       this.combatSystem?.destroy();
       this.riftSpawnSystem?.destroy();
+      this.civFleetSystem?.destroy();
       this.inputSystem?.destroy();
       this.civilizationSystem?.destroy();
       this.cosmicEventSystem?.destroy();

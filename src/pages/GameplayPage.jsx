@@ -17,6 +17,7 @@ import {
   claimEventReward,
   registerVesselLost,
   setDoctrine,
+  reportWarStrike,
 } from "../api/universeApi";
 import { Button, Eyebrow } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
@@ -486,6 +487,44 @@ const GameplayPage = () => {
     }
   };
 
+  // Destroyed civilization vessels. A firefight kills ships in bursts, so
+  // strikes are batched per (victim, defended world) and flushed shortly after
+  // the shooting stops - one request per engagement instead of one per kill.
+  const strikeBufferRef = useRef(new Map());
+  const strikeTimerRef = useRef(null);
+
+  const flushWarStrikes = async () => {
+    const pending = [...strikeBufferRef.current.entries()];
+    strikeBufferRef.current.clear();
+    strikeTimerRef.current = null;
+
+    for (const [key, entry] of pending) {
+      try {
+        const data = await reportWarStrike(id, entry.civId, entry.kills, entry.defendingCivId);
+        if (data.ok && data.universe) {
+          setUniverse(data.universe);
+          if (data.brokeSiege) toast(data.message, 'good', 8000);
+        }
+      } catch (err) {
+        console.warn(`War strike (${key}) failed:`, err.response?.data?.error || err.message);
+      }
+    }
+  };
+
+  const handleWarStrike = (civId, kills, context = {}) => {
+    // Only a strike against a genuine besieger can break a siege; a defender's
+    // own losses are just aggression, and the server verifies both.
+    const defendingCivId = context.wasRaider ? context.defendingCivId : undefined;
+    const key = `${civId}:${defendingCivId ?? "-"}`;
+    const buf = strikeBufferRef.current;
+    const entry = buf.get(key) || { civId, defendingCivId, kills: 0 };
+    entry.kills += kills;
+    buf.set(key, entry);
+
+    clearTimeout(strikeTimerRef.current);
+    strikeTimerRef.current = setTimeout(flushWarStrikes, 2500);
+  };
+
   // The death penalty (fail state): the vessel is lost, so the universe drifts
   // while you recover - a stability hit + forced time-skip, server-authoritative.
   // The scene has already played the destruction; here we book the consequence
@@ -710,6 +749,7 @@ const GameplayPage = () => {
         onEventReward={handleEventReward}
         onVesselLost={handleVesselLost}
         onSetDoctrine={handleSetDoctrine}
+        onWarStrike={handleWarStrike}
       />
       <RevelationOverlay selfId={pendingRevelation} onDone={() => setPendingRevelation(null)} />
       {digest && (

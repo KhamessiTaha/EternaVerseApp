@@ -305,6 +305,26 @@ export const purchaseUpgrade = async (universeId, track) => {
   }
 };
 
+// Report destroyed civilization vessels. The server owns the consequences:
+// how far that people's regard falls, and whether a war tips because you
+// broke a siege.
+export const reportWarStrike = async (universeId, civId, kills, defendingCivId) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/war-strike`,
+      { civId, kills, defendingCivId },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error reporting war strike:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Prune old resolved anomalies from the universe document
 export const cleanupAnomalies = async (universeId, keepRecentMinutes = 60) => {
   try {

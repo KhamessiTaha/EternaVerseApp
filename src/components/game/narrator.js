@@ -368,6 +368,24 @@ export const CURATOR = {
       "You let that one go. The universe healed the hard way, without you. It does that, when it must.",
     ],
   },
+  fleet: {
+    siege: [
+      "A war has come to someone's doorstep, warden. Those are not their ships in orbit - they belong to the people trying to erase them. You could fly on. You could also not.",
+      "Raiders in orbit over an inhabited world. Somewhere below, a species is watching the sky and hoping it means something. It might, if you make it.",
+    ],
+    provoked: [
+      "You shot at them. They noticed. Civilizations are funny that way - they remember artillery far longer than diplomacy.",
+      "First blood against a people who can build ships. I'd expect a reply. I'd also expect it to be rude.",
+    ],
+    siegeBroken: [
+      "The last raider is scattered light. You just saved a world, warden - not with research points, not from orbit's edge, but by getting in the way. They will build religions on less.",
+      "Siege broken. The war just turned, and it turned because you were there. That is a rarer thing than you know.",
+    ],
+    fleetDestroyed: [
+      "Their fleet is gone. Every hull, every crew. Whatever they did to deserve that, they'll be telling the story differently.",
+      "You burned a people's navy to nothing. The ledger records it. So, I imagine, will they.",
+    ],
+  },
   siege: {
     gate: [
       "That anomaly has grown teeth, warden - the tear is defending itself. Clear the rift-spawn first [X], then contain it.",
