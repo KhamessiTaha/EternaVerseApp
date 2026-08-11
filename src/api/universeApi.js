@@ -325,6 +325,25 @@ export const reportWarStrike = async (universeId, civId, kills, defendingCivId) 
   }
 };
 
+// Report bombardment runs the player failed to stop. The server decides what
+// they cost the world below - and whether it survives them at all.
+export const reportBombardment = async (universeId, civId, runs, attackerCivId) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/bombard`,
+      { civId, runs, attackerCivId },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Error reporting bombardment:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+};
+
 // Prune old resolved anomalies from the universe document
 export const cleanupAnomalies = async (universeId, keepRecentMinutes = 60) => {
   try {

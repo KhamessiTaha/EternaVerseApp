@@ -39,7 +39,7 @@ import { dlog } from "../../../devLog.js";
 let welcomeHintShown = false;
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onVesselLost, onWaypointArrive, onHint, onWarStrike } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onVesselLost, onWaypointArrive, onHint, onWarStrike, onBombardment } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -58,6 +58,7 @@ export const UniverseSceneFactory = (props) => {
       this.onWaypointArrive = onWaypointArrive;
       this.onHint = onHint;
       this.onWarStrike = onWarStrike;
+      this.onBombardment = onBombardment;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {
@@ -223,11 +224,15 @@ export const UniverseSceneFactory = (props) => {
 
       // Civilization vessels: patrols, hostile raiders, and the fleets that
       // besiege a world at war. Kills are reported up to React, which lets the
-      // server decide the diplomatic and war-score consequences.
+      // server decide the diplomatic and war-score consequences - and so are
+      // the bombardment runs the player fails to stop, which the server can
+      // turn into an extinction.
       this.civFleetSystem = new CivFleetSystem(this);
       this.civFleetSystem.registerWith(this.combatSystem);
       this.civFleetSystem.onStrike = (civId, kills, context) =>
         this.onWarStrike?.(civId, kills, context);
+      this.civFleetSystem.onBombard = (civId, runs, attackerCivId) =>
+        this.onBombardment?.(civId, runs, attackerCivId);
 
       this.anomalySystem.syncBackendAnomalies();
       this.riftSpawnSystem.sync();

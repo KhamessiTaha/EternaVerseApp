@@ -27,6 +27,10 @@ const ACTIONS = [
   { label: 'Spawn HOSTILE civ (fires missiles!)', action: 'spawn-civilizations', payload: { count: 1, disposition: 'hostile' } },
   { label: 'Rewind visit (test away-digest: fast-forward, exit, re-enter)', action: 'rewind-visit', payload: {} },
   { label: 'Start a WAR between the 2 newest civs', action: 'start-war', payload: {} },
+  // One click for the whole fleet-combat loop: two Type II powers next door,
+  // already at war. Raid waves, escorts, bombardment and extinction all follow
+  // from this without any further setup.
+  { label: '⚔ STAGE A SIEGE (2 Type II civs at war, nearby)', action: 'stage-siege', payload: {} },
 ];
 
 // Session-local effects that never touch the server (hull is client state)

@@ -18,6 +18,7 @@ import {
   registerVesselLost,
   setDoctrine,
   reportWarStrike,
+  reportBombardment,
 } from "../api/universeApi";
 import { Button, Eyebrow } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
@@ -525,6 +526,49 @@ const GameplayPage = () => {
     strikeTimerRef.current = setTimeout(flushWarStrikes, 2500);
   };
 
+  // Bombardment runs the player did not stop. Batched the same way - a bomber
+  // lands a run every few seconds, and the world only needs to hear about it
+  // in chunks. The server decides what it costs, including extinction.
+  const bombardBufferRef = useRef(new Map());
+  const bombardTimerRef = useRef(null);
+
+  const flushBombardments = async () => {
+    const pending = [...bombardBufferRef.current.entries()];
+    bombardBufferRef.current.clear();
+    bombardTimerRef.current = null;
+
+    for (const [key, entry] of pending) {
+      try {
+        const data = await reportBombardment(id, entry.civId, entry.runs, entry.attackerCivId);
+        if (data.ok && data.universe) {
+          setUniverse(data.universe);
+          if (data.extinct) {
+            toast(data.message, 'critical', 10000);
+            narrate(
+              "They are gone. Not by entropy, not by bad luck - by a decision someone " +
+              "else made and you were close enough to contest. That is the weight of " +
+              "being here, warden.",
+              "grim"
+            );
+          }
+        }
+      } catch (err) {
+        console.warn(`Bombardment (${key}) failed:`, err.response?.data?.error || err.message);
+      }
+    }
+  };
+
+  const handleBombardment = (civId, runs, attackerCivId) => {
+    const key = `${attackerCivId}>${civId}`;
+    const buf = bombardBufferRef.current;
+    const entry = buf.get(key) || { civId, attackerCivId, runs: 0 };
+    entry.runs += runs;
+    buf.set(key, entry);
+
+    clearTimeout(bombardTimerRef.current);
+    bombardTimerRef.current = setTimeout(flushBombardments, 4000);
+  };
+
   // The death penalty (fail state): the vessel is lost, so the universe drifts
   // while you recover - a stability hit + forced time-skip, server-authoritative.
   // The scene has already played the destruction; here we book the consequence
@@ -750,6 +794,7 @@ const GameplayPage = () => {
         onVesselLost={handleVesselLost}
         onSetDoctrine={handleSetDoctrine}
         onWarStrike={handleWarStrike}
+        onBombardment={handleBombardment}
       />
       <RevelationOverlay selfId={pendingRevelation} onDone={() => setPendingRevelation(null)} />
       {digest && (

@@ -42,7 +42,7 @@ import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine, onWarStrike }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine, onWarStrike, onBombardment }) => {
   const { user } = useContext(AuthContext);
   const toast = useToast();
 
@@ -277,6 +277,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
       onWaypointArrive: () => setWaypointCivId(null),
       onHint: showHint,
       onWarStrike,
+      onBombardment,
     });
 
     const container = document.getElementById("phaser-container");

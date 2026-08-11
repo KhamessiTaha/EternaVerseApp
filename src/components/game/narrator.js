@@ -385,6 +385,15 @@ export const CURATOR = {
       "Their fleet is gone. Every hull, every crew. Whatever they did to deserve that, they'll be telling the story differently.",
       "You burned a people's navy to nothing. The ledger records it. So, I imagine, will they.",
     ],
+    reinforcements: [
+      "More of them. Of course there are more of them - you cleared a wave, not a war. Whoever sent these has more where they came from.",
+      "Second flight inbound. This is what a siege actually is, warden: not one fight you win, but a question of how long you can keep answering.",
+      "Reinforcements. They're committed now. Somebody down there has decided this world is worth emptying their shipyards over.",
+    ],
+    bombardment: [
+      "The heavy ones are in position. Those aren't warships, warden - they're a decision about a planet. Stop them or watch what they were built for.",
+      "Bombers over the world. Every few seconds one of those lances is a city. The escorts want you to chase them. Don't.",
+    ],
   },
   siege: {
     gate: [
