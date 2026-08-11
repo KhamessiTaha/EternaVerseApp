@@ -16,6 +16,13 @@ const ACTIONS = [
   { label: 'Grant 5000 RP', action: 'grant-research', payload: { points: 5000 } },
   { label: 'Spawn 3 anomalies nearby', action: 'spawn-anomalies', payload: { count: 3 } },
   { label: 'Spawn 2 civilizations nearby', action: 'spawn-civilizations', payload: { count: 2 } },
+  // Tier gates where a people is MET and what it can field, so each tier needs
+  // its own spawn: Type 0 has no ships, Type I keeps light craft on a planet,
+  // Type II holds a star (Dyson swarm + cruisers), Type III spans a galaxy.
+  { label: 'Spawn TYPE I civ (planet-bound · light craft)', action: 'spawn-civilizations', payload: { count: 1, civType: 'Type1' } },
+  { label: 'Spawn TYPE II civ (Dyson swarm · cruisers)', action: 'spawn-civilizations', payload: { count: 1, civType: 'Type2' } },
+  { label: 'Spawn TYPE III civ (galactic · dreadnoughts)', action: 'spawn-civilizations', payload: { count: 1, civType: 'Type3' } },
+  { label: 'Spawn HOSTILE TYPE II (fleet attacks on sight)', action: 'spawn-civilizations', payload: { count: 1, civType: 'Type2', disposition: 'hostile' } },
   { label: 'Spawn WORSHIPPING civ (tribute, halo)', action: 'spawn-civilizations', payload: { count: 1, disposition: 'worship' } },
   { label: 'Spawn HOSTILE civ (fires missiles!)', action: 'spawn-civilizations', payload: { count: 1, disposition: 'hostile' } },
   { label: 'Rewind visit (test away-digest: fast-forward, exit, re-enter)', action: 'rewind-visit', payload: {} },
