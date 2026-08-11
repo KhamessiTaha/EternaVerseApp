@@ -98,7 +98,9 @@ export class WaypointSystem {
 
     let pos, prefix, hint;
     if (hop.mode === "here") {
-      pos = civLocation(civ);
+      // Anchored position: the world the civ actually lives on, so the final
+      // hop guides the player onto its planet/star rather than empty space.
+      pos = civLocation(civ, baseSeed, cp);
       prefix = name;
       const d = Phaser.Math.Distance.Between(this.scene.player.x, this.scene.player.y, pos.x, pos.y);
       // Reached them: stop guiding automatically (the arrow's job is done).

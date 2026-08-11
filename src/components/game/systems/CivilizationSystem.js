@@ -10,7 +10,7 @@ import { getChunkCoords, getChunkKey, civDesignation, civAttitude } from "../uti
 import { playSfx } from "../audio.js";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
-import { civVisibleAt, civLocation, civHostStructureAt, civInDistress } from "../world/civPlacement.js";
+import { civVisibleAt, civLocation, civAnchorObject, civHostStructureAt, civInDistress } from "../world/civPlacement.js";
 import { cosmicProfile } from "../world/cosmicProfile.js";
 import { narrateOnce, pick, CURATOR } from "../narrator.js";
 
@@ -24,6 +24,21 @@ export const CIV_TYPE_COLORS = {
 };
 
 const CULL_DISTANCE = 5000; // world units - drop visuals well outside the loaded area
+
+// How far a civilization's presence reaches, by tier - drives the broadcast
+// ring and the interaction prompt. A galactic power is felt from much further
+// away than a people who just invented radio.
+const TIER_SCALE = { Type0: 12, Type1: 20, Type2: 38, Type3: 66 };
+
+// Deterministic per-civ jitter, so a given people's city-lights always fall in
+// the same places on their world.
+const hashUnit = (id, i) => {
+  let h = 2166136261;
+  const s = `${id}#${i}`;
+  for (let k = 0; k < s.length; k++) { h ^= s.charCodeAt(k); h = Math.imul(h, 16777619); }
+  return (Math.abs(h) % 10000) / 10000;
+};
+const hashAngle = (id, i) => hashUnit(id, i) * Math.PI * 2;
 
 // Missile defense (hostile Type1+ civs): homing projectiles the player must
 // outrun or outturn - they're faster than cruise speed but turn poorly, so
@@ -134,8 +149,12 @@ export class CivilizationSystem {
         continue;
       }
 
-      const { x, y } = civLocation(beacon.data);
+      // Anchored to the actual world/star/galaxy the civ inhabits, so the
+      // beacon is drawn ONTO its home rather than floating in nearby space.
+      const anchor = civAnchorObject(seed, beacon.data, cp);
+      const { x, y } = civLocation(beacon.data, seed, cp);
       beacon.loc = { x, y };
+      beacon.anchor = anchor;
 
       if (!beacon.visual) {
         const chunk = getChunkCoords(x, y);
@@ -189,34 +208,203 @@ export class CivilizationSystem {
     }
   }
 
+  /**
+   * The civilization itself, drawn onto its world. Returns a container holding
+   * every piece so the caller can move/destroy it as one object.
+   *
+   * Solar-2 language throughout: soft additive glow, no hard outlines, nothing
+   * static. Every tier orbits, breathes, or pulses - a civilization should look
+   * like something living on a world, not a marker pinned near one.
+   */
+  _createTierVisual(civ, x, y, color) {
+    const container = this.scene.add.container(x, y).setDepth(9);
+    const t = this.scene.tweens;
+    const add = (obj) => { container.add(obj); return obj; };
+    // Tweens that drive a plain proxy object (not a display child) must be
+    // tracked explicitly - nothing else can find them at teardown, and an
+    // orphaned onUpdate would keep poking a destroyed sprite.
+    container.proxyTweens = [];
+
+    if (civ.type === "Type3") {
+      // GALACTIC: the galaxy's arms are threaded with light. Nodes of
+      // civilization pulse outward along the spiral - the whole structure
+      // is inhabited.
+      const arms = 3;
+      const nodesPerArm = 7;
+      for (let a = 0; a < arms; a++) {
+        const phase = (a / arms) * Math.PI * 2;
+        for (let n = 0; n < nodesPerArm; n++) {
+          const tt = 0.35 + (n / nodesPerArm) * 2.4;
+          const r = 9 * Math.exp(0.30 * tt);
+          const ang = tt + phase;
+          const node = add(
+            this.scene.add.circle(Math.cos(ang) * r, Math.sin(ang) * r, 2.2, color, 0.95)
+              .setBlendMode(Phaser.BlendModes.ADD)
+          );
+          // A slow wave of light travelling outward along each arm
+          t.add({
+            targets: node,
+            alpha: { from: 0.15, to: 1 },
+            scale: { from: 0.6, to: 1.5 },
+            duration: 900,
+            delay: n * 190 + a * 120,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut",
+          });
+        }
+      }
+      // The whole galaxy turns, very slowly
+      t.add({ targets: container, angle: 360, duration: 240000, repeat: -1 });
+      const halo = add(
+        this.scene.add.circle(0, 0, 62, color, 0.05).setBlendMode(Phaser.BlendModes.ADD)
+      );
+      t.add({
+        targets: halo, alpha: { from: 0.05, to: 0.14 }, scale: { from: 1, to: 1.12 },
+        duration: 4200, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+      });
+
+    } else if (civ.type === "Type2") {
+      // STELLAR: a Dyson swarm. Collector arcs orbit the star at different
+      // rates, eclipsing it as they pass - the star flickers behind its own
+      // harvested light.
+      const starGlow = add(
+        this.scene.add.circle(0, 0, 13, 0xffe6b0, 0.85).setBlendMode(Phaser.BlendModes.ADD)
+      );
+      t.add({
+        targets: starGlow, alpha: { from: 0.6, to: 0.95 }, scale: { from: 0.94, to: 1.06 },
+        duration: 1700, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+      });
+
+      // Three collector rings at different radii/tilts, each a partial arc so
+      // the swarm reads as segments rather than a solid shell.
+      [0, 1, 2].forEach((i) => {
+        const radius = 24 + i * 9;
+        const ring = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+        ring.lineStyle(2.5, color, 0.85);
+        // Two opposing arcs = a swarm mid-construction, not a finished sphere
+        ring.beginPath();
+        ring.arc(0, 0, radius, 0, Math.PI * 0.62);
+        ring.strokePath();
+        ring.beginPath();
+        ring.arc(0, 0, radius, Math.PI, Math.PI * 1.62);
+        ring.strokePath();
+        ring.setScale(1, 0.42 + i * 0.14); // tilted orbital planes
+        add(ring);
+        t.add({
+          targets: ring,
+          angle: i % 2 === 0 ? 360 : -360,
+          duration: 14000 + i * 6000,
+          repeat: -1,
+        });
+      });
+
+    } else if (civ.type === "Type1") {
+      // PLANETARY (mastered): the whole world is lit. A warm halo, a bright
+      // band of city-light across the terminator, and a thin ring of orbital
+      // infrastructure turning overhead.
+      const world = add(
+        this.scene.add.circle(0, 0, 9, color, 0.5).setBlendMode(Phaser.BlendModes.ADD)
+      );
+      t.add({
+        targets: world, alpha: { from: 0.35, to: 0.6 },
+        duration: 2600, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+      });
+
+      // City-light band
+      const band = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+      band.fillStyle(0xffe9a8, 0.9);
+      for (let i = 0; i < 14; i++) {
+        const ang = (i / 14) * Math.PI * 2;
+        band.fillCircle(Math.cos(ang) * 7.5, Math.sin(ang) * 3.2, 1.1);
+      }
+      add(band);
+      t.add({
+        targets: band, alpha: { from: 0.55, to: 1 },
+        duration: 1500, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+      });
+
+      // Orbital ring
+      const orbit = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+      orbit.lineStyle(1.2, color, 0.75);
+      orbit.strokeCircle(0, 0, 17);
+      orbit.setScale(1, 0.35);
+      add(orbit);
+      t.add({ targets: orbit, angle: 360, duration: 22000, repeat: -1 });
+
+      // A single station catching the light as it goes round
+      const station = add(
+        this.scene.add.circle(17, 0, 1.8, 0xffffff, 1).setBlendMode(Phaser.BlendModes.ADD)
+      );
+      const orbitState = { a: 0 };
+      container.proxyTweens.push(t.add({
+        targets: orbitState, a: Math.PI * 2, duration: 9000, repeat: -1,
+        onUpdate: () => {
+          if (!station.scene) return; // destroyed mid-flight
+          station.setPosition(Math.cos(orbitState.a) * 17, Math.sin(orbitState.a) * 6);
+        },
+      }));
+
+    } else {
+      // EMERGENT (Type 0): scattered city-lights on the night side. Faint,
+      // irregular, easy to miss - someone down there has only just begun.
+      const lights = [];
+      for (let i = 0; i < 7; i++) {
+        const ang = hashAngle(civ.id, i);
+        const r = 2 + (hashUnit(civ.id, i) * 5);
+        const light = add(
+          this.scene.add.circle(Math.cos(ang) * r, Math.sin(ang) * r, 1.1, 0xffd9a0, 0.9)
+            .setBlendMode(Phaser.BlendModes.ADD)
+        );
+        lights.push(light);
+        // Each light flickers on its own irregular cadence
+        t.add({
+          targets: light,
+          alpha: { from: 0.25, to: 1 },
+          duration: 700 + hashUnit(civ.id, i + 20) * 1400,
+          delay: hashUnit(civ.id, i + 40) * 900,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      }
+      const dim = add(
+        this.scene.add.circle(0, 0, 8, color, 0.12).setBlendMode(Phaser.BlendModes.ADD)
+      );
+      t.add({
+        targets: dim, alpha: { from: 0.08, to: 0.2 },
+        duration: 3200, yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+      });
+    }
+
+    return container;
+  }
+
   createBeacon(civ, loc) {
     const { x, y } = loc ?? civ.location;
     // A dying civ's beacon burns urgent red - the distress signal, up close.
     const color = civInDistress(civ) ? 0xe0524a : (CIV_TYPE_COLORS[civ.type] ?? CIV_TYPE_COLORS.Type0);
     const attitude = civAttitude(civ);
 
-    // Core: small settlement mark - a filled diamond, deliberately unlike
-    // the anomaly reticle so contacts read differently at a glance
-    const core = this.scene.add.graphics({ x, y }).setDepth(9);
-    core.fillStyle(color, 0.95);
-    core.fillPoints([
-      new Phaser.Geom.Point(0, -7),
-      new Phaser.Geom.Point(6, 0),
-      new Phaser.Geom.Point(0, 7),
-      new Phaser.Geom.Point(-6, 0),
-    ], true);
+    // The civilization is drawn ON its world. Each Kardashev tier gets its own
+    // structure - you read how advanced a people are from across the system,
+    // before any label: scattered city-lights, a lit and ringed homeworld, a
+    // Dyson swarm eclipsing a star, a galaxy threaded with light.
+    const core = this._createTierVisual(civ, x, y, color);
 
-    // Broadcast rings: two expanding circles on staggered loops - the
-    // universal "signal source" visual
+    // Broadcast rings: the universal "signal source" pulse. Scaled to the
+    // civ's presence so a galactic power broadcasts across a galaxy.
+    const ringRadius = TIER_SCALE[civ.type] ?? TIER_SCALE.Type0;
     const rings = [0, 1].map((i) => {
-      const ring = this.scene.add.graphics({ x, y }).setDepth(8);
-      ring.lineStyle(1.5, color, 0.8);
-      ring.strokeCircle(0, 0, 12);
+      const ring = this.scene.add.graphics({ x, y }).setDepth(8)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      ring.lineStyle(1.5, color, 0.55);
+      ring.strokeCircle(0, 0, ringRadius);
       this.scene.tweens.add({
         targets: ring,
         scaleX: 3.2,
         scaleY: 3.2,
-        alpha: { from: 0.8, to: 0 },
+        alpha: { from: 0.55, to: 0 },
         duration: 2400,
         delay: i * 1200,
         repeat: -1,
@@ -308,12 +496,14 @@ export class CivilizationSystem {
     return { x, y, core, rings, label, extras, attitude, atWar, ascended: !!civ.ascended };
   }
 
-  /** Show/hide contact prompts based on player proximity. */
+  /** Show/hide contact prompts based on player proximity. Bigger powers are
+   *  hailable from further out - their presence physically reaches further. */
   handleInteraction(player, range = 300) {
     for (const beacon of this.beacons.values()) {
       if (!beacon.visual) continue;
+      const reach = range + (TIER_SCALE[beacon.data.type] ?? 0) * 4;
       const inRange =
-        Phaser.Math.Distance.Between(player.x, player.y, beacon.visual.x, beacon.visual.y) < range;
+        Phaser.Math.Distance.Between(player.x, player.y, beacon.visual.x, beacon.visual.y) < reach;
       beacon.visual.label.setVisible(inRange);
     }
   }
@@ -322,12 +512,15 @@ export class CivilizationSystem {
    *  rendered at the current scale (with a live beacon) are contactable. */
   findNearest(player, range = 300) {
     let nearest = null;
-    let best = range;
+    let best = Infinity;
     for (const beacon of this.beacons.values()) {
       if (!beacon.visual) continue;
       const { x, y } = beacon.loc ?? beacon.data.location;
       const d = Phaser.Math.Distance.Between(player.x, player.y, x, y);
-      if (d < best) {
+      // Each civ is hailable within its OWN reach (matches the prompt shown by
+      // handleInteraction), and among those we take the closest.
+      const reach = range + (TIER_SCALE[beacon.data.type] ?? 0) * 4;
+      if (d < reach && d < best) {
         best = d;
         nearest = beacon.data;
       }
@@ -355,7 +548,15 @@ export class CivilizationSystem {
       this.scene.tweens.getTweensOf(obj).forEach((t) => t.stop());
       obj.destroy();
     });
-    visual.core.destroy();
+    // The tier visual is a container of independently-animated parts: kill the
+    // tweens on the container, on every child, and on any proxy driver before
+    // destroying the tree.
+    if (visual.core) {
+      this.scene.tweens.killTweensOf(visual.core);
+      (visual.core.list || []).forEach((child) => this.scene.tweens.killTweensOf(child));
+      (visual.core.proxyTweens || []).forEach((tw) => tw.stop());
+      visual.core.destroy(true);
+    }
     visual.label.destroy();
   }
 

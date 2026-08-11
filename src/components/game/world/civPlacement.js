@@ -6,7 +6,7 @@
 // placement needs no server world-gen: the client, which already generates the
 // world, computes it. When the backend promotes a civ's type across a scale
 // boundary, this automatically shows it one scale up. That IS the ascension.
-import { generateScaleObjects, worldSeed, SCALES, DESCEND_CATEGORY } from "./worldScales.js";
+import { generateScaleObjects, generateSystem, worldSeed, SCALES, DESCEND_CATEGORY } from "./worldScales.js";
 
 const hashStr = (s) => {
   let h = 2166136261;
@@ -96,8 +96,77 @@ export function civHost(seed, civ, cp) {
   return star ? [gal, star] : [gal];
 }
 
-// A stable beacon position within the civ's current scale (world coords).
-export function civLocation(civ) {
+// Object ids encode the chunk that generated them ("obj:cx:cy:i", "s:cx:cy:k"),
+// so any object can be re-derived deterministically without a world scan.
+function chunkOfId(id) {
+  const parts = String(id ?? "").split(":");
+  if (parts.length < 4) return null;
+  const cx = Number(parts[1]);
+  const cy = Number(parts[2]);
+  return Number.isFinite(cx) && Number.isFinite(cy) ? { cx, cy } : null;
+}
+
+function findInChunk(worldScaleSeed, scale, id, cp) {
+  const chunk = chunkOfId(id);
+  if (!chunk) return null;
+  const objects = generateScaleObjects(worldScaleSeed, chunk.cx, chunk.cy, scale, undefined, cp);
+  return objects.find((o) => o.id === id) || null;
+}
+
+const _anchorCache = new Map();
+
+/**
+ * THE object a civilization physically inhabits at its own scale - the planet,
+ * star, or galaxy it lives on. Returns the full descriptor (position, class,
+ * scale, colour) so the beacon can be drawn ONTO its world.
+ *
+ * Civ beacons used to sit at a hash of the civ id - a point in empty space with
+ * no relationship to anything the player could see. You could follow the
+ * host-structure marker down into the right system and still find the
+ * civilization floating in the void beside its own sun.
+ */
+export function civAnchorObject(seed, civ, cp) {
+  const key = `${seed}:${civ.id}:${civ.type}:${cpTag(cp)}`;
+  if (_anchorCache.has(key)) return _anchorCache.get(key);
+
+  const scale = civScale(civ.type);
+  let anchor = null;
+
+  if (scale === "galactic") {
+    // A Type III IS its galaxy.
+    anchor = findInChunk(seed, "galactic", homeGalaxyId(seed, civ.id, cp), cp);
+  } else if (scale === "stellar") {
+    // A Type II encloses its star.
+    const gal = homeGalaxyId(seed, civ.id, cp);
+    const star = homeStarId(seed, civ.id, gal, cp);
+    if (gal && star) {
+      anchor = findInChunk(worldSeed(seed, "stellar", [gal]), "stellar", star, cp);
+    }
+  } else {
+    // Type 0 / I live on a WORLD: pick a planet from their home system.
+    const gal = homeGalaxyId(seed, civ.id, cp);
+    const star = homeStarId(seed, civ.id, gal, cp);
+    if (gal && star) {
+      const planets = generateSystem(worldSeed(seed, "planetary", [gal, star]))
+        .filter((o) => o.category === "planet");
+      if (planets.length) {
+        anchor = planets[hashStr(`${civ.id}#world`) % planets.length];
+      }
+    }
+  }
+
+  _anchorCache.set(key, anchor);
+  return anchor;
+}
+
+// The civ's beacon position: the exact centre of the world it inhabits.
+// Falls back to a stable id-hash only if its home couldn't be generated, so a
+// civ is never invisible.
+export function civLocation(civ, seed, cp) {
+  if (seed) {
+    const anchor = civAnchorObject(seed, civ, cp);
+    if (anchor) return { x: anchor.x, y: anchor.y };
+  }
   return {
     x: (hashStr(`${civ.id}#lx`) % 8000) - 4000,
     y: (hashStr(`${civ.id}#ly`) % 8000) - 4000,
