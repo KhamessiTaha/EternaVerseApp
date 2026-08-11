@@ -7,6 +7,7 @@
 // world, computes it. When the backend promotes a civ's type across a scale
 // boundary, this automatically shows it one scale up. That IS the ascension.
 import { generateScaleObjects, generateSystem, worldSeed, SCALES, DESCEND_CATEGORY } from "./worldScales.js";
+import { CHUNK_SIZE } from "../constants.js";
 
 const hashStr = (s) => {
   let h = 2166136261;
@@ -45,18 +46,48 @@ const _starCache = new Map();
 // phase change can't hand back a stale home from a different density.
 const cpTag = (cp) => cp?.phaseKey ?? "neutral";
 
-// A stable home galaxy id for a civ: pick a chunk near origin from the civ id,
-// generate it, and choose one of its galaxies. Falls back outward through a
-// deterministic sequence if the chosen chunk is an empty void.
-export function homeGalaxyId(seed, civId, cp) {
-  const key = `${seed}:${civId}:${cpTag(cp)}`;
+// A stable home galaxy for a civ.
+//
+// The search STARTS at the civ's server-assigned location when it has one -
+// that position is placed a few chunks from the player (physicsEngine spawns
+// civs near the last known player position, and the dev console spawns them
+// closer still), so "a civilization appeared nearby" stays true after the home
+// is resolved. Without a location we fall back to a deterministic ring of
+// chunks around the origin.
+//
+// Either way the result is a pure function of the civ, so a people's homeworld
+// never moves once chosen.
+export function homeGalaxyId(seed, civOrId, cp) {
+  const civId = typeof civOrId === "string" ? civOrId : civOrId?.id;
+  const loc = typeof civOrId === "string" ? null : civOrId?.location;
+
+  // Chunk the civ was seeded into, if the server gave it a position.
+  const homeCx = typeof loc?.x === "number" ? Math.floor(loc.x / CHUNK_SIZE) : null;
+  const homeCy = typeof loc?.y === "number" ? Math.floor(loc.y / CHUNK_SIZE) : null;
+
+  // The seeding chunk is part of the identity of the result, so it belongs in
+  // the cache key - otherwise a civ whose location arrives later (or differs)
+  // keeps whatever home was resolved first.
+  const key = `${seed}:${civId}:${homeCx},${homeCy}:${cpTag(cp)}`;
   if (_galCache.has(key)) return _galCache.get(key);
+
   const R = 8;
   let result = null;
   for (let attempt = 0; attempt < 16; attempt++) {
-    const cx = (hashStr(`${civId}#gx${attempt}`) % (R * 2 + 1)) - R;
-    const cy = (hashStr(`${civId}#gy${attempt}`) % (R * 2 + 1)) - R;
-    const galaxies = generateScaleObjects(seed, cx, cy, "galactic", undefined, cp).filter((o) => o.category === "galaxy");
+    let cx;
+    let cy;
+    if (homeCx !== null) {
+      // Spiral outward from the civ's own chunk: attempt 0 is exactly where the
+      // server put them, later attempts widen only if that chunk is empty void.
+      const ring = Math.floor(attempt / 4);
+      cx = homeCx + ((hashStr(`${civId}#nx${attempt}`) % (ring * 2 + 1)) - ring);
+      cy = homeCy + ((hashStr(`${civId}#ny${attempt}`) % (ring * 2 + 1)) - ring);
+    } else {
+      cx = (hashStr(`${civId}#gx${attempt}`) % (R * 2 + 1)) - R;
+      cy = (hashStr(`${civId}#gy${attempt}`) % (R * 2 + 1)) - R;
+    }
+    const galaxies = generateScaleObjects(seed, cx, cy, "galactic", undefined, cp)
+      .filter((o) => o.category === "galaxy");
     if (galaxies.length) {
       result = galaxies[hashStr(`${civId}#gpick`) % galaxies.length].id;
       break;
@@ -89,7 +120,7 @@ export function homeStarId(seed, civId, galaxyId, cp) {
 export function civHost(seed, civ, cp) {
   const scale = civScale(civ.type);
   if (scale === "galactic") return [];
-  const gal = homeGalaxyId(seed, civ.id, cp);
+  const gal = homeGalaxyId(seed, civ, cp);
   if (!gal) return [];
   if (scale === "stellar") return [gal];
   const star = homeStarId(seed, civ.id, gal, cp);
@@ -134,17 +165,17 @@ export function civAnchorObject(seed, civ, cp) {
 
   if (scale === "galactic") {
     // A Type III IS its galaxy.
-    anchor = findInChunk(seed, "galactic", homeGalaxyId(seed, civ.id, cp), cp);
+    anchor = findInChunk(seed, "galactic", homeGalaxyId(seed, civ, cp), cp);
   } else if (scale === "stellar") {
     // A Type II encloses its star.
-    const gal = homeGalaxyId(seed, civ.id, cp);
+    const gal = homeGalaxyId(seed, civ, cp);
     const star = homeStarId(seed, civ.id, gal, cp);
     if (gal && star) {
       anchor = findInChunk(worldSeed(seed, "stellar", [gal]), "stellar", star, cp);
     }
   } else {
     // Type 0 / I live on a WORLD: pick a planet from their home system.
-    const gal = homeGalaxyId(seed, civ.id, cp);
+    const gal = homeGalaxyId(seed, civ, cp);
     const star = homeStarId(seed, civ.id, gal, cp);
     if (gal && star) {
       const planets = generateSystem(worldSeed(seed, "planetary", [gal, star]))
@@ -225,10 +256,10 @@ export function civHostStructureAt(seed, civ, world, cp) {
   const scale = civScale(civ.type);
   // Only civs that live DEEPER than the current scale are "inside" something here.
   if (world.scale === "galactic" && scale !== "galactic") {
-    return homeGalaxyId(seed, civ.id, cp);
+    return homeGalaxyId(seed, civ, cp);
   }
   if (world.scale === "stellar" && scale === "planetary") {
-    const gal = homeGalaxyId(seed, civ.id, cp);
+    const gal = homeGalaxyId(seed, civ, cp);
     // must be in the galaxy we're currently inside
     if (gal !== world.path[0]) return null;
     return homeStarId(seed, civ.id, gal, cp);

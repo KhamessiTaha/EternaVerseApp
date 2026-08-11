@@ -18,6 +18,28 @@ test("scale is derived from Kardashev type (planetary -> galactic)", () => {
   assert.equal(civScale("Type3"), "galactic");
 });
 
+test("a civ spawned near the player makes its home near the player", () => {
+  // The server places new civilizations a few chunks from the player, so the
+  // resolved home galaxy must be near that position - otherwise "a civilization
+  // appeared nearby" is a lie and the dev spawn lands you nowhere.
+  const far = { id: "civ_far", type: "Type2", location: { x: 40000, y: -25000 } };
+  const near = { id: "civ_near", type: "Type2", location: { x: 500, y: 500 } };
+
+  const farGal = homeGalaxyId(SEED, far);
+  const nearGal = homeGalaxyId(SEED, near);
+  assert.ok(farGal && nearGal, "both resolve a home");
+
+  // Chunk coordinates are encoded in the object id ("obj:cx:cy:i").
+  const chunkOf = (id) => id.split(":").slice(1, 3).map(Number);
+  const [fx, fy] = chunkOf(farGal);
+  assert.ok(Math.abs(fx - 40) <= 4 && Math.abs(fy + 25) <= 4,
+    `home ${farGal} should sit near chunk (40,-25)`);
+
+  const [nx, ny] = chunkOf(nearGal);
+  assert.ok(Math.abs(nx) <= 4 && Math.abs(ny) <= 4,
+    `home ${nearGal} should sit near chunk (0,0)`);
+});
+
 test("home galaxy/star are stable and real for a civ id", () => {
   const gal = homeGalaxyId(SEED, "civ_abc");
   assert.ok(typeof gal === "string" && gal.length > 0);
