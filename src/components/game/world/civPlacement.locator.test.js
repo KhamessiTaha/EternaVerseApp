@@ -19,11 +19,23 @@ test("a Type I civ is reached by descending into its home galaxy", () => {
   assert.equal(hop.category, "galaxy");
 });
 
-test("inside its home galaxy, a Type I civ is here", () => {
-  const civ = { id: "c-t1b", type: "Type1" };
+test("inside its home galaxy, a Type II civ is here", () => {
+  // Type II encloses its star, so the stellar scale IS its home.
+  const civ = { id: "c-t2b", type: "Type2" };
   const gal = homeGalaxyId(SEED, civ.id);
   const hop = nextHopToCiv(SEED, civ, { scale: "stellar", path: [gal] });
   assert.equal(hop.mode, "here");
+});
+
+test("inside its home galaxy, a Type I civ still needs a descent to its star", () => {
+  // Type I masters its homeworld but has not left it - it lives one scale
+  // deeper, in a planetary system, exactly like a Type 0.
+  const civ = { id: "c-t1b", type: "Type1" };
+  const [gal, star] = civHost(SEED, civ);
+  const hop = nextHopToCiv(SEED, civ, { scale: "stellar", path: [gal] });
+  assert.equal(hop.mode, "descend");
+  assert.equal(hop.structureId, star);
+  assert.equal(hop.category, "star");
 });
 
 test("inside the WRONG galaxy, the locator says ascend", () => {

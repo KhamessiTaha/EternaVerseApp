@@ -17,13 +17,21 @@ const hashStr = (s) => {
   return Math.abs(h);
 };
 
-// Type -> the scale a civ occupies. As it climbs the Kardashev ladder it
-// climbs the cosmic ladder: a planet-bound Type 0, a system-holding Type I/II,
-// a galaxy-spanning Type III.
+// Type -> the scale a civ occupies. The Kardashev ladder is an ENERGY ladder,
+// and each rung names the largest thing a civilization can power itself from:
+//
+//   Type 0  - a fraction of its homeworld's energy  -> planetary
+//   Type I  - ALL of its homeworld's energy         -> planetary (still!)
+//   Type II - all of its star's energy (Dyson)      -> stellar
+//   Type III- all of its galaxy's energy            -> galactic
+//
+// Type I was previously placed at the stellar scale, which is a rung early:
+// a Type I is still bound to one planet - mastering a world is precisely what
+// it has NOT yet outgrown. Leaving the cradle world is the Type II step.
 export function civScale(type) {
   if (type === "Type3") return "galactic";
-  if (type === "Type0") return "planetary";
-  return "stellar";
+  if (type === "Type2") return "stellar";
+  return "planetary"; // Type0 and Type1 are both planet-bound
 }
 
 const _galCache = new Map();
