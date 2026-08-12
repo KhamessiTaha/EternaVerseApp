@@ -381,13 +381,19 @@ const GameplayPage = () => {
     const sieges = besiegedWorlds(civs, universe.activeWars || []);
     const live = new Set(sieges.map((s) => `${s.attackerId}>${s.civ.id}`));
 
-    for (const { civ, attackerId } of sieges) {
+    for (const { civ, attackerId, war } of sieges) {
       const key = `${attackerId}>${civ.id}`;
       if (hailedSiegesRef.current.has(key)) continue;
       hailedSiegesRef.current.add(key);
       playSfx('alert');
       toast(`⚠ ${civDesignation(civ.id)} is under attack — Locator [B]`, 'critical', 12000);
-      narrate(pick(CURATOR.fleet.distress), 'warning');
+      // The scripted opening siege (backend utils/openingSiege.js) teaches the
+      // mechanic; every natural one after it gets the short version.
+      if (war?.scripted) {
+        narrateOnce('first-siege', pick(CURATOR.fleet.firstSiege), 'warning');
+      } else {
+        narrate(pick(CURATOR.fleet.distress), 'warning');
+      }
     }
 
     // Forget resolved sieges so the same two peoples can raise a fresh call if

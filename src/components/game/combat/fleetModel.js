@@ -176,14 +176,18 @@ export function civUnderSiege(civ, activeWars = [], allCivs = []) {
 }
 
 /**
- * Every world currently being attacked, as { civ, attackerId }. The distress
- * feed: these are the places where showing up changes an outcome.
+ * Every world currently being attacked, as { civ, attackerId, war }. The
+ * distress feed: these are the places where showing up changes an outcome.
+ * The war comes along so callers can tell the scripted opening siege (which
+ * teaches the mechanic) from every natural one after it.
  */
 export function besiegedWorlds(civilizations = [], activeWars = []) {
   const out = [];
   for (const civ of civilizations) {
     const attackerId = civUnderSiege(civ, activeWars, civilizations);
-    if (attackerId) out.push({ civ, attackerId });
+    if (!attackerId) continue;
+    const war = (activeWars || []).find((w) => w.a === civ.id || w.b === civ.id);
+    out.push({ civ, attackerId, war });
   }
   return out;
 }

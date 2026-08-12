@@ -390,6 +390,15 @@ export const CURATOR = {
       "Second flight inbound. This is what a siege actually is, warden: not one fight you win, but a question of how long you can keep answering.",
       "Reinforcements. They're committed now. Somebody down there has decided this world is worth emptying their shipyards over.",
     ],
+    // The FIRST siege a warden ever sees. This one teaches: what is happening,
+    // why it matters, and the two buttons that turn it into something you can
+    // do. Every siege after it gets the shorter `distress` lines.
+    // Kept to one breath on purpose: the overlay types this out a character at
+    // a time, so a lecture here is a lecture the player watches instead of the
+    // thing it's warning them about.
+    firstSiege: [
+      "Warden — stop. A people who cross between stars have decided a younger world shouldn't exist, and they've brought the ships to settle it. Locator [B], the one in red, Intervene. Kill the heavy ones first; the fast ones are only there to keep you busy.",
+    ],
     // The distress call. A siege the player never finds is content that never
     // happened, so this line's only job is to make them open the Locator.
     distress: [

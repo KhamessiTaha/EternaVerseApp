@@ -144,6 +144,21 @@ test("a world already lost raises no distress call", () => {
   assert.equal(civUnderSiege(victim, [{ a: "civ_x", b: "civ_y" }], civs), null);
 });
 
+// The client half of the contract in the backend's openingSiege.js: it stages
+// a Type II attacker against a Type I defender precisely so this comes out as
+// one distress call. If either tier changes, this breaks - which is the point.
+test("the scripted opening siege has exactly one victim", () => {
+  const defender = { id: "civ_d", type: "Type1" };
+  const attacker = { id: "civ_a", type: "Type2" };
+  const civs = [defender, attacker];
+  const wars = [{ id: "w", a: "civ_d", b: "civ_a", scripted: true }];
+
+  assert.equal(civUnderSiege(defender, wars, civs), "civ_a");
+  assert.equal(civUnderSiege(attacker, wars, civs), null,
+    "a Type I raises no raid wave, so the aggressor is never flagged back");
+  assert.deepEqual(besiegedWorlds(civs, wars).map((f) => f.civ.id), ["civ_d"]);
+});
+
 test("besiegedWorlds is the distress feed - every world worth flying to", () => {
   const civs = [
     { id: "civ_a", type: "Type2" },   // besieged by civ_b
