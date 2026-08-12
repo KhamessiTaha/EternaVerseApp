@@ -159,6 +159,55 @@ export function besiegerOf(civId, activeWars = []) {
   return war.a === civId ? war.b : war.a;
 }
 
+/**
+ * Is this world actually under attack right now? A war on paper is not a
+ * siege: the attacker has to be alive and able to reach another star. This is
+ * what the distress call, the Locator badge and the map marker all key off,
+ * so "under siege" means the same thing everywhere.
+ */
+export function civUnderSiege(civ, activeWars = [], allCivs = []) {
+  if (!civ || civ.extinct) return null;
+  const enemyId = besiegerOf(civ.id, activeWars);
+  if (!enemyId) return null;
+  const enemy = (allCivs || []).find((c) => c.id === enemyId);
+  if (!enemy || enemy.extinct) return null;
+  if (!raidWaveFor(enemy, 0).length) return null; // can't project force
+  return enemyId;
+}
+
+/**
+ * Every world currently being attacked, as { civ, attackerId }. The distress
+ * feed: these are the places where showing up changes an outcome.
+ */
+export function besiegedWorlds(civilizations = [], activeWars = []) {
+  const out = [];
+  for (const civ of civilizations) {
+    const attackerId = civUnderSiege(civ, activeWars, civilizations);
+    if (attackerId) out.push({ civ, attackerId });
+  }
+  return out;
+}
+
+/**
+ * Salvage a destroyed vessel leaves behind. Weighted by what the hull cost to
+ * build, which conveniently means the ship you most need to kill - the bomber -
+ * is also the one worth killing. The player repairs out of the wreckage of the
+ * fight they are in, so a long siege sustains itself.
+ */
+export const SALVAGE_PER_KILL = {
+  interceptor: [1, 2],
+  cruiser: [2, 3],
+  guardian: [2, 4],
+  bomber: [4, 6],
+};
+
+export function salvageFor(role, roll = Math.random()) {
+  const range = SALVAGE_PER_KILL[role];
+  if (!range) return 0;
+  const [lo, hi] = range;
+  return lo + Math.floor(roll * (hi - lo + 1));
+}
+
 /** Damage applied to a ship, shields first. Returns the new {hp, shields}. */
 export function applyDamage({ hp, shields }, damage) {
   const absorbed = Math.min(shields, damage);

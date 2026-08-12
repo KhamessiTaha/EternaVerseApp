@@ -12,7 +12,7 @@
 // into the chunk - the reward loop with zero new server surface.
 import Phaser from "phaser";
 import seedrandom from "seedrandom";
-import { getChunkCoords, getChunkKey } from "../utils";
+import { dropSalvage } from "../world/salvageDrop.js";
 import { playSfx } from "../audio.js";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
@@ -148,33 +148,12 @@ export class RiftSpawnSystem {
     playSfx("explosion");
   }
 
-  // Reward: salvage motes pushed into the entity's chunk, same shape/tween as
-  // ChunkSystem.generateSalvage, so SalvageSystem collects them untouched.
+  // Reward: salvage motes pushed into the entity's chunk (world/salvageDrop),
+  // identical to the ones ChunkSystem seeds, so SalvageSystem collects them
+  // without knowing what died.
   _dropSalvage(entity) {
-    const chunkCoords = getChunkCoords(entity.x, entity.y);
-    const chunk = this.scene.chunkSystem.loadedChunks.get(getChunkKey(chunkCoords.chunkX, chunkCoords.chunkY));
-    if (!chunk) return;
-    if (!chunk.salvage) chunk.salvage = [];
-
-    const count = SALVAGE_PER_KILL[0] + Math.floor(Math.random() * (SALVAGE_PER_KILL[1] - SALVAGE_PER_KILL[0] + 1));
-    for (let i = 0; i < count; i++) {
-      const x = entity.x + (Math.random() - 0.5) * 50;
-      const y = entity.y + (Math.random() - 0.5) * 50;
-      const gfx = this.scene.add.graphics({ x, y }).setDepth(3);
-      gfx.fillStyle(0xdfa73f, 0.9);
-      gfx.fillRect(-2.5, -2.5, 5, 5);
-      gfx.rotation = Math.PI / 4;
-      this.scene.tweens.add({
-        targets: gfx,
-        y: y + 6,
-        alpha: { from: 0.5, to: 0.95 },
-        duration: 1400 + Math.random() * 900,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.easeInOut",
-      });
-      chunk.salvage.push({ x, y, gfx, collected: false });
-    }
+    const [lo, hi] = SALVAGE_PER_KILL;
+    dropSalvage(this.scene, entity.x, entity.y, lo + Math.floor(Math.random() * (hi - lo + 1)));
   }
 
   /** Containment Pulse interplay: briefly stun rift-spawn near the blast. */

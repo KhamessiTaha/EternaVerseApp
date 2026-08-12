@@ -390,6 +390,13 @@ export const CURATOR = {
       "Second flight inbound. This is what a siege actually is, warden: not one fight you win, but a question of how long you can keep answering.",
       "Reinforcements. They're committed now. Somebody down there has decided this world is worth emptying their shipyards over.",
     ],
+    // The distress call. A siege the player never finds is content that never
+    // happened, so this line's only job is to make them open the Locator.
+    distress: [
+      "Distress call, warden - a real one. Somebody's fleet is over an inhabited world that did not ask for the company. Open the Locator [B] if you intend to do something about it. I'd think quickly.",
+      "A world is under attack. Not decaying, not unlucky - attacked, by people who decided it should stop existing. The Locator [B] will point you at it. Whether you go is the interesting part.",
+      "Somewhere out there a species is watching ships it didn't build come over the horizon. You can reach them. That is not a sentence I get to say often, so I'm saying it clearly: [B], go.",
+    ],
     bombardment: [
       "The heavy ones are in position. Those aren't warships, warden - they're a decision about a planet. Stop them or watch what they were built for.",
       "Bombers over the world. Every few seconds one of those lances is a city. The escorts want you to chase them. Don't.",

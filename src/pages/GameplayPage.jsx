@@ -34,6 +34,8 @@ import { recordAscension, recordAxis } from "../components/game/wardenProgress";
 import { comprehensionForDiscovery, MASTERY_ASCENSION, MASTERY_RESOLVE, neglectDelta } from "../components/game/self/selfModel";
 import { RevelationOverlay } from "../components/game/ui/RevelationOverlay";
 import { ANAMNESIS_LINE } from "../components/game/content/revelations";
+import { besiegedWorlds } from "../components/game/combat/fleetModel";
+import { civDesignation } from "../components/game/utils";
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -367,6 +369,34 @@ const GameplayPage = () => {
     });
   }, [universe, toast]);
 
+  // Distress calls. A siege is the most dramatic thing that happens in this
+  // universe and the player would otherwise have to fly into one by accident,
+  // so every new one is announced the moment it appears on the document. The
+  // Locator ([B]) is where it becomes actionable - hence the nudge.
+  const hailedSiegesRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!universe) return;
+    const civs = universe.civilizations || [];
+    const sieges = besiegedWorlds(civs, universe.activeWars || []);
+    const live = new Set(sieges.map((s) => `${s.attackerId}>${s.civ.id}`));
+
+    for (const { civ, attackerId } of sieges) {
+      const key = `${attackerId}>${civ.id}`;
+      if (hailedSiegesRef.current.has(key)) continue;
+      hailedSiegesRef.current.add(key);
+      playSfx('alert');
+      toast(`⚠ ${civDesignation(civ.id)} is under attack — Locator [B]`, 'critical', 12000);
+      narrate(pick(CURATOR.fleet.distress), 'warning');
+    }
+
+    // Forget resolved sieges so the same two peoples can raise a fresh call if
+    // they go at it again later.
+    for (const key of hailedSiegesRef.current) {
+      if (!live.has(key)) hailedSiegesRef.current.delete(key);
+    }
+  }, [universe, toast]);
+
   // The Chosen Species climax: when the people you shepherded reach Type III,
   // the backend records an immortal legacy (and frees chosenCivId so you may
   // champion anew). Show the Legacy screen once per new legacy record. Seeding
@@ -504,7 +534,12 @@ const GameplayPage = () => {
         const data = await reportWarStrike(id, entry.civId, entry.kills, entry.defendingCivId);
         if (data.ok && data.universe) {
           setUniverse(data.universe);
-          if (data.brokeSiege) toast(data.message, 'good', 8000);
+          if (data.brokeSiege) {
+            // The server's message carries the RP it paid, so the reward and
+            // the reason for it arrive together.
+            toast(data.message, 'good', 8000);
+            playSfx('minigameWin');
+          }
         }
       } catch (err) {
         console.warn(`War strike (${key}) failed:`, err.response?.data?.error || err.message);

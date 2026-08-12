@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   SHIP_ROLES, homeFleetFor, raidWaveFor, shipStance, besiegerOf,
+  civUnderSiege, besiegedWorlds, salvageFor,
   pickShipTarget, applyDamage, UNPROVOKED_RANGE, GRUDGE_MS, MAX_WAVES,
 } from "./fleetModel.js";
 
@@ -95,6 +96,18 @@ test("guardians engage whatever is nearest", () => {
   assert.equal(pickShipTarget("guardian", { candidates: [], playerThreat: true }), null);
 });
 
+test("the ship you most need to kill is the one worth killing", () => {
+  // Salvage tracks hull cost, so the bomber - the actual threat - also pays
+  // best. A player chasing the reward is a player defending the world.
+  assert.ok(salvageFor("bomber", 0) > salvageFor("interceptor", 0.99));
+  assert.ok(salvageFor("guardian", 0) >= salvageFor("interceptor", 0.99));
+  for (const role of ["interceptor", "cruiser", "guardian", "bomber"]) {
+    const [lo, hi] = [salvageFor(role, 0), salvageFor(role, 0.999)];
+    assert.ok(lo >= 1 && hi >= lo, role);
+  }
+  assert.equal(salvageFor("nonsense"), 0, "an unknown hull drops nothing");
+});
+
 test("shields soak damage before hull", () => {
   assert.deepEqual(applyDamage({ hp: 30, shields: 12 }, 5), { hp: 30, shields: 7 });
   assert.deepEqual(applyDamage({ hp: 30, shields: 12 }, 12), { hp: 30, shields: 0 });
@@ -107,4 +120,44 @@ test("besiegerOf reads the war from the defender's side", () => {
   assert.equal(besiegerOf("civ_x", wars), "civ_y");
   assert.equal(besiegerOf("civ_y", wars), "civ_x");
   assert.equal(besiegerOf("civ_z", wars), null);
+});
+
+// A distress call the player can't act on is worse than none - so "under
+// siege" has to mean someone is genuinely coming, not just a line in a treaty.
+test("a war on paper is not a siege", () => {
+  const victim = { id: "civ_x", type: "Type2" };
+  const wars = [{ a: "civ_x", b: "civ_y" }];
+
+  const planetBound = [victim, { id: "civ_y", type: "Type1" }];
+  assert.equal(civUnderSiege(victim, wars, planetBound), null, "Type I cannot reach them");
+
+  const dead = [victim, { id: "civ_y", type: "Type3", extinct: true }];
+  assert.equal(civUnderSiege(victim, wars, dead), null, "a dead enemy sends nobody");
+
+  const real = [victim, { id: "civ_y", type: "Type2" }];
+  assert.equal(civUnderSiege(victim, wars, real), "civ_y");
+});
+
+test("a world already lost raises no distress call", () => {
+  const victim = { id: "civ_x", type: "Type2", extinct: true };
+  const civs = [victim, { id: "civ_y", type: "Type2" }];
+  assert.equal(civUnderSiege(victim, [{ a: "civ_x", b: "civ_y" }], civs), null);
+});
+
+test("besiegedWorlds is the distress feed - every world worth flying to", () => {
+  const civs = [
+    { id: "civ_a", type: "Type2" },   // besieged by civ_b
+    { id: "civ_b", type: "Type2" },   // the attacker - also 'at war', not besieged
+    { id: "civ_c", type: "Type1" },   // besieged by a Type 0: not really
+    { id: "civ_d", type: "Type0" },
+    { id: "civ_e", type: "Type3" },   // at peace
+  ];
+  const wars = [{ a: "civ_a", b: "civ_b" }, { a: "civ_c", b: "civ_d" }];
+
+  const feed = besiegedWorlds(civs, wars);
+  const ids = feed.map((f) => f.civ.id).sort();
+  // Both sides of a real war read as besieged - each has the other's fleet
+  // inbound - but the Type 0 "attack" produces nothing to fly to.
+  assert.deepEqual(ids, ["civ_a", "civ_b"]);
+  assert.equal(feed.find((f) => f.civ.id === "civ_a").attackerId, "civ_b");
 });

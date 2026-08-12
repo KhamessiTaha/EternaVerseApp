@@ -32,9 +32,11 @@ import {
   SHIP_ROLES, PATROL_RADIUS, GRUDGE_MS,
   SHIELD_REGEN_PER_SEC, SHIELD_REGEN_DELAY_MS,
   WAVE_INTERVAL_MS, WAVE_REGROUP_MS, MAX_WAVES,
-  homeFleetFor, raidWaveFor, shipStance, pickShipTarget, besiegerOf, applyDamage,
+  homeFleetFor, raidWaveFor, shipStance, pickShipTarget, civUnderSiege, applyDamage,
+  salvageFor,
 } from "../combat/fleetModel.js";
 import { ShipRenderer } from "../combat/shipRenderer.js";
+import { dropSalvage } from "../world/salvageDrop.js";
 import { CIV_TYPE_COLORS } from "./CivilizationSystem.js";
 
 const RAIDER_COLOR = 0xe0524a;
@@ -100,13 +102,14 @@ export class CivFleetSystem {
         }
       }
 
-      // ...and whoever has come to burn it
-      const enemyId = besiegerOf(civ.id, this.scene.universe?.activeWars || []);
-      if (!enemyId || civ.extinct) continue;
-      const enemy = (this.scene.universe?.civilizations || []).find((c) => c.id === enemyId);
-      if (!enemy || enemy.extinct) continue;
+      // ...and whoever has come to burn it. civUnderSiege is the single
+      // definition of "under attack" shared with the distress call and the
+      // Locator, so what the player is told matches what actually spawns.
+      const allCivs = this.scene.universe?.civilizations || [];
+      const enemyId = civUnderSiege(civ, this.scene.universe?.activeWars || [], allCivs);
+      if (!enemyId) continue;
+      const enemy = allCivs.find((c) => c.id === enemyId);
       const firstWave = raidWaveFor(enemy, 0);
-      if (!firstWave.length) continue;
 
       const key = `raid:${enemyId}@${civ.id}`;
       wanted.add(key);
@@ -215,7 +218,12 @@ export class CivFleetSystem {
     ship.dead = true;
     this.renderer.destroyShip(ship);
     playSfx("explosion");
-    if (byPlayer) this._reportKill(ship);
+    // Wreckage. Only the player's kills pay out - ships shooting each other
+    // isn't a reward loop, it's a war happening near you.
+    if (byPlayer) {
+      dropSalvage(this.scene, ship.x, ship.y, salvageFor(ship.role));
+      this._reportKill(ship);
+    }
     return true;
   }
 

@@ -9,10 +9,14 @@
 import { useMemo, useState } from 'react';
 import { civDesignation, civAttitude } from '../utils';
 import { civScale, civInDistress } from '../world/civPlacement.js';
+import { civUnderSiege } from '../combat/fleetModel.js';
 
-// Filters mirror the attitude buckets a player thinks in.
+// Filters mirror the buckets a player thinks in. "Under siege" comes first
+// because it is the only one with a clock on it - those worlds can die while
+// you read the list.
 const FILTERS = [
   { id: 'all', label: 'All', match: () => true },
+  { id: 'siege', label: '⚔ Under siege', match: (c, ctx) => !!ctx.siegeOf(c) },
   { id: 'distress', label: '⚠ Distress', match: (c) => civInDistress(c) },
   { id: 'friendly', label: 'Friendly', match: (c) => ['worship', 'friendly'].includes(civAttitude(c)) },
   { id: 'neutral', label: 'Neutral', match: (c) => civAttitude(c) === 'neutral' },
@@ -40,18 +44,29 @@ const depthOf = (type) => ({ galactic: 0, stellar: 1, planetary: 2 }[civScale(ty
 export const CivilizationLocatorPanel = ({ isOpen, onClose, universe, activeCivId, onGuide, onStop }) => {
   const [filter, setFilter] = useState('all');
 
+  // One lookup of who is besieging whom, shared by the sort, the filters and
+  // the badges - civUnderSiege is O(civs) on its own.
+  const ctx = useMemo(() => {
+    const civs = universe?.civilizations || [];
+    const wars = universe?.activeWars || [];
+    const map = new Map();
+    for (const c of civs) {
+      const attacker = civUnderSiege(c, wars, civs);
+      if (attacker) map.set(c.id, attacker);
+    }
+    return { siegeOf: (c) => map.get(c.id) || null };
+  }, [universe?.civilizations, universe?.activeWars]);
+
   const allCivs = useMemo(() => {
     const list = (universe?.civilizations || []).filter((c) => !c.extinct && c.location);
-    // Distressed first (they're the ones who need you), then by scale depth.
-    return list.sort((a, b) => {
-      const dd = (civInDistress(b) ? 1 : 0) - (civInDistress(a) ? 1 : 0);
-      if (dd) return dd;
-      return depthOf(a.type) - depthOf(b.type);
-    });
-  }, [universe?.civilizations]);
+    // Under siege first (they have a clock), then merely distressed, then by
+    // scale depth.
+    const rank = (c) => (ctx.siegeOf(c) ? 2 : civInDistress(c) ? 1 : 0);
+    return list.sort((a, b) => (rank(b) - rank(a)) || (depthOf(a.type) - depthOf(b.type)));
+  }, [universe?.civilizations, ctx]);
 
   const matcher = FILTERS.find((f) => f.id === filter)?.match ?? (() => true);
-  const civs = allCivs.filter(matcher);
+  const civs = allCivs.filter((c) => matcher(c, ctx));
 
   if (!isOpen) return null;
 
@@ -76,7 +91,7 @@ export const CivilizationLocatorPanel = ({ isOpen, onClose, universe, activeCivI
         {/* Attitude filters */}
         <div className="flex flex-wrap gap-1.5 px-5 py-2.5 border-b border-line">
           {FILTERS.map((f) => {
-            const n = allCivs.filter(f.match).length;
+            const n = allCivs.filter((c) => f.match(c, ctx)).length;
             return (
               <button
                 key={f.id}
@@ -102,6 +117,7 @@ export const CivilizationLocatorPanel = ({ isOpen, onClose, universe, activeCivI
           {civs.map((civ) => {
             const active = civ.id === activeCivId;
             const att = ATTITUDE_STYLE[civAttitude(civ)] ?? ATTITUDE_STYLE.neutral;
+            const attackerId = ctx.siegeOf(civ);
             const distress = civInDistress(civ);
             return (
               <div
@@ -111,7 +127,12 @@ export const CivilizationLocatorPanel = ({ isOpen, onClose, universe, activeCivI
                 <div className="min-w-0 flex-1 font-mono">
                   <div className="flex items-center gap-2">
                     <span className="text-[13px] text-ink">{civDesignation(civ.id)}</span>
-                    {distress && (
+                    {attackerId && (
+                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 border text-critical border-critical animate-pulse">
+                        ⚔ UNDER SIEGE
+                      </span>
+                    )}
+                    {!attackerId && distress && (
                       <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 border text-critical border-critical/50 animate-pulse">
                         ⚠ DISTRESS
                       </span>
@@ -120,7 +141,14 @@ export const CivilizationLocatorPanel = ({ isOpen, onClose, universe, activeCivI
                       {att.label}
                     </span>
                   </div>
-                  <div className="text-[10px] text-ink-faint mt-0.5">{SCALE_LABEL[civ.type] ?? civ.type}</div>
+                  <div className="text-[10px] text-ink-faint mt-0.5">
+                    {SCALE_LABEL[civ.type] ?? civ.type}
+                    {attackerId && (
+                      <span className="text-critical">
+                        {' · '}under attack by {civDesignation(attackerId)}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {active ? (
                   <button
@@ -132,9 +160,13 @@ export const CivilizationLocatorPanel = ({ isOpen, onClose, universe, activeCivI
                 ) : (
                   <button
                     onClick={() => onGuide(civ.id)}
-                    className="shrink-0 font-mono text-[11px] tracking-wider uppercase text-ink-dim hover:text-ink border border-line-bright hover:border-accent px-3 py-1.5 transition-colors"
+                    className={`shrink-0 font-mono text-[11px] tracking-wider uppercase px-3 py-1.5 border transition-colors ${
+                      attackerId
+                        ? 'text-critical border-critical hover:bg-critical/10'
+                        : 'text-ink-dim hover:text-ink border-line-bright hover:border-accent'
+                    }`}
                   >
-                    Guide me →
+                    {attackerId ? 'Intervene →' : 'Guide me →'}
                   </button>
                 )}
               </div>
