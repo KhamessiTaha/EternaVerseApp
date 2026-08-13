@@ -42,7 +42,7 @@ import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine, onWarStrike, onBombardment }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine, onWarStrike, onBombardment, onPreviewEnding }) => {
   const { user } = useContext(AuthContext);
   const toast = useToast();
 
@@ -468,6 +468,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
           onClose={() => setIsDevOpen(false)}
           onDevAction={onDevAction}
           onClientAction={(action) => {
+            // The end cinematic is a React overlay, not a Phaser scene, so it
+            // never reaches sceneRef - bubble it up to the page that owns it.
+            if (action.startsWith('preview-ending:')) {
+              onPreviewEnding?.(action.slice('preview-ending:'.length));
+              return true;
+            }
             // Logic lives on the scene (devAction) - if this warns, the
             // running Phaser scene predates the current code: hard-refresh.
             const ok = sceneRef.current?.devAction?.(action);

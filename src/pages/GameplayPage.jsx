@@ -59,6 +59,9 @@ const GameplayPage = () => {
   // Whether the death cinematic still owes this player a showing. Armed when
   // an ending is first observed (live or on load) and disarmed once seen.
   const [playEnding, setPlayEnding] = useState(false);
+  // Dev-console preview: an endCondition to play over the LIVING game, purely
+  // to look at. Never marks the ending seen and never touches the universe.
+  const [previewEnd, setPreviewEnd] = useState(null);
   const simulationInProgress = useRef(false);
   const playerPositionRef = useRef({ x: 0, y: 0 });
   const pendingDiscoveriesRef = useRef([]);
@@ -846,7 +849,16 @@ const GameplayPage = () => {
         onSetDoctrine={handleSetDoctrine}
         onWarStrike={handleWarStrike}
         onBombardment={handleBombardment}
+        onPreviewEnding={setPreviewEnd}
       />
+      {previewEnd && (
+        <Suspense fallback={null}>
+          <UniverseEndCinematic
+            universe={{ ...universe, endCondition: previewEnd }}
+            onComplete={() => setPreviewEnd(null)}
+          />
+        </Suspense>
+      )}
       <RevelationOverlay selfId={pendingRevelation} onDone={() => setPendingRevelation(null)} />
       {digest && (
         <WelcomeBackPanel

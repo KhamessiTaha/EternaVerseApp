@@ -47,6 +47,19 @@ const CLIENT_ACTIONS = [
 
 // Launch any anomaly minigame directly at a chosen severity - feel/difficulty
 // testing without hunting a matching anomaly. No server resolve (no reward).
+// Watch any death cinematic on demand. Waiting for a real collapse to tune six
+// seven-second animations is not a workflow - same reasoning as the minigame
+// launcher below. Purely visual: nothing is saved, the universe is untouched,
+// and the "already seen" flag is not set.
+const ENDINGS = [
+  { label: 'Unravelled (instability collapse)', key: 'instability-collapse' },
+  { label: 'Heat Death', key: 'heat-death' },
+  { label: 'The Dark Era (stellar death)', key: 'stellar-death' },
+  { label: 'Torn Apart (big rip)', key: 'big-rip' },
+  { label: 'Collapse (big crunch)', key: 'big-crunch' },
+  { label: 'Maximum Entropy', key: 'maximum-entropy' },
+];
+
 const MINIGAMES = [
   { label: 'Gravity Well (orbital)', key: 'GravityWellScene' },
   { label: 'Waveform Collapse (quantum)', key: 'WaveformCollapseScene' },
@@ -146,6 +159,22 @@ export const DevPanel = ({ isOpen, onClose, onDevAction, onClientAction }) => {
               className="font-mono text-[11px] tracking-wider px-4 py-2 border border-line text-ink-dim hover:text-ink hover:border-line-bright text-left transition-colors"
             >
               {a.label}
+            </button>
+          ))}
+
+          <div className="font-mono text-[9px] uppercase tracking-wider text-ink-faint mt-3 mb-1">
+            Preview death cinematic (visual only · nothing saved)
+          </div>
+          {ENDINGS.map((e) => (
+            <button
+              key={e.key}
+              onClick={() => {
+                onClientAction?.(`preview-ending:${e.key}`);
+                onClose?.();
+              }}
+              className="font-mono text-[11px] tracking-wider px-4 py-2 border border-line text-ink-dim hover:text-ink hover:border-line-bright text-left transition-colors"
+            >
+              {e.label}
             </button>
           ))}
 
