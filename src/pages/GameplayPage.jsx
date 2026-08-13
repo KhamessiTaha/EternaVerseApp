@@ -1,5 +1,5 @@
 import { useParams, useLocation } from "react-router-dom";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import PhaserGame from "../components/PhaserGame";
 import { dlog } from "../devLog";
 import {
@@ -20,7 +20,7 @@ import {
   reportWarStrike,
   reportBombardment,
 } from "../api/universeApi";
-import { Button, Eyebrow } from "../components/ui/primitives";
+import { Button } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
 import { useToast } from "../components/ui/ToastProvider";
 import { ACHIEVEMENT_MAP } from "../components/game/content/achievements";
@@ -36,6 +36,16 @@ import { RevelationOverlay } from "../components/game/ui/RevelationOverlay";
 import { ANAMNESIS_LINE } from "../components/game/content/revelations";
 import { besiegedWorlds } from "../components/game/combat/fleetModel";
 import { civDesignation } from "../components/game/utils";
+import { UniverseEndPanel } from "../components/game/ui/UniverseEndPanel";
+import { hasSeenEnding, markEndingSeen } from "../components/game/content/universeEnds";
+// three.js is a ~1MB chunk of its own. Loading it eagerly here would tax every
+// gameplay session for a screen most of them never reach, so the cinematic is
+// only fetched when a universe actually ends. The scene table and the
+// seen-flag live in content/universeEnds.js precisely so importing THEM here
+// doesn't drag the renderer along with them.
+const UniverseEndCinematic = lazy(() =>
+  import("../components/game/ui/UniverseEndCinematic")
+);
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -46,6 +56,9 @@ const GameplayPage = () => {
   const [error, setError] = useState(null);
   const [digest, setDigest] = useState(null);
   const [lastSimulation, setLastSimulation] = useState(Date.now());
+  // Whether the death cinematic still owes this player a showing. Armed when
+  // an ending is first observed (live or on load) and disarmed once seen.
+  const [playEnding, setPlayEnding] = useState(false);
   const simulationInProgress = useRef(false);
   const playerPositionRef = useRef({ x: 0, y: 0 });
   const pendingDiscoveriesRef = useRef([]);
@@ -368,6 +381,15 @@ const GameplayPage = () => {
       return list.find((p) => !dismissedPetitionsRef.current.has(p.id)) || null;
     });
   }, [universe, toast]);
+
+  // Arm the death cinematic the moment an ending appears - whether it happened
+  // in front of the player (a live tick flipping status to "ended") or before
+  // they opened this universe at all. Once seen, it never plays again.
+  useEffect(() => {
+    if (universe?.status !== 'ended') return;
+    if (hasSeenEnding(id)) return;
+    setPlayEnding(true);
+  }, [universe?.status, id]);
 
   // Distress calls. A siege is the most dramatic thing that happens in this
   // universe and the player would otherwise have to fly into one by accident,
@@ -782,41 +804,29 @@ const GameplayPage = () => {
     );
   }
 
+  // A universe's death is a sequence, not a screen: the cinematic plays, fades
+  // to its own resolve colour, and the epitaph card resolves out of that. It
+  // plays ONCE per universe - an ended universe is permanent and the player may
+  // reopen it many times; a 7-second animation every visit would be a tax.
   if (universe.status === 'ended') {
+    if (playEnding) {
+      return (
+        <Suspense fallback={<div className="w-full h-full bg-void" />}>
+          <UniverseEndCinematic
+            universe={universe}
+            onComplete={() => {
+              markEndingSeen(id);
+              setPlayEnding(false);
+            }}
+          />
+        </Suspense>
+      );
+    }
     return (
-      <div className="w-full h-full bg-void flex items-center justify-center">
-        <div className="text-center max-w-md px-4">
-          <Eyebrow className="justify-center flex mb-3 text-critical">Universe Ended</Eyebrow>
-          <div className="text-ink-dim mb-8 font-mono text-sm capitalize">
-            {universe.endCondition?.replace(/-/g, ' ') || 'Unknown end condition'}
-          </div>
-          <div className="space-y-2.5 mb-8 font-mono text-sm text-left border border-line bg-void-raised p-5">
-            <div className="flex justify-between">
-              <span className="text-ink-faint">Final Age</span>
-              <span className="text-ink tabular-nums">{(universe.currentState?.age / 1e9).toFixed(2)} Gyr</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-ink-faint">Galaxies</span>
-              <span className="text-ink tabular-nums">{universe.currentState?.galaxyCount?.toLocaleString() || 0}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-ink-faint">Stars</span>
-              <span className="text-ink tabular-nums">
-                {universe.currentState?.starCount ? (universe.currentState.starCount / 1e9).toFixed(2) + ' Billion' : '0'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-ink-faint">Player Interventions</span>
-              <span className="text-good tabular-nums">{universe.metrics?.playerInterventions || 0}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-ink-faint">Anomalies Resolved</span>
-              <span className="text-accent tabular-nums">{universe.anomalies?.filter(a => a.resolved).length || 0}</span>
-            </div>
-          </div>
-          <Button onClick={() => window.location.href = '/dashboard'}>Return to Dashboard</Button>
-        </div>
-      </div>
+      <UniverseEndPanel
+        universe={universe}
+        onReturn={() => { window.location.href = '/dashboard'; }}
+      />
     );
   }
 
