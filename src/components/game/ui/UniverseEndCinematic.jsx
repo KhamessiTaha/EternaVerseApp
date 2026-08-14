@@ -173,6 +173,24 @@ export const UniverseEndCinematic = ({ universe, onComplete }) => {
     playSfx("universeEnd", scene.motionKind);
   }, [scene.motionKind]);
 
+  // Wall-clock failsafes. Every path out of this component depends on a
+  // callback firing - useFrame reaching p=1, then framer-motion reporting its
+  // fade complete - and most of these deaths END ON BLACK. If either callback
+  // is missed (a paused rAF in a background tab, a lost WebGL context, a
+  // dropped animation), the player is left staring at a dark screen with no
+  // way to tell it apart from the cinematic still playing. Time is the one
+  // clock that can't stall, so it gets the last word.
+  useEffect(() => {
+    const overrun = setTimeout(finish, (scene.duration + 2.5) * 1000);
+    return () => clearTimeout(overrun);
+  }, [scene.duration]);
+
+  useEffect(() => {
+    if (!handingOff) return;
+    const stuck = setTimeout(() => onComplete?.(), 1600); // fade is 850ms
+    return () => clearTimeout(stuck);
+  }, [handingOff, onComplete]);
+
   // Skippable by anything - nobody should be trapped in a death animation.
   // Armed after a short grace period so a click already in flight when the
   // universe ended (the player was, after all, mid-game) doesn't skip it

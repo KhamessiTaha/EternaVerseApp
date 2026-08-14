@@ -37,6 +37,7 @@ import { ANAMNESIS_LINE } from "../components/game/content/revelations";
 import { besiegedWorlds } from "../components/game/combat/fleetModel";
 import { civDesignation } from "../components/game/utils";
 import { UniverseEndPanel } from "../components/game/ui/UniverseEndPanel";
+import { CinematicBoundary } from "../components/game/ui/CinematicBoundary";
 import { hasSeenEnding, markEndingSeen } from "../components/game/content/universeEnds";
 // three.js is a ~1MB chunk of its own. Loading it eagerly here would tax every
 // gameplay session for a screen most of them never reach, so the cinematic is
@@ -813,16 +814,26 @@ const GameplayPage = () => {
   // reopen it many times; a 7-second animation every visit would be a tax.
   if (universe.status === 'ended') {
     if (playEnding) {
+      const endSequence = () => {
+        markEndingSeen(id);
+        setPlayEnding(false);
+      };
       return (
-        <Suspense fallback={<div className="w-full h-full bg-void" />}>
-          <UniverseEndCinematic
-            universe={universe}
-            onComplete={() => {
-              markEndingSeen(id);
-              setPlayEnding(false);
-            }}
-          />
-        </Suspense>
+        // If the cinematic can't load or throws, go straight to the summary -
+        // never strand the player on a black screen (CinematicBoundary).
+        <CinematicBoundary onFail={endSequence} fallback={null}>
+          <Suspense
+            fallback={
+              <div className="w-full h-full bg-void flex items-center justify-center">
+                <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-ink-faint animate-pulse">
+                  The end of everything
+                </div>
+              </div>
+            }
+          >
+            <UniverseEndCinematic universe={universe} onComplete={endSequence} />
+          </Suspense>
+        </CinematicBoundary>
       );
     }
     return (
@@ -852,12 +863,14 @@ const GameplayPage = () => {
         onPreviewEnding={setPreviewEnd}
       />
       {previewEnd && (
-        <Suspense fallback={null}>
-          <UniverseEndCinematic
-            universe={{ ...universe, endCondition: previewEnd }}
-            onComplete={() => setPreviewEnd(null)}
-          />
-        </Suspense>
+        <CinematicBoundary onFail={() => setPreviewEnd(null)} fallback={null}>
+          <Suspense fallback={null}>
+            <UniverseEndCinematic
+              universe={{ ...universe, endCondition: previewEnd }}
+              onComplete={() => setPreviewEnd(null)}
+            />
+          </Suspense>
+        </CinematicBoundary>
       )}
       <RevelationOverlay selfId={pendingRevelation} onDone={() => setPendingRevelation(null)} />
       {digest && (
