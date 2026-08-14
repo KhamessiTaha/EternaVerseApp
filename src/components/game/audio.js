@@ -177,6 +177,43 @@ const SFX = {
   curatorBlip: ({ freq = 430, type = "triangle", i = 0 } = {}) => {
     tone({ freq: freq + (i % 3) * 22 - 22, type, dur: 0.035, vol: 0.04, attack: 0.002 });
   },
+  // The death of a universe (ui/UniverseEndCinematic). One voice per way of
+  // dying, each roughly as long as the cinematic it scores - so the sound is
+  // the scene rather than a sting laid over it. These are the longest cues in
+  // the game and deliberately quiet: they sit under the Curator, not over him.
+  universeEnd: (kind) => {
+    switch (kind) {
+      case "unravel": // coherence failing: two detuned voices sliding apart
+        tone({ freq: 138, end: 47, type: "sawtooth", dur: 7.2, vol: 0.1, attack: 0.8 });
+        tone({ freq: 141, end: 61, type: "sawtooth", dur: 7.2, vol: 0.08, attack: 1.2 });
+        burst({ dur: 3.0, vol: 0.05, filter: 300, at: 3.6 });
+        break;
+      case "cool": // everything settling to one flat, endless note
+        tone({ freq: 84, end: 41, type: "sine", dur: 8.4, vol: 0.13, attack: 2.0 });
+        tone({ freq: 126, end: 62, type: "sine", dur: 6.0, vol: 0.05, attack: 2.4 });
+        break;
+      case "snuff": // lights going out, one at a time, slowing down
+        [0, 1.1, 2.0, 2.9, 3.9, 4.6, 5.4, 6.3].forEach((at, i) =>
+          tone({ freq: 700 - i * 66, type: "triangle", dur: 0.4, vol: 0.09, at })
+        );
+        tone({ freq: 70, end: 44, type: "sine", dur: 8.0, vol: 0.09, attack: 1.5 });
+        break;
+      case "rip": // accelerating tear, pitch and noise climbing together
+        tone({ freq: 90, end: 1400, type: "sawtooth", dur: 5.6, vol: 0.12, attack: 2.6 });
+        burst({ dur: 2.4, vol: 0.18, filter: 5200, at: 3.4 });
+        break;
+      case "crunch": // falling inward, then the impact
+        tone({ freq: 320, end: 46, type: "sine", dur: 5.8, vol: 0.13, attack: 0.6 });
+        burst({ dur: 1.1, vol: 0.3, filter: 900, at: 5.7 });
+        tone({ freq: 58, end: 30, dur: 1.4, vol: 0.26, at: 5.7 });
+        break;
+      case "diffuse": // structure smearing into an even, featureless wash
+      default:
+        burst({ dur: 7.6, vol: 0.11, filter: 1100 });
+        tone({ freq: 61, type: "sine", dur: 7.6, vol: 0.07, attack: 3.0 });
+        break;
+    }
+  },
 };
 
 /** Fire a named one-shot effect. Safe to call unconditionally. */
