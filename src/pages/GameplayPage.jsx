@@ -821,7 +821,13 @@ const GameplayPage = () => {
       return (
         // If the cinematic can't load or throws, go straight to the summary -
         // never strand the player on a black screen (CinematicBoundary).
-        <CinematicBoundary onFail={endSequence} fallback={null}>
+        <CinematicBoundary
+          fallback={null}
+          onFail={(err) => {
+            toast(`Cinematic failed: ${err?.message || err}`, 'critical', 10000);
+            endSequence();
+          }}
+        >
           <Suspense
             fallback={
               <div className="w-full h-full bg-void flex items-center justify-center">
@@ -863,7 +869,15 @@ const GameplayPage = () => {
         onPreviewEnding={setPreviewEnd}
       />
       {previewEnd && (
-        <CinematicBoundary onFail={() => setPreviewEnd(null)} fallback={null}>
+        <CinematicBoundary
+          fallback={null}
+          onFail={(err) => {
+            setPreviewEnd(null);
+            // A dev tool that fails silently is worse than no dev tool: say
+            // exactly what broke, on screen, where it can be reported.
+            toast(`Cinematic failed: ${err?.message || err}`, 'critical', 12000);
+          }}
+        >
           <Suspense fallback={null}>
             <UniverseEndCinematic
               universe={{ ...universe, endCondition: previewEnd }}

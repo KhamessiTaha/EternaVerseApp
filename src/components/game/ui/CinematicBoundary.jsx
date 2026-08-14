@@ -24,10 +24,15 @@ export class CinematicBoundary extends Component {
     return { failed: true };
   }
 
-  componentDidCatch(error) {
-    // Worth seeing in the console - it's never expected - but never fatal.
-    console.error('Cinematic failed, skipping to the summary:', error);
-    this.props.onFail?.();
+  componentDidCatch(error, info) {
+    // Loudly. An earlier version of this boundary logged and then quietly
+    // cleared the cinematic, which turned every crash into "nothing happens"
+    // - strictly worse than the black screen it was written to prevent,
+    // because at least a black screen tells you something went wrong.
+    // The message goes to the caller so it can reach the player, not just
+    // whoever happens to have the console open.
+    console.error('Cinematic failed:', error, info?.componentStack);
+    this.props.onFail?.(error);
   }
 
   render() {

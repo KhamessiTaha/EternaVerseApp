@@ -114,9 +114,17 @@ function Sequence({ scene, bloomRef, onEpitaph, onDone }) {
     camera.lookAt(0, 0, 0);
 
     // Bloom answers the moment instead of sitting at a constant.
-    if (bloomRef.current) {
+    //
+    // Defensive because this is the only per-frame write to an object we don't
+    // own, and `intensity` is a setter on postprocessing's BloomEffect. If a
+    // version ever exposes the ref as something else, an exception here throws
+    // from inside useFrame - which unmounts the entire Canvas on the first
+    // frame and reads as "the cinematic doesn't run at all". Losing the bloom
+    // animation is an acceptable outcome; losing the cinematic is not.
+    const bloom = bloomRef.current;
+    if (bloom && typeof bloom.intensity === "number") {
       const blowout = scene.motionKind === "crunch" || scene.motionKind === "rip";
-      bloomRef.current.intensity = blowout
+      bloom.intensity = blowout
         ? 1.1 + Math.pow(p, 3) * 5.5   // the end of these two should hurt
         : 1.35 * (1 - p * 0.45);       // the quiet deaths dim as they go
     }
