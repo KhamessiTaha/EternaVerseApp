@@ -967,6 +967,14 @@ export const UniverseSceneFactory = (props) => {
         if (this.inputSystem?.isMinigameActive) return;
         this.ascend();
       });
+
+      // create() calls layoutUI() BEFORE this method runs, so these two texts
+      // would otherwise never be laid out at all. Lay out now, and again on
+      // the next tick: with Scale.RESIZE the container's final size often
+      // isn't known until after the first frame, and a prompt positioned from
+      // a stale height ends up off-screen.
+      this.layoutUI();
+      this.time.delayedCall(0, () => this.layoutUI());
     }
 
     // Nearest descendable structure (galaxy at galactic, star at stellar) the
@@ -1199,16 +1207,34 @@ export const UniverseSceneFactory = (props) => {
       }
     }
 
+    /**
+     * Position every screen-anchored element for the current canvas size.
+     *
+     * This is one method rather than three because the bug it fixes came from
+     * exactly that split: the breadcrumb and the [ENTER] descend prompt were
+     * placed once in initScaleNavigation() from `this.scale.height`, and no
+     * resize path ever moved them again. When the container hadn't finished
+     * laying out at boot, `h - 96` put the prompt below the visible viewport -
+     * so it was invisible until the player resized the window and the camera
+     * grew enough to reveal it. Anything anchored to the screen belongs here.
+     */
+    layoutUI() {
+      const w = this.scale.width;
+      const h = this.scale.height;
+
+      this.breadcrumbText?.setPosition(w / 2, 12);
+      this.scalePrompt?.setPosition(w / 2, h - 96);
+      this.inputSystem?.updateArrowPositions?.(w, h);
+      this.relativityOverlay?.setSize(w, h);
+      this.crisisOverlay?.setSize(w, h);
+    }
+
     handleResize() {
-      this.inputSystem.updateArrowPositions?.(this.scale.width, this.scale.height);
-      this.relativityOverlay?.setSize(this.scale.width, this.scale.height);
-      this.crisisOverlay?.setSize(this.scale.width, this.scale.height);
+      this.layoutUI();
     }
 
     updateUIPositions() {
-      const { width: w, height: h } = this.scale;
-
-      this.inputSystem.updateArrowPositions?.(w, h);
+      this.layoutUI();
     }
 
     updateFromUniverse(newUniverse) {

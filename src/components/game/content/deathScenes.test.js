@@ -156,6 +156,23 @@ test("the unravelling lattice starts ordered and ends scattered", () => {
   assert.ok(radius(end.pos) > radius(start.pos), "and further apart");
 });
 
+// The "it never finishes" bug: heat death drove its field to pure black at
+// p=0.91, about 1.9 seconds before the cinematic ended. Nothing changed in
+// that window, so it read as a hang rather than an ending. Every death must
+// still be doing something visible near the end.
+test("no death goes fully dark before it is over", () => {
+  for (const kind of KINDS) {
+    const late = frame(kind, 0.9);
+    const end = frame(kind, 1);
+    assert.ok(brightness(late.col) > 0.001,
+      `${kind} is already black at 90% - that dead tail reads as a freeze`);
+    // And the last stretch must still be CHANGING, not holding a still image.
+    const moved = radius(end.pos) !== radius(late.pos);
+    const faded = brightness(end.col) !== brightness(late.col);
+    assert.ok(moved || faded, `${kind} is a frozen frame from 90% onward`);
+  }
+});
+
 test("deathFor falls back rather than throwing on an unknown kind", () => {
   assert.equal(deathFor("crunch"), DEATHS.crunch);
   assert.equal(deathFor("nonsense"), DEATHS.cool);

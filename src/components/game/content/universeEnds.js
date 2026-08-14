@@ -1,4 +1,4 @@
-// src/components/game/content/universeEnds.js
+﻿// src/components/game/content/universeEnds.js
 //
 // How each way of dying is named, described, and staged.
 //
@@ -21,6 +21,13 @@
 // `spin` is how fast the whole field turns - a lattice needs barely any (you
 // have to be able to read it), a galaxy wants some, a dead one wants none.
 //
+// A NOTE ON `curve`, learned the hard way: extreme values create dead air at
+// one end or the other. At curve 2.4, half the runtime has produced only 19%
+// of the motion - the player watches nothing, then a rush. Below 1 it's the
+// mirror: everything happens up front and the tail is empty. Both read as
+// "this is broken", not "this is slow". Keep it inside roughly 0.85-1.6 and
+// put the drama in the death's own phases instead, where it can be seen.
+//
 // What each death actually LOOKS like - its field and its motion - lives in
 // content/deathScenes.js, keyed by `motionKind`.
 export const END_SCENES = {
@@ -31,7 +38,7 @@ export const END_SCENES = {
     resolveTo: "#0a0a0f",
     spin: 0.03,        // barely turns: you have to be able to read the lattice
     duration: 7.6,
-    curve: 1.7,        // holds together, then lets go all at once
+    curve: 1.35,       // holds, then lets go - but never stops moving
     epitaphAt: 0.34,
     camera: { dolly: 7, shake: 0.5, drift: 0.12 },
   },
@@ -42,7 +49,7 @@ export const END_SCENES = {
     resolveTo: "#04060c",
     spin: 0.018,       // nearly still - nothing is happening any more
     duration: 8.6,
-    curve: 0.72,       // most of it happens early; the rest is just waiting
+    curve: 0.88,       // front-loaded, but the tail still has something in it
     epitaphAt: 0.3,
     camera: { dolly: 24, shake: 0, drift: 0.05 },   // pulls away into isolation
   },
@@ -64,7 +71,7 @@ export const END_SCENES = {
     resolveTo: "#f2eaff",
     spin: 0.045,
     duration: 6.0,
-    curve: 2.4,        // the runaway: almost nothing, then everything
+    curve: 1.55,       // the runaway - the steepest any of these should get
     epitaphAt: 0.26,
     camera: { dolly: -19, shake: 0.9, drift: 0.16 }, // driven INTO the tear
   },
@@ -75,7 +82,7 @@ export const END_SCENES = {
     resolveTo: "#ffffff",
     spin: 0.05,
     duration: 6.6,
-    curve: 1.9,        // gravity: slow fall, hard landing
+    curve: 1.45,        // gravity: slow fall, hard landing
     epitaphAt: 0.3,
     camera: { dolly: -13, shake: 0.6, drift: 0.1 },  // falls in with everything
   },
@@ -86,7 +93,7 @@ export const END_SCENES = {
     resolveTo: "#0b0a08",
     spin: 0.014,       // the stillest of all: nothing will ever change again
     duration: 8.0,
-    curve: 0.8,        // smears out quickly, then nothing ever changes again
+    curve: 0.9,        // smears out early, then settles the rest of the way
     epitaphAt: 0.34,
     camera: { dolly: 11, shake: 0, drift: 0.04 },
   },

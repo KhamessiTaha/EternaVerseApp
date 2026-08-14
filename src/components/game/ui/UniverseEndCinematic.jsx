@@ -226,11 +226,19 @@ export const UniverseEndCinematic = ({ universe, onComplete }) => {
 
       {showEpitaph && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-6">
+          {/* The epitaph LEAVES on the handoff. Most of these deaths end on
+              black, so a fade-to-black over an already-black field is
+              invisible - the text sitting frozen was the only thing on screen,
+              and a frozen screen reads as a hang. Watching the words go is
+              what tells the player it's over. */}
           <motion.div
             className="text-center max-w-xl"
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1.6, ease: "easeOut" }}
+            animate={handingOff ? { opacity: 0, y: -8 } : { opacity: 1, y: 0 }}
+            transition={{
+              duration: handingOff ? 0.7 : 1.6,
+              ease: handingOff ? "easeIn" : "easeOut",
+            }}
           >
             <div className="font-mono text-[10px] uppercase tracking-[0.42em] text-critical/80 mb-4">
               {universe?.name || "Universe"}
@@ -248,8 +256,8 @@ export const UniverseEndCinematic = ({ universe, onComplete }) => {
       <motion.div
         className="absolute bottom-8 left-1/2 -translate-x-1/2 font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint pointer-events-none"
         initial={{ opacity: 0 }}
-        animate={{ opacity: 0.55 }}
-        transition={{ delay: 1.8, duration: 1 }}
+        animate={{ opacity: handingOff ? 0 : 0.55 }}
+        transition={{ delay: handingOff ? 0 : 1.8, duration: handingOff ? 0.3 : 1 }}
       >
         Press any key to skip
       </motion.div>

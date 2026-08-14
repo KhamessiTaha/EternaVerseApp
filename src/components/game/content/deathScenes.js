@@ -191,10 +191,16 @@ const cool = {
         continue;
       }
 
-      // Redshift: temperature slides down, and the whole thing dims with it
-      const t = temp[i] * Math.max(0, 1 - p * 1.22);
+      // Redshift: temperature slides down, and the whole thing dims with it.
+      //
+      // These rates used to be 1.22 and 1.1, which drove the field to pure
+      // black at p=0.91 - about 1.9 seconds before the cinematic actually
+      // ended. Nothing changed in that window, so it read as "stuck" rather
+      // than "over". Every death must still be visibly changing at p=0.97;
+      // the ENDING is what tells the player it ended.
+      const t = temp[i] * Math.max(0, 1 - p * 1.0);
       blackbody(t, tmp);
-      const dim = Math.max(0, 1 - p * 1.1);
+      const dim = Math.max(0, 1 - p * 0.98);
       col[i * 3] = tmp[0] * dim;
       col[i * 3 + 1] = tmp[1] * dim;
       col[i * 3 + 2] = tmp[2] * dim;
