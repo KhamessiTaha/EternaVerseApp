@@ -92,7 +92,12 @@ export class TextureFactory {
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
-    const ctx = canvas.getContext("2d");
+    // The ONLY 2D context here that reads pixels back (getImageData below for
+    // the luminance key). Without this hint the browser keeps the canvas on
+    // the GPU and warns on every readback - once per custom texture. The other
+    // contexts in this file are draw-only and must NOT set it: it forces a
+    // software canvas, which is slower for everything except readback.
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.drawImage(src, 0, 0, size, size);
 
     if (isPlanet) {
