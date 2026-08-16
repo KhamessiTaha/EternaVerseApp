@@ -42,6 +42,28 @@ import { playSfx } from "../audio";
 const DEEP_COUNT = 3500;   // the static deep field behind it
 const CAM_Z = 26;
 
+// Bloom strength per death, fixed for the whole shot.
+//
+// This used to be animated per frame through a ref on <Bloom>. That ref is
+// what broke the cinematic: something inside the postprocessing/EffectComposer
+// path serialises its effect tree, and a three.js object graph is circular by
+// construction (parent <-> children), so it threw "Converting circular
+// structure to JSON" during commit - killing the whole component. The same
+// cause produced the earlier "THREE.Texture: Unable to serialize Texture"
+// warning, which was the harmless version of the same problem.
+//
+// A constant per death keeps the two violent endings hot and the quiet ones
+// soft, which was most of what the animation bought. It is not worth risking
+// the entire sequence to ramp a number.
+const BLOOM = {
+  crunch: 3.2,
+  rip: 2.8,
+  unravel: 1.4,
+  snuff: 1.5,
+  cool: 1.2,
+  diffuse: 1.1,
+};
+
 /** The deep field: far, dim, and completely static. Pure parallax reference. */
 function seedDeepField() {
   const positions = new Float32Array(DEEP_COUNT * 3);
@@ -70,7 +92,7 @@ function seedDeepField() {
  * both the field and the way it dies, so adding or re-cutting one never
  * touches this component.
  */
-function Sequence({ scene, bloomRef, onEpitaph, onDone }) {
+function Sequence({ scene, onEpitaph, onDone }) {
   const fieldRef = useRef();
   const elapsed = useRef(0);
   const firedEpitaph = useRef(false);
@@ -113,22 +135,6 @@ function Sequence({ scene, bloomRef, onEpitaph, onDone }) {
     );
     camera.lookAt(0, 0, 0);
 
-    // Bloom answers the moment instead of sitting at a constant.
-    //
-    // Defensive because this is the only per-frame write to an object we don't
-    // own, and `intensity` is a setter on postprocessing's BloomEffect. If a
-    // version ever exposes the ref as something else, an exception here throws
-    // from inside useFrame - which unmounts the entire Canvas on the first
-    // frame and reads as "the cinematic doesn't run at all". Losing the bloom
-    // animation is an acceptable outcome; losing the cinematic is not.
-    const bloom = bloomRef.current;
-    if (bloom && typeof bloom.intensity === "number") {
-      const blowout = scene.motionKind === "crunch" || scene.motionKind === "rip";
-      bloom.intensity = blowout
-        ? 1.1 + Math.pow(p, 3) * 5.5   // the end of these two should hurt
-        : 1.35 * (1 - p * 0.45);       // the quiet deaths dim as they go
-    }
-
     if (!firedEpitaph.current && raw >= scene.epitaphAt) {
       firedEpitaph.current = true;
       onEpitaph();
@@ -167,7 +173,6 @@ export const UniverseEndCinematic = ({ universe, onComplete }) => {
   const scene = sceneFor(universe?.endCondition);
   const [showEpitaph, setShowEpitaph] = useState(false);
   const [handingOff, setHandingOff] = useState(false);
-  const bloomRef = useRef();
   const done = useRef(false);
 
   const finish = () => {
@@ -223,12 +228,17 @@ export const UniverseEndCinematic = ({ universe, onComplete }) => {
       <Canvas camera={{ position: [0, 0, CAM_Z], fov: 60 }} dpr={[1, 1.75]}>
         <Sequence
           scene={scene}
-          bloomRef={bloomRef}
           onEpitaph={() => setShowEpitaph(true)}
           onDone={finish}
         />
+        {/* No ref, no per-frame mutation - see BLOOM above. */}
         <EffectComposer>
-          <Bloom ref={bloomRef} intensity={1.35} kernelSize={3} luminanceThreshold={0.2} luminanceSmoothing={0.3} />
+          <Bloom
+            intensity={BLOOM[scene.motionKind] ?? 1.3}
+            kernelSize={3}
+            luminanceThreshold={0.2}
+            luminanceSmoothing={0.3}
+          />
         </EffectComposer>
       </Canvas>
 
