@@ -5,6 +5,7 @@ import {
   RECOLLECTION_BANDS, SUMMIT, comprehensionForDiscovery, MASTERY_ASCENSION,
   emptyAffinity, applyAxis, bandsPassed, leadingSelf, pickMemory, resolveSelf,
   ETERNAL_GATE, neglectDelta, insightsCompleted, INSIGHT_BONUS,
+  MASTERY_SIEGE_BROKEN, NEGLECT_AGGRESSION, MASTERY_RESOLVE,
 } from "./selfModel.js";
 
 const s0 = () => ({ recollection: 0, affinity: emptyAffinity() });
@@ -20,6 +21,40 @@ test("mastery raises recollection and the gardener pull", () => {
   const s = applyAxis(s0(), "mastery", MASTERY_ASCENSION);
   assert.equal(s.recollection, MASTERY_ASCENSION);
   assert.equal(s.affinity.gardener, MASTERY_ASCENSION);
+});
+
+// The point of wiring combat into The Self: the same gun, aimed differently,
+// makes you a different person. Two wardens who fired exactly the same number
+// of shots must not end up the same.
+test("breaking a siege and simple piracy pull toward opposite selves", () => {
+  const savedAWorld = applyAxis(s0(), "mastery", MASTERY_SIEGE_BROKEN);
+  assert.equal(savedAWorld.affinity.gardener, MASTERY_SIEGE_BROKEN);
+  assert.equal(savedAWorld.affinity.unmaker, 0);
+
+  const burnedAFleet = applyAxis(s0(), "neglect", NEGLECT_AGGRESSION * 4);
+  assert.equal(burnedAFleet.affinity.unmaker, NEGLECT_AGGRESSION * 4);
+  assert.equal(burnedAFleet.affinity.gardener, 0);
+
+  assert.equal(leadingSelf(savedAWorld.affinity), "gardener");
+  assert.equal(leadingSelf(burnedAFleet.affinity), "unmaker");
+});
+
+test("an intervention outweighs containing an anomaly, but not a whole species", () => {
+  // Getting between a fleet and a world is rarer and costlier than a minigame,
+  // and cheaper than shepherding a people up the entire Kardashev ladder.
+  assert.ok(MASTERY_SIEGE_BROKEN > MASTERY_RESOLVE);
+  assert.ok(MASTERY_SIEGE_BROKEN < MASTERY_ASCENSION);
+});
+
+test("aggression costs more than looking away", () => {
+  // Choosing to burn a people's ships should weigh heavier than passively
+  // letting a stability crisis happen - doing is worse than failing to do.
+  const fiveKills = applyAxis(s0(), "neglect", NEGLECT_AGGRESSION * 5);
+  const oneCrisis = neglectDelta(
+    { currentState: { stabilityIndex: 0.5 }, civilizations: [] },
+    { currentState: { stabilityIndex: 0.05 }, civilizations: [] }
+  );
+  assert.ok(fiveKills.affinity.unmaker > oneCrisis);
 });
 
 test("comprehension tagged hidden feeds the wanderer, not the observer", () => {

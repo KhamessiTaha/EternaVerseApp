@@ -31,7 +31,10 @@ import { WelcomeBackPanel, buildDigest } from "../components/game/ui/WelcomeBack
 import { PetitionPanel } from "../components/game/ui/PetitionPanel";
 import { LegacyPanel } from "../components/game/ui/LegacyPanel";
 import { recordAscension, recordAxis } from "../components/game/wardenProgress";
-import { comprehensionForDiscovery, MASTERY_ASCENSION, MASTERY_RESOLVE, neglectDelta } from "../components/game/self/selfModel";
+import {
+  comprehensionForDiscovery, MASTERY_ASCENSION, MASTERY_RESOLVE,
+  MASTERY_SIEGE_BROKEN, NEGLECT_AGGRESSION, MAX_STRIKE_KILLS, neglectDelta,
+} from "../components/game/self/selfModel";
 import { RevelationOverlay } from "../components/game/ui/RevelationOverlay";
 import { ANAMNESIS_LINE } from "../components/game/content/revelations";
 import { besiegedWorlds } from "../components/game/combat/fleetModel";
@@ -566,11 +569,19 @@ const GameplayPage = () => {
         const data = await reportWarStrike(id, entry.civId, entry.kills, entry.defendingCivId);
         if (data.ok && data.universe) {
           setUniverse(data.universe);
+          // The Self hears about this. Breaking a siege is the most direct act
+          // of care available - you had to be there, in person, with a gun.
+          // Killing a people's ships for any other reason is the same act
+          // pointed the other way, and it costs you the same way.
           if (data.brokeSiege) {
             // The server's message carries the RP it paid, so the reward and
             // the reason for it arrive together.
             toast(data.message, 'good', 8000);
             playSfx('minigameWin');
+            applySelfResult(recordAxis('mastery', MASTERY_SIEGE_BROKEN));
+          } else {
+            const counted = Math.min(entry.kills, MAX_STRIKE_KILLS);
+            applySelfResult(recordAxis('neglect', NEGLECT_AGGRESSION * counted));
           }
         }
       } catch (err) {

@@ -18,6 +18,29 @@ export const comprehensionForDiscovery = (rarity) => DISCOVERY_COMPREHENSION[rar
 export const MASTERY_ASCENSION = 50; // the headline act
 export const MASTERY_RESOLVE = 2;    // an anomaly contained
 
+// Combat is an identity statement, and it's the same gun either way.
+//
+// Standing between a world and the fleet sent to erase it is the most direct
+// act of care in the game - you can't do it from orbit's edge, with research
+// points, or by accident. It pulls hard toward the Gardener. Destroying a
+// people's vessels when you are NOT breaking a siege is the opposite thing
+// wearing the same clothes, and it pulls toward the Unmaker.
+//
+// Sits between MASTERY_RESOLVE and MASTERY_ASCENSION on purpose: rarer and far
+// more costly than containing an anomaly, more repeatable than shepherding a
+// species up the whole Kardashev ladder.
+export const MASTERY_SIEGE_BROKEN = 12;
+
+// Per vessel destroyed in plain aggression. Deliberately steep: five kills
+// outweighs NEGLECT_STABILITY, because choosing to burn a people's ships is a
+// heavier statement than letting a crisis happen while you looked away. Doing
+// is worse than failing to do.
+export const NEGLECT_AGGRESSION = 4;
+
+// The server clamps a reported strike to 20 kills; mirror that here so a
+// runaway client buffer can't inflate the Unmaker past what actually happened.
+export const MAX_STRIKE_KILLS = 20;
+
 // The Eternal is the rare convergence: high in BOTH the understanding side
 // (observer + wanderer) AND the mastery side (gardener). Each side must clear
 // this gate for the synthesis to resolve instead of a single leading self.
