@@ -30,6 +30,23 @@
 //
 // What each death actually LOOKS like - its field and its motion - lives in
 // content/deathScenes.js, keyed by `motionKind`.
+//
+// PRERENDERED FILMS. Set `video` on a death and it plays that instead of the
+// procedural version (ui/UniverseEnding.jsx makes the choice per death, so the
+// six can land one at a time). Files go in public/cinematics/ and are served
+// as static assets - never bundled, and only the death that actually happens
+// is ever downloaded.
+//
+//   video           absolute path from the site root, e.g. "/cinematics/x.mp4"
+//   videoPoster     optional still shown while the first frame decodes
+//   videoHasTitles  true if the film renders its own title/epitaph, which
+//                   suppresses the text overlay
+//   videoHasAudio   true if the film carries its own score - this UNMUTES it
+//                   and you should then drop the synth cue for that death from
+//                   audio.js, because two scores at once is worse than either
+//
+// `duration` must match the film's real length: it drives the failsafe that
+// stops a stalled video from stranding the player.
 export const END_SCENES = {
   "instability-collapse": {
     title: "Unravelled",

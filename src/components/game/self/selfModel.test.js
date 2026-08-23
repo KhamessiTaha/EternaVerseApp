@@ -6,6 +6,7 @@ import {
   emptyAffinity, applyAxis, bandsPassed, leadingSelf, pickMemory, resolveSelf,
   ETERNAL_GATE, neglectDelta, insightsCompleted, INSIGHT_BONUS,
   MASTERY_SIEGE_BROKEN, NEGLECT_AGGRESSION, MASTERY_RESOLVE,
+  endingAxis, ENDING_COLLAPSE, ENDING_WITNESS,
 } from "./selfModel.js";
 
 const s0 = () => ({ recollection: 0, affinity: emptyAffinity() });
@@ -55,6 +56,40 @@ test("aggression costs more than looking away", () => {
     { currentState: { stabilityIndex: 0.05 }, civilizations: [] }
   );
   assert.ok(fiveKills.affinity.unmaker > oneCrisis);
+});
+
+// A universe ending is the biggest event in the game and used to move the self
+// by nothing. Only one of the six endings is the warden's failure.
+test("letting a universe unravel pulls toward the unmaker", () => {
+  const axis = endingAxis("instability-collapse");
+  assert.equal(axis.kind, "neglect");
+  assert.equal(axis.weight, ENDING_COLLAPSE);
+
+  const s = applyAxis(s0(), axis.kind, axis.weight);
+  assert.equal(leadingSelf(s.affinity), "unmaker");
+});
+
+test("seeing a cosmos to its natural end is an act of witness", () => {
+  // These endings all require the universe to have run an enormous span
+  // first - reaching them means you kept it alive that long.
+  for (const kind of ["heat-death", "stellar-death", "big-rip", "big-crunch", "maximum-entropy"]) {
+    const axis = endingAxis(kind);
+    assert.equal(axis.kind, "comprehension", kind);
+    assert.equal(axis.weight, ENDING_WITNESS, kind);
+    assert.equal(leadingSelf(applyAxis(s0(), axis.kind, axis.weight).affinity), "observer", kind);
+  }
+});
+
+test("collapsing costs more than any natural ending pays", () => {
+  assert.ok(ENDING_COLLAPSE > ENDING_WITNESS);
+});
+
+test("an unknown ending marks nothing rather than throwing", () => {
+  // The server can add an end condition before the client knows about it.
+  assert.equal(endingAxis(undefined), null);
+  assert.equal(endingAxis(null), null);
+  // ...but anything named IS an ending, so it still counts as witness.
+  assert.equal(endingAxis("some-future-condition").kind, "comprehension");
 });
 
 test("comprehension tagged hidden feeds the wanderer, not the observer", () => {

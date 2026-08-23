@@ -1,5 +1,5 @@
 import { useParams, useLocation } from "react-router-dom";
-import { useEffect, useState, useRef, lazy, Suspense } from "react";
+import { useEffect, useState, useRef } from "react";
 import PhaserGame from "../components/PhaserGame";
 import { dlog } from "../devLog";
 import {
@@ -34,6 +34,7 @@ import { recordAscension, recordAxis } from "../components/game/wardenProgress";
 import {
   comprehensionForDiscovery, MASTERY_ASCENSION, MASTERY_RESOLVE,
   MASTERY_SIEGE_BROKEN, NEGLECT_AGGRESSION, MAX_STRIKE_KILLS, neglectDelta,
+  endingAxis,
 } from "../components/game/self/selfModel";
 import { RevelationOverlay } from "../components/game/ui/RevelationOverlay";
 import { ANAMNESIS_LINE } from "../components/game/content/revelations";
@@ -42,14 +43,10 @@ import { civDesignation } from "../components/game/utils";
 import { UniverseEndPanel } from "../components/game/ui/UniverseEndPanel";
 import { CinematicBoundary } from "../components/game/ui/CinematicBoundary";
 import { hasSeenEnding, markEndingSeen } from "../components/game/content/universeEnds";
-// three.js is a ~1MB chunk of its own. Loading it eagerly here would tax every
-// gameplay session for a screen most of them never reach, so the cinematic is
-// only fetched when a universe actually ends. The scene table and the
-// seen-flag live in content/universeEnds.js precisely so importing THEM here
-// doesn't drag the renderer along with them.
-const UniverseEndCinematic = lazy(() =>
-  import("../components/game/ui/UniverseEndCinematic")
-);
+// UniverseEnding picks a prerendered film or the procedural three.js version
+// per death, and keeps the latter lazily loaded so a ~1MB renderer is only
+// ever fetched when a death without a film actually happens.
+import { UniverseEnding } from "../components/game/ui/UniverseEnding";
 
 const GameplayPage = () => {
   const { id } = useParams();
@@ -392,11 +389,21 @@ const GameplayPage = () => {
   // Arm the death cinematic the moment an ending appears - whether it happened
   // in front of the player (a live tick flipping status to "ended") or before
   // they opened this universe at all. Once seen, it never plays again.
+  //
+  // The same moment marks the warden. A universe's death is the largest event
+  // in the game and used to move the self by nothing at all; letting one
+  // unravel pulls toward the Unmaker, and seeing one through to its natural
+  // end is an act of witness. Keyed to the same "seen" flag so re-opening a
+  // dead universe can't bank the ending twice.
   useEffect(() => {
     if (universe?.status !== 'ended') return;
     if (hasSeenEnding(id)) return;
+
+    const axis = endingAxis(universe.endCondition);
+    if (axis) applySelfResult(recordAxis(axis.kind, axis.weight));
+
     setPlayEnding(true);
-  }, [universe?.status, id]);
+  }, [universe?.status, universe?.endCondition, id]);
 
   // Distress calls. A siege is the most dramatic thing that happens in this
   // universe and the player would otherwise have to fly into one by accident,
@@ -839,17 +846,7 @@ const GameplayPage = () => {
             endSequence();
           }}
         >
-          <Suspense
-            fallback={
-              <div className="w-full h-full bg-void flex items-center justify-center">
-                <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-ink-faint animate-pulse">
-                  The end of everything
-                </div>
-              </div>
-            }
-          >
-            <UniverseEndCinematic universe={universe} onComplete={endSequence} />
-          </Suspense>
+          <UniverseEnding universe={universe} onComplete={endSequence} />
         </CinematicBoundary>
       );
     }
@@ -889,12 +886,10 @@ const GameplayPage = () => {
             toast(`Cinematic failed: ${err?.message || err}`, 'critical', 12000);
           }}
         >
-          <Suspense fallback={null}>
-            <UniverseEndCinematic
-              universe={{ ...universe, endCondition: previewEnd }}
-              onComplete={() => setPreviewEnd(null)}
-            />
-          </Suspense>
+          <UniverseEnding
+            universe={{ ...universe, endCondition: previewEnd }}
+            onComplete={() => setPreviewEnd(null)}
+          />
         </CinematicBoundary>
       )}
       <RevelationOverlay selfId={pendingRevelation} onDone={() => setPendingRevelation(null)} />

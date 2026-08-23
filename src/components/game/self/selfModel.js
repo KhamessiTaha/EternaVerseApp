@@ -50,6 +50,35 @@ export const ETERNAL_GATE = 40;
 // burst of Recollection - understanding the connections advances the self.
 export const INSIGHT_BONUS = 6;
 
+// --- The end of a universe -------------------------------------------------
+//
+// The biggest event in the game used to move the self by nothing at all.
+//
+// Of the six ways a universe can end, exactly ONE is the warden's failure:
+// instability-collapse fires when stability holds critical past what the
+// difficulty tolerates, which only happens if nobody tended it. Every other
+// ending requires the cosmos to have run an enormous span first - heat death
+// past 200 Gyr, stellar death past 80, entropy or expansion reaching their
+// limits. Reaching those means you kept a universe alive to its natural end.
+//
+// So an ending is either something you let happen, or something you saw
+// through. The first pulls toward the Unmaker; the second is an act of
+// witness, which is the Observer's.
+export const ENDING_COLLAPSE = 25; // it came apart on your watch
+export const ENDING_WITNESS = 20;  // you saw a cosmos to the end of its life
+
+/**
+ * How a universe's death marks the warden who kept it.
+ * Returns { kind, weight } for applyAxis, or null if the ending is unknown.
+ */
+export function endingAxis(endCondition) {
+  if (!endCondition) return null;
+  if (endCondition === "instability-collapse") {
+    return { kind: "neglect", weight: ENDING_COLLAPSE };
+  }
+  return { kind: "comprehension", weight: ENDING_WITNESS };
+}
+
 // Neglect weights (the pull toward The Unmaker).
 export const NEGLECT_STABILITY = 15; // letting the universe tear into crisis
 export const NEGLECT_CIV = 10;       // a people you'd met, left to die
