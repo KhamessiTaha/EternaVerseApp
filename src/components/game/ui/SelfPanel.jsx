@@ -10,10 +10,22 @@ import { memoryById } from '../content/memories';
 import { REVELATIONS, AUTHORED_SELVES } from '../content/revelations';
 import { insightById } from '../content/insights';
 import { RECOLLECTION_BANDS, SUMMIT } from '../self/selfModel';
+import { getPantheon } from '../../../api/userApi';
 
 export const SelfPanel = ({ isOpen, onClose }) => {
   const [self, setSelf] = useState(getSelf());
   useEffect(() => onSelfProgress(setSelf), []);
+
+  // The pantheon lives on the account, not in this universe, so it's fetched
+  // rather than read from local state. Refreshed on each open - a species may
+  // have ascended since the last time the player looked.
+  const [pantheon, setPantheon] = useState([]);
+  useEffect(() => {
+    if (!isOpen) return;
+    let live = true;
+    getPantheon().then((p) => { if (live) setPantheon(p || []); });
+    return () => { live = false; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -84,6 +96,41 @@ export const SelfPanel = ({ isOpen, onClose }) => {
               <p className="text-ink-faint text-[11px] italic mt-1">{m.science}</p>
             </div>
           ))}
+
+          {/* What you have MADE, as opposed to what you are - and the only
+              thing here that belongs to somebody else. Every species that
+              reached the stars under you, in every universe you have kept,
+              including the ones that no longer exist. */}
+          {pantheon.length > 0 && (
+            <div className="mt-8 pt-5 border-t border-line">
+              <div className="text-[9px] uppercase tracking-[0.2em] text-good mb-1">
+                The Pantheon · {pantheon.length}
+              </div>
+              <p className="text-ink-faint text-[11px] leading-relaxed mb-4">
+                They reached the stars while you were keeping the place they
+                grew up in. Some of those places are gone. They are not.
+              </p>
+              {pantheon.map((p) => (
+                <div
+                  key={`${p.universeId}:${p.civId}`}
+                  className="mb-3 border-l-2 border-good/40 pl-3"
+                >
+                  <div className="text-ink text-[13px]">{p.designation || p.civId}</div>
+                  <div className="text-ink-faint text-[11px] mt-0.5">
+                    {p.universeName || 'a universe you no longer keep'}
+                    {p.ageGyr ? ` · ascended at ${p.ageGyr} Gyr` : ''}
+                  </div>
+                  {(p.rescues > 0 || p.uplifts > 0) && (
+                    <div className="text-ink-faint text-[10px] mt-0.5">
+                      {p.uplifts > 0 && `${p.uplifts} uplift${p.uplifts === 1 ? '' : 's'}`}
+                      {p.uplifts > 0 && p.rescues > 0 && ' · '}
+                      {p.rescues > 0 && `${p.rescues} rescue${p.rescues === 1 ? '' : 's'}`}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="border-t border-line px-6 py-3 font-mono">
