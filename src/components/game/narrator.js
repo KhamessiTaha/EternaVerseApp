@@ -453,6 +453,23 @@ export const CURATOR = {
       "You stopped a war with paperwork and research points. More than most gods manage, frankly.",
     ],
   },
+  // Arriving in a NEW universe with species you raised in previous ones still
+  // out there. The one line in the game that reaches across runs - it exists
+  // so a finished universe leaves something you meet again, rather than a save
+  // file you stop opening.
+  pantheonEcho: (entries) => {
+    const names = entries
+      .map((e) => e.designation || e.civId)
+      .filter(Boolean);
+    const shown = names.slice(0, 3);
+    const rest = names.length - shown.length;
+    const list = shown.join(", ") + (rest > 0 ? `, and ${rest} more` : "");
+
+    if (names.length === 1) {
+      return `Before we begin, warden: ${list} is still out there. You raised them in a cosmos that no longer exists, and they went on anyway. This universe has never heard of them. Give it time.`;
+    }
+    return `Before we begin, warden: ${list}. Peoples you raised, in universes that are gone. They outlived the places that made them - which is more than the places managed. This one has never heard of any of them. Yet.`;
+  },
   welcomeBack: [
     "Caught up? Good. It all happened whether you watched or not. That's rather the point of a universe.",
     "I kept notes while you were gone. I always keep notes. Welcome back, warden.",

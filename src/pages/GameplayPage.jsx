@@ -20,6 +20,7 @@ import {
   reportWarStrike,
   reportBombardment,
 } from "../api/universeApi";
+import { getPantheon } from "../api/userApi";
 import { Button } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
 import { useToast } from "../components/ui/ToastProvider";
@@ -488,6 +489,21 @@ const GameplayPage = () => {
       setLegacy({ ...fresh, legacyNumber: records.length, warden });
     }
   }, [universe]);
+
+  // The echo. Arriving in a universe that isn't the one where they rose, the
+  // Curator names the species you've already carried to the stars - the only
+  // thing in the game that reaches across runs. Entries from THIS universe are
+  // filtered out: those aren't an echo, they're the news.
+  const pantheonHailedRef = useRef(false);
+  useEffect(() => {
+    if (!universe || pantheonHailedRef.current) return;
+    pantheonHailedRef.current = true;
+
+    getPantheon().then((pantheon) => {
+      const elsewhere = (pantheon || []).filter((p) => p.universeId !== id);
+      if (elsewhere.length > 0) narrate(CURATOR.pantheonEcho(elsewhere), 'awe');
+    });
+  }, [universe, id]);
 
   // The Self: score Neglect from each universe transition - the fabric tearing
   // into crisis, or a people you had met left to go extinct. Feeds The Unmaker.

@@ -18,6 +18,19 @@ export const getAchievements = async () => {
   }
 };
 
+// Every species that has reached the stars under this player, across every
+// universe they've ever kept. Newest first. Survives the universe that
+// produced it, which is the whole point of it existing.
+export const getPantheon = async () => {
+  try {
+    const res = await axios.get(`${API_URL}/pantheon`, getAuthHeaders());
+    return res.data.pantheon || [];
+  } catch (error) {
+    console.error("Error fetching pantheon:", error.response?.data || error.message);
+    return [];
+  }
+};
+
 // Account-wide ship loadout (see backend utils/hullCatalog.js) - hull +
 // color, plus which hulls are currently unlocked (derived from achievements).
 export const getLoadout = async () => {
