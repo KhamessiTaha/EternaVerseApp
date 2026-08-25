@@ -74,6 +74,18 @@ export const CODEX_PRINCIPLES = [
     title: 'The Hubble Sequence',
     tag: 'Galaxies',
     appliesTo: 'Galaxies in the Field Catalog',
+    // How to TELL them apart, as opposed to where they came from. This half is
+    // a strategy guide: it's what the Classify Before Scan prompt pays you for
+    // knowing, and what it shows you when you call one wrong.
+    // Kept beside the history rather than replacing it - the trophy and the
+    // tool are both worth having, they just answer different questions.
+    diagnostics: [
+      { morph: 'Elliptical (E0–E7)', tell: 'Smooth, featureless, no disk. Merger aftermath — ordered rotation scrambled into random orbits, gas long spent. Crowds into clusters.' },
+      { morph: 'Spiral (Sa–Sc)', tell: 'Arms wind straight out of a round core. A settled disk still turning gas into stars. Most common out in the open field.' },
+      { morph: 'Barred Spiral (SBa–SBc)', tell: "The arms don't start at the core — they start at the ENDS of a straight bar cutting through it. Look for the bar first." },
+      { morph: 'Irregular (Irr)', tell: 'No symmetry, no core, no arms. Either young and still assembling, or something recently tore through it.' },
+      { morph: 'Lenticular (S0)', tell: 'A disk that has run out of gas: spiral shape, no arms left. Your instruments cannot yet separate these from ellipticals at survey range — call them elliptical.' },
+    ],
     body:
       "Edwin Hubble sorted galaxies onto a tuning fork: smooth ellipticals E0–E7 on the handle, graded by flattening, then the fork splitting into ordinary spirals Sa–Sc and barred spirals SBa–SBc, with lenticulars S0 at the join and irregulars off to the side. He read it as an evolutionary sequence — 'early' to 'late' types — and was wrong about the direction, but the morphology endures. Shape encodes history: ellipticals are the aftermath of mergers, their ordered rotation scrambled into random orbits; spirals are settled disks still turning gas into stars.",
   },

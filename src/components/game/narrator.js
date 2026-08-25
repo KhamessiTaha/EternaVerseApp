@@ -299,6 +299,22 @@ export const CURATOR = {
       "Still going. At this point the universe is just handing itself to you. Take it. Take all of it.",
     ],
   },
+  // Classify Before Scan: the one mechanic where knowing real astronomy pays.
+  // The Curator's job here is to make it clear that being wrong is free.
+  classify: {
+    firstCorrect: [
+      "You called it before the instruments did. Do you understand what that means, warden? You didn't measure that galaxy - you RECOGNISED it. That is the difference between an instrument and an astronomer.",
+      "Correct, and correct before the scan confirmed it. Shape encodes history, and you just read some. The catalog pays better for knowing than for waiting.",
+    ],
+    firstWrong: [
+      "Wrong, and it cost you nothing - I want that established early. A missed call pays exactly what a silent one does. The only thing you lose by guessing is your ignorance, eventually.",
+      "Not that one. Keep calling them anyway: a wrong guess is the cheapest tuition in existence, and I'll tell you what to look for every single time.",
+    ],
+    // The density-morphology relation, offered once, where it's actionable.
+    clusterPrior: [
+      "A word before you guess in here, warden: this is a cluster. Ellipticals crowd together - they're what galaxies become after they collide, and crowds mean collisions. Out in the empty field it's mostly spirals, still calmly turning gas into stars. Where you are is evidence about what you're looking at.",
+    ],
+  },
   firstResolve: [
     "One anomaly contained. The universe has taken notice. The universe also forgets very quickly.",
     "Containment successful. The fabric of spacetime thanks you, in its way, which is silence.",

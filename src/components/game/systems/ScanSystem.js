@@ -11,6 +11,13 @@ import { ANOMALY_SCAN_BASE } from "../world/researchValues.js";
 import { getShipModifiers } from "../content/upgradeCatalog.js";
 import { playSfx } from "../audio.js";
 import { narrate, narrateOnce, pick, CURATOR } from "../narrator.js";
+import {
+  CLASSIFY_BUCKETS, isClassifiable, classifyResult,
+} from "../world/classifyModel.js";
+import { ClassifyPrompt, showClassifyResult } from "../ui/classifyPrompt.js";
+import { getClassInfo } from "../world/researchValues.js";
+import { getChunkWeb } from "../world/densityField.js";
+import { getChunkCoords } from "../utils";
 
 // Survey streak: chaining scans builds a combo that makes scans FASTER and
 // worth more RP, but a decay window means you have to keep moving/finding.
@@ -28,6 +35,80 @@ export class ScanSystem {
     this.streak = 0;
     this.best = 0;
     this.lastScanAt = -Infinity;
+
+    // Classify Before Scan. The prompt appears when an unscanned GALAXY is the
+    // nearest scannable target - on approach, not on scan start. The channel
+    // can be as short as ~380ms at a hot streak with Scanner 3, which is not
+    // enough time for a four-way choice; forcing the call into that window
+    // would make the mechanic punish the streak. The shape is legible while
+    // you fly toward it, so that is when the decision actually happens.
+    this.classify = new ClassifyPrompt(scene);
+    this._nearestTimer = 0;
+    this._bindClassifyKeys();
+  }
+
+  _bindClassifyKeys() {
+    for (const bucket of CLASSIFY_BUCKETS) {
+      const key = this.scene.input.keyboard.addKey(bucket.key);
+      key.on("down", () => this._callClass(bucket.id));
+    }
+  }
+
+  /** Lock in a call. Re-pressable until the channel ends; never blocks flow. */
+  _callClass(bucketId) {
+    if (this.scene.inputSystem?.isMinigameActive) return;
+    if (!this.classify.shownFor) return;
+    if (this.classify.setGuess(bucketId)) playSfx("uiClick");
+  }
+
+  /**
+   * Keep the prompt pinned to the nearest unscanned galaxy. Throttled - a
+   * per-frame nearest-candidate sweep over every loaded chunk is the one thing
+   * here that could actually cost something.
+   */
+  _updateClassifyTarget(delta) {
+    // While channelling, the prompt stays on the target being scanned so a
+    // late call still lands.
+    if (this.active) {
+      const t = this.active.target;
+      if (isClassifiable(t.discovery)) this.classify.show(t.id, t.x, t.y);
+      return;
+    }
+
+    this._nearestTimer -= delta;
+    if (this._nearestTimer > 0) return;
+    this._nearestTimer = 140;
+
+    const player = this.scene.player;
+    if (!player) return;
+    let nearest = null;
+    let best = SCAN_RANGE * this._mods().scanRange;
+    for (const c of this._candidates()) {
+      if (!isClassifiable(c.discovery)) continue;
+      const d = Phaser.Math.Distance.Between(player.x, player.y, c.x, c.y);
+      if (d < best) { best = d; nearest = c; }
+    }
+
+    if (nearest) {
+      this.classify.show(nearest.id, nearest.x, nearest.y);
+      this._maybeTeachPrior(nearest);
+    } else {
+      this.classify.hide();
+    }
+  }
+
+  /**
+   * The density-morphology relation, offered once, at the only moment it's
+   * actionable. objectGenerator weights ellipticals to 50% inside clusters and
+   * spirals/barred to 59% out in the field, so a player who knows this can use
+   * their surroundings as a prior before looking closely. That second-order
+   * layer is what stops the mechanic being a lookup table.
+   */
+  _maybeTeachPrior(target) {
+    const { chunkX, chunkY } = getChunkCoords(target.x, target.y);
+    const { webClass } = getChunkWeb(this.scene.worldSeed(), chunkX, chunkY);
+    if (webClass !== "cluster") return;
+    narrateOnce("classify-cluster-prior", pick(CURATOR.classify.clusterPrior), "curious");
   }
 
   // Multiplier the streak grants to research (mirrored/clamped server-side).
@@ -130,6 +211,8 @@ export class ScanSystem {
       this._breakStreak();
     }
 
+    this._updateClassifyTarget(delta);
+
     if (!this.active) return;
     const { target, gfx } = this.active;
     const player = this.scene.player;
@@ -171,8 +254,16 @@ export class ScanSystem {
     gfx.destroy();
     this.active = null;
 
-    // Advance the survey streak: chain, juice, milestones.
-    this.streak += 1;
+    // Resolve any Hubble call BEFORE the streak advances, so a correct one can
+    // add its extra step and the reported multiplier includes it.
+    const guess = this.classify.shownFor === target.id ? this.classify.called : null;
+    const result = classifyResult(guess, target.discovery.objectClass);
+    this.classify.hide();
+
+    // Advance the survey streak: chain, juice, milestones. Knowing the answer
+    // advances it an extra step - so understanding literally makes you faster,
+    // because the streak speedup is what shortens the channel.
+    this.streak += 1 + result.streakBonus;
     this.best = Math.max(this.best, this.streak);
     this.lastScanAt = this.scene.time.now;
     playSfx('surveyTick', { streak: this.streak });
@@ -189,6 +280,25 @@ export class ScanSystem {
     this.scannedIds.add(target.id);
     target.discovery.surveyStreak = this.streak;
     target.discovery.surveyMult = this.surveyMult();
+    // Reported alongside surveyMult and clamped server-side the same way.
+    target.discovery.classifyMult = result.mult;
+
+    if (result.called) {
+      const info = getClassInfo(target.discovery.objectClass);
+      const guessed = CLASSIFY_BUCKETS.find((b) => b.id === guess);
+      showClassifyResult(this.scene, target.x, target.y, {
+        className: target.discovery.objectClass,
+        label: info?.label ?? target.discovery.name,
+        result: { ...result, guessLabel: guessed?.label ?? guess },
+      });
+
+      if (result.correct) {
+        playSfx('surveyMilestone');
+        narrateOnce('classify-first-correct', pick(CURATOR.classify.firstCorrect), 'proud');
+      } else {
+        narrateOnce('classify-first-wrong', pick(CURATOR.classify.firstWrong), 'amused');
+      }
+    }
 
     // Pulse effect
     const pulse = this.scene.add.graphics({ x: target.x, y: target.y }).setDepth(50);
@@ -224,9 +334,13 @@ export class ScanSystem {
   _cancel() {
     this.active?.gfx.destroy();
     this.active = null;
+    // Flying out of range drops the call with the scan - no penalty, no
+    // message. The prompt re-offers next time you come back.
+    this.classify.hide();
   }
 
   destroy() {
     this._cancel();
+    this.classify.destroy();
   }
 }
