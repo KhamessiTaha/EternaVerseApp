@@ -24,6 +24,7 @@ import { WaypointSystem } from "../systems/WaypointSystem";
 import { GravitySlingSystem } from "../systems/GravitySlingSystem";
 import { SurgeSystem } from "../systems/SurgeSystem";
 import { SituationDirector } from "../systems/SituationDirector";
+import { ArtifactSystem } from "../systems/ArtifactSystem";
 import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
 import { AbilitySystem } from "../systems/AbilitySystem";
@@ -115,6 +116,7 @@ export const UniverseSceneFactory = (props) => {
       this.renderFullMap();
       this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
       this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
+      this.artifactSystem.sync();
 
       this.initScaleNavigation();
 
@@ -217,6 +219,8 @@ export const UniverseSceneFactory = (props) => {
       // a session that never reaches Ascension still had things HAPPEN in it.
       // Constructed after the systems it stages (surge, cosmic events).
       this.situationDirector = new SituationDirector(this);
+      // The only world objects that exist because a person chose them.
+      this.artifactSystem = new ArtifactSystem(this);
       this.salvageSystem = new SalvageSystem(this);
       this.abilitySystem = new AbilitySystem(this);
       this.cosmicEventSystem = new CosmicEventSystem(this);
@@ -793,7 +797,9 @@ export const UniverseSceneFactory = (props) => {
         this.chunkSystem.loadedChunks,
         this.anomalySystem.backendAnomalies,
         this.civilizationSystem.getMapMarkers(),
-        this.cosmicEventSystem.getMapMarkers(),
+        // Works go on the map too - a beacon you raised an hour ago is only
+        // permanent if you can still find it.
+        [...this.cosmicEventSystem.getMapMarkers(), ...this.artifactSystem.getMapMarkers()],
       );
       
       // Update full map (send data to React)
@@ -901,6 +907,22 @@ export const UniverseSceneFactory = (props) => {
     }
 
     // ---- Cosmic Scales: drill-down navigation ----------------------------
+
+    /**
+     * Where an artifact would stand if raised now: the player's position plus
+     * the cosmic scale and descent path they're at. Both halves matter - a
+     * beacon planted inside a star system must not render out at the galactic
+     * scale marking empty space.
+     */
+    getBuildSite() {
+      if (!this.player) return null;
+      return {
+        x: Math.round(this.player.x),
+        y: Math.round(this.player.y),
+        scale: this.world?.scale ?? "galactic",
+        path: [...(this.world?.path ?? [])],
+      };
+    }
 
     worldSeed() {
       return worldSeed(this.universe.seed ?? "seed", this.world.scale, this.world.path);
@@ -1051,6 +1073,9 @@ export const UniverseSceneFactory = (props) => {
       this.riftSpawnSystem.clear();
       this.civFleetSystem.clear();
       this.combatSystem.clear();
+      // Artifacts belong to the scale they were planted at - clear and re-sync
+      // so a beacon raised in a star system stays in that star system.
+      this.artifactSystem.clear();
       this.chunkSystem.reset();
 
       // A planetary system is small and bounded, so load a wider area (cheap -
@@ -1071,6 +1096,7 @@ export const UniverseSceneFactory = (props) => {
         this.anomalySystem.renderBackendAnomalies(this.chunkSystem.loadedChunks);
       }
       this.civilizationSystem.renderVisible(this.chunkSystem.loadedChunks);
+      this.artifactSystem.sync();
       this.renderFullMap();
       this._updateBreadcrumb();
       this.cameras.main.flash(220, 12, 15, 28);
@@ -1125,7 +1151,9 @@ export const UniverseSceneFactory = (props) => {
         this.anomalySystem.backendAnomalies,
         this.anomalySystem.resolvedAnomalies,
         this.civilizationSystem.getMapMarkers(),
-        this.cosmicEventSystem.getMapMarkers(),
+        // Works go on the map too - a beacon you raised an hour ago is only
+        // permanent if you can still find it.
+        [...this.cosmicEventSystem.getMapMarkers(), ...this.artifactSystem.getMapMarkers()],
       );
     }
 
@@ -1286,6 +1314,9 @@ export const UniverseSceneFactory = (props) => {
       this.riftSpawnSystem.sync();
       // Wars start and end server-side: re-derive who is besieging whom
       this.civFleetSystem.sync();
+      // Artifacts live on the universe document, so a refresh is when new ones
+      // (or ones raised in another tab) become visible.
+      this.artifactSystem.sync();
     }
 
     shutdown() {

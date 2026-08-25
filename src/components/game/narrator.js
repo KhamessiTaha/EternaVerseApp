@@ -535,6 +535,19 @@ export const CURATOR = {
     }
     return `Before we begin, warden: ${list}. Peoples you raised, in universes that are gone. They outlived the places that made them - which is more than the places managed. This one has never heard of any of them. Yet.`;
   },
+  // Works you left in universes that no longer exist. The pantheon names who
+  // you RAISED; this names what you BUILT - the only two things that survive a
+  // cosmos, and the reason building matters at all.
+  worksEcho: (works) => {
+    const names = works.map((w) => w.label).filter(Boolean);
+    const counts = names.reduce((a, n) => ((a[n] = (a[n] || 0) + 1), a), {});
+    const list = Object.entries(counts)
+      .map(([label, n]) => (n > 1 ? `${n} ${label}s` : `a ${label}`))
+      .join(", ");
+    const where = works[0]?.universeName;
+
+    return `You have left things behind, warden. ${list}${where ? `, one of them in ${where}` : ""} — standing in universes that no longer exist. Nobody will ever see them. They are still there, which I have come to think is the entire point.`;
+  },
   welcomeBack: [
     "Caught up? Good. It all happened whether you watched or not. That's rather the point of a universe.",
     "I kept notes while you were gone. I always keep notes. Welcome back, warden.",

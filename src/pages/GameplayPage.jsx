@@ -20,9 +20,11 @@ import {
   reportWarStrike,
   reportBombardment,
   reportHarvest,
+  placeArtifact,
 } from "../api/universeApi";
 import { materialById } from "../components/game/world/materials";
-import { getPantheon } from "../api/userApi";
+import { artifactById } from "../components/game/content/artifacts";
+import { getPantheon, getWorks } from "../api/userApi";
 import { Button } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
 import { useToast } from "../components/ui/ToastProvider";
@@ -505,6 +507,13 @@ const GameplayPage = () => {
       const elsewhere = (pantheon || []).filter((p) => p.universeId !== id);
       if (elsewhere.length > 0) narrate(CURATOR.pantheonEcho(elsewhere), 'awe');
     });
+
+    // The same echo for what you BUILT rather than who you raised. Works from
+    // THIS universe are excluded - those aren't a memory, they're just around.
+    getWorks().then((works) => {
+      const elsewhere = (works || []).filter((w) => w.universeId !== id);
+      if (elsewhere.length > 0) narrate(CURATOR.worksEcho(elsewhere), 'warm');
+    });
   }, [universe, id]);
 
   // The Self: score Neglect from each universe transition - the fabric tearing
@@ -711,6 +720,27 @@ const GameplayPage = () => {
     }
   };
 
+  // Raise an artifact where the player is standing. The scene supplies the
+  // position AND the cosmic scale/path, because a beacon planted inside a star
+  // system must not render out at the galactic scale pointing at nothing.
+  // `place` comes from the scene (PhaserGame owns the scene ref): position
+  // plus the cosmic scale and descent path it was planted at.
+  const handleBuildArtifact = async (kind, place) => {
+    if (!place) return { ok: false, error: 'No stable position to build on' };
+
+    const data = await placeArtifact(id, { kind, ...place });
+    if (data.ok) {
+      setUniverse((prev) => (prev ? {
+        ...prev, materials: data.materials, artifacts: data.artifacts,
+      } : prev));
+      playSfx('install');
+      const def = artifactById(kind);
+      toast(`${def?.label || kind} raised`, 'success', 6000);
+      if (def?.line) narrate(def.line, 'warm');
+    }
+    return data;
+  };
+
   // Admin dev/test actions - server re-validates the admin flag per request
   const handleDevAction = async (action, payload) => {
     try {
@@ -909,6 +939,7 @@ const GameplayPage = () => {
         onBombardment={handleBombardment}
         onPreviewEnding={setPreviewEnd}
         onHarvest={handleHarvest}
+        onBuildArtifact={handleBuildArtifact}
       />
       {previewEnd && (
         <CinematicBoundary

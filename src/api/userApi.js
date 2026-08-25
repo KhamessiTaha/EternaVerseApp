@@ -38,6 +38,17 @@ export const putSelf = async (self) => {
   return res.data.self || null;
 };
 
+// Everything this player has built, across every universe. Newest first.
+export const getWorks = async () => {
+  try {
+    const res = await axios.get(`${API_URL}/works`, getAuthHeaders());
+    return res.data.works || [];
+  } catch (error) {
+    console.error("Error fetching works:", error.response?.data || error.message);
+    return [];
+  }
+};
+
 // Every species that has reached the stars under this player, across every
 // universe they've ever kept. Newest first. Survives the universe that
 // produced it, which is the whole point of it existing.

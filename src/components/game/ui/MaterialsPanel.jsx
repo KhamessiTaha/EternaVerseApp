@@ -6,7 +6,9 @@
 // that shows you the gap - "Gold: not yet, r-process, neutron-star merger" -
 // is a reason to keep playing and a piece of astrophysics at the same time.
 // Locked entries are shown deliberately, never hidden.
+import { useState } from 'react';
 import { MATERIAL_IDS, MATERIALS, isAvailable } from '../world/materials';
+import { ARTIFACT_IDS, ARTIFACTS, canBuild } from '../content/artifacts';
 
 const TIER_COLOR = {
   0: '#9497ad',  // primordial
@@ -47,12 +49,24 @@ const Row = ({ id, held, unlocked }) => {
   );
 };
 
-export const MaterialsPanel = ({ isOpen, onClose, universe }) => {
+export const MaterialsPanel = ({ isOpen, onClose, universe, onBuild }) => {
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState(null);
+
   if (!isOpen) return null;
 
   const cs = universe?.currentState;
   const held = universe?.materials || {};
   const unlockedCount = MATERIAL_IDS.filter((id) => isAvailable(id, cs)).length;
+  const builtCount = (universe?.artifacts || []).length;
+
+  const build = async (id) => {
+    setBusy(id);
+    setError(null);
+    const res = await onBuild?.(id);
+    if (res && !res.ok) setError(res.error);
+    setBusy(null);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/85 backdrop-blur-sm">
@@ -78,10 +92,61 @@ export const MaterialsPanel = ({ isOpen, onClose, universe }) => {
           ))}
         </div>
 
+        {/* Build. Matter dies with its universe; what you MAKE from it does
+            not - so this is the only place in the game that leaves something
+            behind on purpose. */}
+        <div className="border-t-2 border-line-bright px-5 py-3">
+          <div className="font-sans text-[14px] text-ink font-medium">Build</div>
+          <div className="font-mono text-[10px] text-ink-faint uppercase tracking-wider">
+            Raised where you stand · {builtCount} standing in this universe
+          </div>
+        </div>
+
+        {error && (
+          <div className="px-5 pb-2 font-mono text-[10px] text-critical">{error}</div>
+        )}
+
+        <div className="px-5 pb-3">
+          {ARTIFACT_IDS.map((id) => {
+            const a = ARTIFACTS[id];
+            const afford = canBuild(held, id);
+            return (
+              <div key={id} className="flex items-start gap-3 py-2.5 border-b border-line/40 last:border-0">
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-[12px] text-ink">{a.label}</div>
+                  <div className="font-mono text-[10px] text-ink-faint mt-0.5 leading-relaxed">
+                    {a.blurb}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 font-mono text-[10px]">
+                    {Object.entries(a.cost).map(([mat, need]) => {
+                      const have = held[mat] || 0;
+                      return (
+                        <span key={mat} className={have < need ? 'text-critical' : 'text-ink-dim'}>
+                          {MATERIALS[mat]?.label || mat} {have}/{need}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button
+                  onClick={() => build(id)}
+                  disabled={!afford.ok || busy === id}
+                  className={`shrink-0 font-mono text-[10px] tracking-wider uppercase px-3 py-1.5 border transition-colors ${
+                    afford.ok
+                      ? 'border-accent text-accent hover:bg-accent hover:text-void'
+                      : 'border-line text-ink-faint cursor-not-allowed'
+                  } disabled:opacity-70`}
+                >
+                  {busy === id ? '…' : 'Raise'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
         <div className="border-t border-line px-5 py-3 font-mono text-[10px] text-ink-faint leading-relaxed">
-          Matter is forged by this cosmos and dies with it. Heavy elements come
-          only from a neutron-star merger — there is no other source, here or
-          anywhere.
+          Matter is forged by this cosmos and dies with it. What you build from
+          it does not — a work is named in every universe you keep afterwards.
         </div>
       </div>
     </div>

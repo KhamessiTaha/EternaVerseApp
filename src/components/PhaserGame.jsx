@@ -45,7 +45,7 @@ import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine, onWarStrike, onBombardment, onPreviewEnding, onHarvest }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine, onWarStrike, onBombardment, onPreviewEnding, onHarvest, onBuildArtifact }) => {
   const { user } = useContext(AuthContext);
   const toast = useToast();
 
@@ -458,6 +458,14 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
         isOpen={isMaterialsOpen}
         onClose={() => setIsMaterialsOpen(false)}
         universe={universe}
+        onBuild={async (kind) => {
+          // The scene supplies WHERE - position plus the cosmic scale and
+          // descent path, so an artifact never renders at a scale it wasn't
+          // planted at.
+          const res = await onBuildArtifact?.(kind, sceneRef.current?.getBuildSite?.());
+          sceneRef.current?.artifactSystem?.sync?.();
+          return res;
+        }}
       />
       <OutfittingPanel
         isOpen={isOutfittingOpen}

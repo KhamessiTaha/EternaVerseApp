@@ -361,6 +361,17 @@ export const reportHarvest = async (universeId, source, grade) => {
   }
 };
 
+// Raise an artifact - the one thing the player builds. The server owns the
+// cost and the placement cap; we send where we are and what we're making.
+export const placeArtifact = async (universeId, payload) => {
+  try {
+    const res = await axios.post(`${API_URL}/${universeId}/artifact`, payload, getAuthHeaders());
+    return res.data;
+  } catch (error) {
+    return { ok: false, error: error.response?.data?.error || "Failed to raise artifact" };
+  }
+};
+
 // Prune old resolved anomalies from the universe document
 export const cleanupAnomalies = async (universeId, keepRecentMinutes = 60) => {
   try {
