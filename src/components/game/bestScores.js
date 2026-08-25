@@ -71,3 +71,17 @@ export function recordBest(sceneKey, severity, accuracy) {
 export function resetBests() {
   write({});
 }
+
+/** Every record, for the account-wide sync payload (see selfSync.js). */
+export function exportBests() {
+  return read();
+}
+
+/**
+ * Adopt the server's merged records. The server took the better of each pair,
+ * so this can never lower a local best.
+ */
+export function importBests(bests) {
+  if (!bests || typeof bests !== "object") return;
+  write({ ...read(), ...bests });
+}

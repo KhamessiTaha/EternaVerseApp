@@ -43,6 +43,20 @@ function saveRapport() {
 export const getRapport = () => rapport;
 export const hasAskedPrompt = (id) => askedPrompts.has(id);
 
+// The Curator remembers you across every universe it has watched - which was
+// only true until you cleared your cookies. Part of the account-wide Self now
+// (see selfSync.js); these two are how it joins that payload.
+export const exportRapport = () => ({ rapport, asked: [...askedPrompts] });
+
+export function importRapport(state) {
+  if (!state) return;
+  // The server merged generously (max rapport, unioned prompts), so adopting
+  // can only ever add to what this device knew.
+  if (Number.isFinite(state.rapport)) rapport = state.rapport;
+  (state.asked || []).forEach((id) => askedPrompts.add(id));
+  saveRapport();
+}
+
 // Warm rapport occasionally softens a neutral line to warm/amused; cold rapport
 // sharpens it to annoyed. Only ever nudges the baseline "dry" tone, and only
 // when a call site didn't set an explicit mood.

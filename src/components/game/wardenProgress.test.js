@@ -110,3 +110,113 @@ test("living all five cycles completes the Anamnesis exactly once", async () => 
   // Capstone fires only once.
   assert.equal(wp.recordAxis("comprehension", 4).anamnesisComplete, false);
 });
+
+// --- account keying and the one-time legacy claim -------------------------
+//
+// These cover the migration that can lose real player progress: the old
+// global "eterna:warden" blob has no owner recorded, so it must be claimed
+// exactly once, by exactly one account, and never deleted.
+
+const signIn = (id) => mem.set("user", JSON.stringify({ userId: id }));
+
+test("progress is stored per account, not per browser", async () => {
+  // The bug this fixes: two accounts on one browser shared one identity, so
+  // logging in as someone else showed you THEIR memories.
+  const wp = await fresh();
+  signIn("userA");
+  wp.recordAscension();
+  wp.recordAscension();
+  assert.equal(wp.getWarden().ascensions, 2);
+
+  signIn("userB");
+  assert.equal(wp.getWarden().ascensions, 0, "a different account starts clean");
+
+  signIn("userA");
+  assert.equal(wp.getWarden().ascensions, 2, "and the first account is untouched");
+});
+
+test("the pre-account blob is adopted by the first account that logs in", async () => {
+  const wp = await fresh();
+  mem.set("eterna:warden", JSON.stringify({
+    ascensions: 5, recollection: 40, bandPointer: 2,
+    memoriesRecovered: ["m1", "m2"], insightsCompleted: [],
+    identitiesRealized: ["observer"], anamnesisSeen: false,
+    affinity: { observer: 40, gardener: 0, wanderer: 0, unmaker: 0 },
+  }));
+
+  signIn("userA");
+  assert.equal(wp.getWarden().ascensions, 5, "weeks of local play must carry over");
+  assert.deepEqual(wp.getSelf().realized, ["observer"]);
+});
+
+test("a second account cannot claim the same legacy blob", async () => {
+  const wp = await fresh();
+  mem.set("eterna:warden", JSON.stringify({ ascensions: 5, affinity: {} }));
+
+  signIn("userA");
+  assert.equal(wp.getWarden().ascensions, 5);
+
+  signIn("userB");
+  assert.equal(wp.getWarden().ascensions, 0, "it belongs to whoever claimed it");
+});
+
+test("the legacy blob is marked, never deleted", async () => {
+  // If the attribution turns out wrong, the data must still be recoverable.
+  const wp = await fresh();
+  mem.set("eterna:warden", JSON.stringify({ ascensions: 3, affinity: {} }));
+  signIn("userA");
+  wp.getWarden();
+
+  assert.ok(mem.get("eterna:warden"), "the original blob is still on disk");
+  assert.equal(mem.get("eterna:warden:migratedTo"), "userA");
+});
+
+test("adopting the server's record replaces local wholesale", async () => {
+  const wp = await fresh();
+  signIn("userA");
+  wp.recordAscension();
+
+  wp.adoptSelf({
+    ascensions: 11, recollection: 62, bandPointer: 3,
+    memoriesRecovered: ["m1", "m2", "m3"], insightsCompleted: ["i1"],
+    identitiesRealized: ["gardener", "wanderer"], anamnesisSeen: false,
+    affinity: { observer: 0, gardener: 62, wanderer: 0, unmaker: 0 },
+  });
+
+  assert.equal(wp.getWarden().ascensions, 11);
+  assert.deepEqual(wp.getSelf().realized, ["gardener", "wanderer"]);
+  assert.equal(wp.getSelf().memoriesRecovered.length, 3);
+});
+
+test("a junk server payload is ignored rather than wiping local", async () => {
+  const wp = await fresh();
+  signIn("userA");
+  wp.recordAscension();
+  for (const junk of [null, undefined, {}, { ascensions: "nope" }]) {
+    wp.adoptSelf(junk);
+    assert.equal(wp.getWarden().ascensions, 1, `junk ${JSON.stringify(junk)} erased progress`);
+  }
+});
+
+test("exportSelf hands the sync layer the complete record", async () => {
+  const wp = await fresh();
+  signIn("userA");
+  wp.recordAxis("comprehension", 8);
+  const out = wp.exportSelf();
+  assert.equal(typeof out.ascensions, "number");
+  assert.ok(Array.isArray(out.memoriesRecovered));
+  assert.ok(Array.isArray(out.identitiesRealized));
+  assert.equal(typeof out.bandPointer, "number");
+});
+
+test("a local write notifies the sync layer that a push is owed", async () => {
+  const wp = await fresh();
+  signIn("userA");
+  let fired = 0;
+  const off = wp.onSelfDirty(() => { fired += 1; });
+  wp.recordAscension();
+  assert.ok(fired > 0, "the server would never hear about this ascension");
+  off();
+  wp.recordAscension();
+  assert.equal(fired, 1, "unsubscribing works");
+});

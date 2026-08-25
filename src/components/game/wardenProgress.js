@@ -10,7 +10,57 @@ import { MEMORIES } from "./content/memories.js";
 import { AUTHORED_SELVES } from "./content/revelations.js";
 import { INSIGHTS } from "./content/insights.js";
 
-const KEY = "eterna:warden";
+// The Self belongs to the ACCOUNT, not the browser.
+//
+// This used to be one global key, which meant clearing cookies destroyed a
+// warden's whole identity AND two accounts on the same browser shared one -
+// you could log in and be shown someone else's memories. It is now keyed per
+// user (same convention as tutorialGate) and mirrored server-side; this copy
+// is a write-through cache and an offline buffer, never the authority.
+//
+// LEGACY is the old global blob. It has no owner recorded - the original
+// design never stored one - so it is claimed exactly once, by the first
+// account to log in after this change, and then MARKED rather than deleted.
+// Marking keeps it recoverable by hand if that attribution turns out wrong.
+const BASE = "eterna:warden";
+const LEGACY_KEY = "eterna:warden";
+const CLAIMED_KEY = "eterna:warden:migratedTo";
+
+function currentUserId() {
+  try {
+    const u = JSON.parse(localStorage.getItem("user") || "null");
+    return u?.userId || u?._id || u?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+function userKey() {
+  const id = currentUserId();
+  return id ? `${BASE}:${id}` : `${BASE}:local`;
+}
+
+/**
+ * The one-time claim of the pre-account blob. Returns it only for the account
+ * that legitimately gets it, and only once.
+ */
+function claimLegacy() {
+  try {
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (!raw) return null;
+
+    const id = currentUserId();
+    if (!id) return null; // signed out - don't attribute it to nobody
+
+    const claimedBy = localStorage.getItem(CLAIMED_KEY);
+    if (claimedBy && claimedBy !== id) return null; // not this account's history
+
+    localStorage.setItem(CLAIMED_KEY, id);
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 const RANKS = [
   { min: 0, title: "Untested Warden" },
@@ -32,20 +82,60 @@ const defaults = () => ({
   anamnesisSeen: false,        // capstone shown once
 });
 
+const hydrate = (s) => {
+  const merged = { ...defaults(), ...s, affinity: { ...model.emptyAffinity(), ...(s.affinity || {}) } };
+  // Migrate a pre-cycle save (no bandPointer): don't re-owe already-read memories.
+  if (typeof s.bandPointer !== "number") merged.bandPointer = merged.memoriesRecovered.length;
+  return merged;
+};
+
 function load() {
   try {
-    const s = JSON.parse(localStorage.getItem(KEY) || "null");
-    if (s && typeof s.ascensions === "number") {
-      const merged = { ...defaults(), ...s, affinity: { ...model.emptyAffinity(), ...(s.affinity || {}) } };
-      // Migrate a pre-cycle save (no bandPointer): don't re-owe already-read memories.
-      if (typeof s.bandPointer !== "number") merged.bandPointer = merged.memoriesRecovered.length;
-      return merged;
+    const s = JSON.parse(localStorage.getItem(userKey()) || "null");
+    if (s && typeof s.ascensions === "number") return hydrate(s);
+
+    // Nothing for this account yet - this may be the pre-account blob's owner.
+    const legacy = claimLegacy();
+    if (legacy && typeof legacy.ascensions === "number") {
+      const adopted = hydrate(legacy);
+      save(adopted);
+      return adopted;
     }
   } catch { /* first run / private mode */ }
   return defaults();
 }
+
 function save(state) {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* ignore */ }
+  try { localStorage.setItem(userKey(), JSON.stringify(state)); } catch { /* ignore */ }
+  // Local write lands FIRST and always - the UI stays instant and offline play
+  // keeps working. The server push is a debounced follow-up (see selfSync.js),
+  // and local is never cleared on its success.
+  dirtyListeners.forEach((fn) => { try { fn(); } catch (e) { console.error("self sync listener failed", e); } });
+}
+
+const dirtyListeners = new Set();
+
+/** Notified whenever local Self changes and owes the server a push. */
+export function onSelfDirty(fn) {
+  dirtyListeners.add(fn);
+  return () => dirtyListeners.delete(fn);
+}
+
+/** The full local record, for pushing to the server. */
+export function exportSelf() {
+  return load();
+}
+
+/**
+ * Adopt the server's canonical record. Called after a GET or a PUT response;
+ * the server has already merged, so this is a straight write - and it is the
+ * ONLY thing that overwrites local state wholesale.
+ */
+export function adoptSelf(serverSelf) {
+  if (!serverSelf || typeof serverSelf.ascensions !== "number") return getSelf();
+  save(hydrate(serverSelf));
+  emitSelf();
+  return getSelf();
 }
 
 const listeners = new Set();

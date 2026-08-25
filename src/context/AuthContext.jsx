@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { startSelfSync, flushSelfSync, _resetSelfSync } from "../components/game/selfSync";
 
 export const AuthContext = createContext();
 
@@ -8,6 +9,11 @@ export const AuthProvider = ({ children }) => {
 
   // Logout function (defined first so it can be used in useEffect)
   const logout = useCallback(() => {
+    // Get this session's progress onto the account before the token goes -
+    // afterwards there is nothing to authenticate the push with. The cached
+    // Self stays on disk under its per-user key either way.
+    flushSelfSync();
+    _resetSelfSync();
     localStorage.removeItem("user");
     localStorage.removeItem("token");
     setUser(null);
@@ -45,6 +51,11 @@ export const AuthProvider = ({ children }) => {
     if (storedUser && token) {
       try {
         setUser(JSON.parse(storedUser));
+        // The warden's identity lives on the account now. Pull it (and push
+        // whatever this browser has been holding) as soon as we know who this
+        // is - including the pre-account local blob, which is why this must
+        // run before any gameplay can write to it.
+        startSelfSync();
       } catch (error) {
         console.error("Failed to parse stored user:", error);
         logout();
@@ -56,6 +67,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem("user", JSON.stringify(userData));
     localStorage.setItem("token", token);
     setUser(userData);
+    startSelfSync();
   };
 
   return (

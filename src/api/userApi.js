@@ -18,6 +18,26 @@ export const getAchievements = async () => {
   }
 };
 
+// The Self: the warden's cross-universe identity, account-wide (see
+// components/game/selfSync.js). The server MERGES on write and returns the
+// canonical record, so a PUT is also a pull.
+export const getSelf = async () => {
+  try {
+    const res = await axios.get(`${API_URL}/self`, getAuthHeaders());
+    return res.data.self || null;
+  } catch (error) {
+    console.warn("Self fetch failed, using local cache:", error.response?.data || error.message);
+    return null;
+  }
+};
+
+export const putSelf = async (self) => {
+  // Deliberately NOT caught: selfSync needs a rejection to know it's still
+  // dirty and must retry. Swallowing it here would silently drop progress.
+  const res = await axios.put(`${API_URL}/self`, { self }, getAuthHeaders());
+  return res.data.self || null;
+};
+
 // Every species that has reached the stars under this player, across every
 // universe they've ever kept. Newest first. Survives the universe that
 // produced it, which is the whole point of it existing.
