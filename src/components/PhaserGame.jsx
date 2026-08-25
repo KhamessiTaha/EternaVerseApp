@@ -40,6 +40,7 @@ import { GenesisDirective } from "./game/ui/GenesisDirective";
 import { CivilizationLocatorPanel } from "./game/ui/CivilizationLocatorPanel";
 import { narrate, narrateOnce, pick, CURATOR } from "./game/narrator";
 import { resetTutorial } from "./game/tutorialGate";
+import { resetBests } from "./game/bestScores";
 import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
@@ -490,6 +491,12 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
             // never reaches sceneRef - bubble it up to the page that owns it.
             if (action.startsWith('preview-ending:')) {
               onPreviewEnding?.(action.slice('preview-ending:'.length));
+              return true;
+            }
+            // Personal bests live in a module, not on the scene.
+            if (action === 'reset-bests') {
+              resetBests();
+              showHint('Minigame personal bests cleared.', 'info', 4000);
               return true;
             }
             // Logic lives on the scene (devAction) - if this warns, the

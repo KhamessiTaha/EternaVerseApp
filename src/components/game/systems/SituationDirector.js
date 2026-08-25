@@ -25,7 +25,7 @@ import { besiegedWorlds } from "../combat/fleetModel.js";
 import { civLocation } from "../world/civPlacement.js";
 import { cosmicProfile } from "../world/cosmicProfile.js";
 import {
-  pickSituation, scheduleNext, situationProgress, MIN_GAP_MS,
+  SITUATIONS, pickSituation, scheduleNext, situationProgress, MIN_GAP_MS,
 } from "../situations/situationModel.js";
 
 const POLL_MS = 500; // how often we re-check a running situation
@@ -62,6 +62,23 @@ export class SituationDirector {
       return;
     }
     this._begin(time, def);
+  }
+
+  /**
+   * Dev console: stage a specific situation right now.
+   *
+   * The real cadence is 7 minutes to the first and 15-20 between, which makes
+   * this feature effectively untestable by playing. Returns false if the world
+   * genuinely can't support it (no siege exists for a distress call), because
+   * that's a real answer worth seeing rather than one to fake past.
+   */
+  forceSituation(id) {
+    if (this.active) this._end(false);
+    const def = SITUATIONS.find((s) => s.id === id);
+    if (!def) return false;
+    if (!def.eligible(this._ctx())) return false;
+    this._begin(this.scene.time.now, def);
+    return !!this.active;
   }
 
   /** What the world can currently support. */

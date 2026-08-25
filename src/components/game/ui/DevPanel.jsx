@@ -35,6 +35,14 @@ const ACTIONS = [
   // live tick. This re-arms it (drops the scripted war + its two civs) so the
   // real new-player trigger can be tested more than once.
   { label: '↺ Re-arm the scripted FIRST siege (then meet a civ + wait a tick)', action: 'reset-opening-siege', payload: {} },
+
+  // Material era gates climb over hundreds of steps, so a fresh universe can
+  // NEVER show you gold, uranium or a kilonova. These make that reachable.
+  { label: '⚛ Era: young (only H/He — everything else locked)', action: 'set-era', payload: { metallicity: 0, stellarGenerations: 0, blackHoleCount: 0 } },
+  { label: '⚛ Era: enriched (unlocks C/O + iron)', action: 'set-era', payload: { metallicity: 0.2, stellarGenerations: 2, blackHoleCount: 0 } },
+  { label: '⚛ Era: r-process (unlocks GOLD + kilonovae)', action: 'set-era', payload: { metallicity: 0.45, stellarGenerations: 3, blackHoleCount: 1000 } },
+  { label: '⚛ Era: mature (unlocks everything incl. uranium)', action: 'set-era', payload: { metallicity: 0.8, stellarGenerations: 6, blackHoleCount: 1e6 } },
+  { label: '⚛ Grant 20 of every material (test Mk2/Mk3 crafting)', action: 'grant-materials', payload: { amount: 20 } },
 ];
 
 // Session-local effects that never touch the server (hull is client state)
@@ -43,6 +51,19 @@ const CLIENT_ACTIONS = [
   { label: 'Destroy ship (test death cinematic)', action: 'destroy-ship' },
   { label: 'Repair hull to full', action: 'repair-hull' },
   { label: 'Next ship hull (session-only, ignores unlocks)', action: 'cycle-hull' },
+
+  // Cosmic events roll every 70-130s and the kilonova needs a 12% win on top
+  // of an era gate - not a testing loop.
+  { label: '☄ Force KILONOVA (gold/platinum/uranium · needs r-process era)', action: 'force-event:merger' },
+  { label: '☄ Force supernova (iron)', action: 'force-event:supernova' },
+  { label: '☄ Force derelict', action: 'force-event:derelict' },
+
+  // Situations are 7 minutes to the first, then 15-20 apart.
+  { label: '◈ Force situation: CASCADE FAILURE', action: 'force-situation:cascade' },
+  { label: '◈ Force situation: DISTRESS CALL (needs a live siege)', action: 'force-situation:distress' },
+  { label: '◈ Force situation: ANOMALOUS SIGNATURE', action: 'force-situation:windfall' },
+
+  { label: '↺ Reset minigame personal bests (re-test NEW BEST)', action: 'reset-bests' },
 ];
 
 // Launch any anomaly minigame directly at a chosen severity - feel/difficulty

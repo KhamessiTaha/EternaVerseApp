@@ -1200,6 +1200,22 @@ export const UniverseSceneFactory = (props) => {
         return true;
       }
 
+      // Force a scheduled SITUATION now. The real cadence is 7 minutes to the
+      // first and 15-20 between, which is not a testing loop.
+      if (action.startsWith('force-situation:')) {
+        const kind = action.slice('force-situation:'.length);
+        return this.situationDirector?.forceSituation?.(kind) ?? false;
+      }
+
+      // Force a cosmic event now. The kilonova especially is otherwise close
+      // to untestable: it needs metallicity >= 0.3 AND wins a 12% roll on a
+      // 70-130s timer, so a fresh universe can never show you one.
+      if (action.startsWith('force-event:')) {
+        const kind = action.slice('force-event:'.length);
+        this.cosmicEventSystem?.clear();
+        return !!this.cosmicEventSystem?.forceEvent?.(kind);
+      }
+
       switch (action) {
         case 'damage-hull': {
           const remaining = this.player.takeDamage(50);
