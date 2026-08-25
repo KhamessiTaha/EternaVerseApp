@@ -35,7 +35,19 @@ const Group = ({ title, children }) => (
 
 /** Read the frozen chronicle, or reconstruct what we can from the document. */
 function summarise(universe) {
-  if (universe?.chronicle) return universe.chronicle;
+  if (universe?.chronicle) {
+    // Heal one field. Chronicles written before the fix counted contained
+    // anomalies by filtering universe.anomalies, which is pruned as the sim
+    // runs and never held minor anomalies at all - so they froze a 0 for
+    // players who had contained dozens. metrics.anomaliesResolved is monotonic
+    // and still on the document, so an already-ended universe can be repaired
+    // at read time instead of needing a migration.
+    const counted = universe.metrics?.anomaliesResolved || 0;
+    return {
+      ...universe.chronicle,
+      anomaliesResolved: Math.max(universe.chronicle.anomaliesResolved || 0, counted),
+    };
+  }
 
   const cs = universe?.currentState || {};
   const civs = universe?.civilizations || [];
@@ -50,7 +62,10 @@ function summarise(universe) {
     ascended: (universe?.legacies || []).map((l) => ({
       civId: l.civId, designation: l.designation,
     })),
-    anomaliesResolved: (universe?.anomalies || []).filter((a) => a.resolved).length,
+    // metrics, not a filter over universe.anomalies: resolved anomalies get
+    // pruned as the sim runs, and minor anomalies never enter that array at
+    // all. Filtering it reported 0 to players who had contained dozens.
+    anomaliesResolved: universe?.metrics?.anomaliesResolved || 0,
     interventions: universe?.metrics?.playerInterventions || 0,
     researchEarned: universe?.research?.totalEarned || 0,
     discoveries: universe?.research?.discoveryCount || 0,
