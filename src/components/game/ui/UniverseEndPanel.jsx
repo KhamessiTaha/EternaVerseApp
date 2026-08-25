@@ -11,11 +11,12 @@
 // moment the universe died. Falls back to reading the live document for
 // universes that ended before chronicles existed - those are missing the parts
 // that get culled as a simulation runs, which is exactly why chronicles exist.
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button, Eyebrow } from '../../ui/primitives';
 import { sceneFor } from '../content/universeEnds';
 import { downloadDeathCard } from './deathCard';
+import { getSeedLeaderboard } from '../../../api/universeApi';
 
 const Row = ({ label, value, tone = 'text-ink' }) => (
   <div className="flex justify-between gap-6">
@@ -80,10 +81,31 @@ const big = (n) => {
   return Math.round(n).toLocaleString();
 };
 
+/** "3rd" - the word the player actually reads. */
+const ordinal = (n) => {
+  if (!Number.isFinite(n) || n < 1) return null;
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+};
+
 export const UniverseEndPanel = ({ universe, onReturn }) => {
   const [copied, setCopied] = useState(false);
+  const [board, setBoard] = useState([]);
   const scene = sceneFor(universe?.endCondition);
   const c = summarise(universe);
+
+  // The board for this seed. Fetched rather than passed in, because the run
+  // this universe just contributed is written server-side as it ends.
+  const code = c.shareCode;
+  useEffect(() => {
+    if (!code || c.shareCodeReproducible === false) return;
+    let live = true;
+    getSeedLeaderboard(code).then((rows) => { if (live) setBoard(rows || []); });
+    return () => { live = false; };
+  }, [code, c.shareCodeReproducible]);
+
+  const myPlace = board.find((r) => r.isYou)?.place ?? null;
 
   return (
     <div className="w-full h-full bg-void flex items-center justify-center overflow-y-auto py-10">
@@ -152,6 +174,46 @@ export const UniverseEndPanel = ({ universe, onReturn }) => {
             <Row label="Research earned" value={(c.researchEarned ?? 0).toLocaleString()} />
           </Group>
         </div>
+
+        {/* Same cosmos, different wardens. Only rendered when someone else has
+            actually played this seed - a board of one is just your own row,
+            and showing it would make the feature feel empty rather than new. */}
+        {board.length > 1 && (
+          <div className="mb-6 border border-line bg-void-raised text-left">
+            <div className="px-4 py-2.5 border-b border-line">
+              <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-ink-faint">
+                Wardens of {c.shareCode}
+              </div>
+              {myPlace && (
+                <div className="font-mono text-[11px] text-accent mt-0.5">
+                  You placed {ordinal(myPlace)} of {board.length}
+                </div>
+              )}
+            </div>
+            {board.slice(0, 5).map((r) => (
+              <div
+                key={r.universeId}
+                className={`flex items-center gap-3 px-4 py-2 border-b border-line/40 last:border-0 font-mono text-[11px] ${
+                  r.isYou ? 'bg-accent/10' : ''
+                }`}
+              >
+                <span className="w-6 text-ink-faint tabular-nums">{r.place}</span>
+                <span className={`flex-1 truncate ${r.isYou ? 'text-accent' : 'text-ink'}`}>
+                  {r.username}
+                </span>
+                <span className="text-ink-dim tabular-nums shrink-0">
+                  {r.ascensions > 0 && <span className="text-good">{r.ascensions}↑ </span>}
+                  {r.rescued > 0 && <span className="text-good">{r.rescued} saved · </span>}
+                  {r.finalAgeGyr} Gyr
+                </span>
+              </div>
+            ))}
+            <div className="px-4 py-2 font-mono text-[9px] text-ink-faint leading-relaxed">
+              Ranked by species raised to Type III, then worlds saved, then how
+              long you held it together.
+            </div>
+          </div>
+        )}
 
         {/* The invitation. A universe nobody can replay is a story that ends
             with you; a code turns it into something you can hand over. */}

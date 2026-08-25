@@ -361,6 +361,19 @@ export const reportHarvest = async (universeId, source, grade) => {
   }
 };
 
+// The board for one seed: same cosmos, different wardens. Ranked by
+// ascensions, then peoples saved, then final age - see backend
+// utils/leaderboard.js for why age comes last.
+export const getSeedLeaderboard = async (code) => {
+  try {
+    const res = await axios.get(`${API_URL}/leaderboard/${code}`, getAuthHeaders());
+    return res.data.board || [];
+  } catch (error) {
+    console.warn("Leaderboard fetch failed:", error.response?.data || error.message);
+    return [];
+  }
+};
+
 // Raise an artifact - the one thing the player builds. The server owns the
 // cost and the placement cap; we send where we are and what we're making.
 export const placeArtifact = async (universeId, payload) => {
