@@ -23,6 +23,7 @@ import { MinimapPanel } from "./game/ui/MinimapPanel";
 import { FullMapPanel } from "./game/ui/FullMapPanel";
 import { CodexPanel } from "./game/ui/CodexPanel";
 import { SelfPanel } from "./game/ui/SelfPanel";
+import { MaterialsPanel } from "./game/ui/MaterialsPanel";
 import { DiscoveryToast } from "./game/ui/DiscoveryToast";
 import { OutfittingPanel } from "./game/ui/OutfittingPanel";
 import { SettingsPanel } from "./game/ui/SettingsPanel";
@@ -62,6 +63,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
   const [discoveryToast, setDiscoveryToast] = useState(null);
   const [isCodexOpen, setIsCodexOpen] = useState(false);
   const [isSelfOpen, setIsSelfOpen] = useState(false);
+  const [isMaterialsOpen, setIsMaterialsOpen] = useState(false);
   const [isOutfittingOpen, setIsOutfittingOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChronicleOpen, setIsChronicleOpen] = useState(false);
@@ -172,7 +174,8 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
   // surges, hazards and timers.
   const anyPanelOpen = isMenuOpen || isCodexOpen || isSelfOpen || isOutfittingOpen || isSettingsOpen
     || isChronicleOpen || !!contactCivId || isMissionsOpen || isAchievementsOpen
-    || isHangarOpen || isDevOpen || isFullMapOpen || isLocatorOpen || isCuratorLogOpen;
+    || isHangarOpen || isDevOpen || isFullMapOpen || isLocatorOpen || isCuratorLogOpen
+    || isMaterialsOpen;
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene?.pauseGame) return;
@@ -198,6 +201,9 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
       }
       if (e.key === 'j' || e.key === 'J') {
         setIsSelfOpen(prev => !prev);
+      }
+      if (e.key === 'g' || e.key === 'G') {
+        setIsMaterialsOpen(prev => !prev);
       }
       if (e.key === 'u' || e.key === 'U') {
         setIsOutfittingOpen(prev => !prev);
@@ -235,6 +241,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
         if (isFullMapOpen) { setIsFullMapOpen(false); return; }
         if (isCodexOpen) { setIsCodexOpen(false); return; }
         if (isSelfOpen) { setIsSelfOpen(false); return; }
+        if (isMaterialsOpen) { setIsMaterialsOpen(false); return; }
         if (isOutfittingOpen) { setIsOutfittingOpen(false); return; }
         if (isChronicleOpen) { setIsChronicleOpen(false); return; }
         if (isSettingsOpen) { setIsSettingsOpen(false); return; }
@@ -245,7 +252,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFullMapOpen, isCodexOpen, isSelfOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen, isSettingsOpen, isLocatorOpen, isCuratorLogOpen]);
+  }, [isFullMapOpen, isCodexOpen, isSelfOpen, isOutfittingOpen, isChronicleOpen, contactCivId, isDevOpen, isAdmin, isMissionsOpen, isAchievementsOpen, isHangarOpen, isSettingsOpen, isLocatorOpen, isCuratorLogOpen, isMaterialsOpen]);
 
   useEffect(() => {
     // Wait for the saved loadout so the ship never spawns/pops from a
@@ -446,6 +453,11 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
         universe={universe}
       />
       <SelfPanel isOpen={isSelfOpen} onClose={() => setIsSelfOpen(false)} />
+      <MaterialsPanel
+        isOpen={isMaterialsOpen}
+        onClose={() => setIsMaterialsOpen(false)}
+        universe={universe}
+      />
       <OutfittingPanel
         isOpen={isOutfittingOpen}
         onClose={() => setIsOutfittingOpen(false)}

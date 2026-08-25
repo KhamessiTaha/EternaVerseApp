@@ -7,6 +7,8 @@
 import { useState } from 'react';
 import { UPGRADE_TRACKS } from '../content/upgradeCatalog.js';
 import { DOCTRINE_CHOICES } from '../content/doctrineCatalog.js';
+import { requirementFor, canAfford } from '../content/recipes.js';
+import { MATERIALS } from '../world/materials.js';
 import { playSfx } from '../audio.js';
 
 const LevelPips = ({ level, max }) => (
@@ -26,6 +28,7 @@ export const OutfittingPanel = ({ isOpen, onClose, universe, onPurchase, onSetDo
 
   const points = universe?.research?.points ?? 0;
   const upgrades = universe?.upgrades || {};
+  const materials = universe?.materials || {};
   const currentDoctrine = universe?.doctrine || 'none';
 
   const handleDoctrine = async (id) => {
@@ -96,7 +99,11 @@ export const OutfittingPanel = ({ isOpen, onClose, universe, onPurchase, onSetDo
             const maxLevel = info.costs.length;
             const maxed = level >= maxLevel;
             const cost = maxed ? null : info.costs[level];
-            const affordable = !maxed && points >= cost;
+            // RP researches the design; matter builds the thing. Mk 1 needs
+            // none, so early game reads exactly as it did.
+            const requirement = maxed ? null : requirementFor(track, level);
+            const matter = canAfford(materials, requirement);
+            const affordable = !maxed && points >= cost && matter.ok;
             const busy = busyTrack === track;
 
             return (
@@ -108,6 +115,23 @@ export const OutfittingPanel = ({ isOpen, onClose, universe, onPurchase, onSetDo
                   </div>
                   <div className="font-mono text-[11px] text-good">{info.effect}</div>
                   <div className="font-mono text-[10px] text-ink-faint mt-0.5">{info.flavor}</div>
+
+                  {/* The matter bill, itemised. Shortfalls are shown in red
+                      with what you hold, so a gate reads as "go and get two
+                      more gold" rather than a dead button. */}
+                  {requirement && (
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px]">
+                      {Object.entries(requirement).map(([id, need]) => {
+                        const held = materials[id] || 0;
+                        const short = held < need;
+                        return (
+                          <span key={id} className={short ? 'text-critical' : 'text-ink-dim'}>
+                            {MATERIALS[id]?.label || id} {held}/{need}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <button
