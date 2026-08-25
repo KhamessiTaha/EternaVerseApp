@@ -3,6 +3,7 @@ import seedrandom from "seedrandom";
 import { getChunkCoords, lerpFactorByDelta } from "../utils";
 import { STABILITY_CRITICAL_THRESHOLD } from "../constants";
 import { worldSeed, childScale, canDescend, DESCEND_CATEGORY, SCALE_LABEL, generateSystem } from "../world/worldScales.js";
+import { dropSalvage } from "../world/salvageDrop.js";
 import { getSettings, onSettingsChange } from "../settings.js";
 import { startAmbient, stopAmbient, updateEngine, stopEngine, playSfx } from "../audio.js";
 import { ChunkSystem } from "../systems/ChunkSystem";
@@ -323,6 +324,15 @@ export const UniverseSceneFactory = (props) => {
       if (!result.impact.anomalyResolved && anomaly.id === this.firstLightId) {
         result.impact.anomalyResolved = true;
         narrate(pick(CURATOR.firstLight.forgive));
+      }
+
+      // Mastery pays in salvage too. Dropped into the world at the anomaly
+      // rather than granted as a number, so a clean containment leaves
+      // something you have to fly through to collect - the reward is also a
+      // reason to stay where the action was.
+      const motes = result.impact?.salvageMotes || 0;
+      if (motes > 0 && Number.isFinite(anomaly.x) && Number.isFinite(anomaly.y)) {
+        dropSalvage(this, anomaly.x, anomaly.y, motes);
       }
 
       // Only notify if the minigame was won (anomalyResolved = true)

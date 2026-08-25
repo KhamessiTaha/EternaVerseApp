@@ -37,12 +37,23 @@ export const lerpFactorByDelta = (perFrameLerpFactor, delta) =>
 // -> reward-multiplier, shared by MiniGameScene (display) and GameplayPage
 // (what actually gets sent to the backend / applied to procedural anomalies)
 // so a grade always means the same reward regardless of where it's computed.
+// The spread used to be S 1.3 vs B 1.0 - about three percentage points of
+// stability between flawless and adequate. Seven physics minigames existed and
+// the game was telling players their skill didn't matter.
+//
+// B stays exactly 1.0 on purpose. The gap widens by lifting the top and
+// dropping the bottom, NOT by inflating everything: the median player's
+// economy is unchanged, while an S is worth 2.6x a B and 4.7x a C.
+//
+// `multiplier` now drives all three rewards - stability, research points and
+// salvage - so mastery pays in every currency at once. `salvageMotes` is the
+// one that can't be expressed as a multiplier (you can't drop 2.6 motes).
 export const GRADE_TIERS = [
-  { min: 95, grade: 'S', stabilityMultiplier: 1.3 },
-  { min: 85, grade: 'A', stabilityMultiplier: 1.15 },
-  { min: 70, grade: 'B', stabilityMultiplier: 1.0 },
-  { min: 50, grade: 'C', stabilityMultiplier: 0.85 },
-  { min: 0, grade: 'F', stabilityMultiplier: 0 },
+  { min: 95, grade: 'S', multiplier: 2.6, salvageMotes: 6 },
+  { min: 85, grade: 'A', multiplier: 1.6, salvageMotes: 4 },
+  { min: 70, grade: 'B', multiplier: 1.0, salvageMotes: 2 },
+  { min: 50, grade: 'C', multiplier: 0.55, salvageMotes: 1 },
+  { min: 0, grade: 'F', multiplier: 0, salvageMotes: 0 },
 ];
 
 export const getGradeForAccuracy = (accuracy) =>

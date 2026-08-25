@@ -10,6 +10,7 @@ import Phaser from 'phaser';
 import { getGradeForAccuracy } from '../utils';
 import { getSettings } from '../settings.js';
 import { playSfx } from '../audio.js';
+import { recordBest } from '../bestScores.js';
 
 // Shared observatory palette - keep in sync with tailwind.config.js tokens
 export const MG_COLORS = {
@@ -192,15 +193,26 @@ export class MiniGameScene extends Phaser.Scene {
     const grade = result.status === 'success' ? this.getGrade(result.accuracy) : this.getGrade(0);
 
     const baseBoost = 0.05 + (result.accuracy / 100) * 0.08;
-    const stabilityBoost = result.status === 'success' ? baseBoost * grade.stabilityMultiplier : -0.03;
+    const stabilityBoost = result.status === 'success' ? baseBoost * grade.multiplier : -0.03;
+
+    // Personal best per minigame per severity. Only recorded on a success -
+    // a failed containment isn't a score, it's a non-attempt.
+    const best = result.status === 'success'
+      ? recordBest(this.scene.key, this.anomaly?.severity, result.accuracy)
+      : null;
 
     const fullResult = {
       ...result,
       grade: grade.grade,
       gradeColor: grade.color,
+      newBest: !!best?.isNew,
+      bestAccuracy: best?.best ?? null,
       impact: {
         anomalyResolved: result.status === 'success',
         stabilityBoost,
+        // Mastery pays in salvage too, not just stability - an S leaves six
+        // motes in the water where a C leaves one.
+        salvageMotes: result.status === 'success' ? grade.salvageMotes : 0,
         scoreBoost: result.status === 'success' ? result.score : 0,
         message: result.status === 'success'
           ? `Stabilized · Grade ${grade.grade} · +${(stabilityBoost * 100).toFixed(1)}% stability`
@@ -237,6 +249,16 @@ export class MiniGameScene extends Phaser.Scene {
     const centerY = height / 2;
     const success = result.status === 'success';
     const themeColor = result.themeColor ?? MG_COLORS.accent;
+
+    // An S skips the debrief entirely. Mastery is rewarded with FLOW: the
+    // player who nailed it is the one who least needs to be told how they did,
+    // and making them sit through a summary punishes the thing we want. One
+    // flash, the grade punched over the playfield, and straight back to
+    // flight - the celebration lands in the world, not on a card.
+    if (success && result.grade === 'S') {
+      this._snapCutOut(result, width, height, centerY, themeColor);
+      return;
+    }
 
     // Overlay fades in fast; a colored flash punches on top of it.
     const overlay = this.add.rectangle(0, 0, width, height, MG_COLORS.void, 0.9).setOrigin(0, 0).setDepth(200).setAlpha(0);
@@ -287,9 +309,52 @@ export class MiniGameScene extends Phaser.Scene {
       this.tweens.add({ targets: flavor, alpha: 1, delay: 380 + n * 70 + 120, duration: 300 });
     }
 
-    this.time.delayedCall(2800, () => {
+    if (result.newBest) {
+      const badge = this.add.text(width / 2, centerY - 108, 'NEW BEST', {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: '13px', fontStyle: 'bold',
+        color: hexColor(MG_COLORS.good),
+      }).setOrigin(0.5).setDepth(202).setAlpha(0);
+      this.tweens.add({
+        targets: badge, alpha: 1, scale: { from: 1.8, to: 1 },
+        delay: 300, duration: 320, ease: 'Back.easeOut',
+      });
+    }
+
+    // Was 2800ms. That is a very long time to be told something you already
+    // know, every single containment, and it is the main reason the loop
+    // dragged. Long enough to read the grade, short enough to stay in flow.
+    this.time.delayedCall(1200, () => {
       this.completeGame(result);
     });
+  }
+
+  /**
+   * The S-grade exit: no debrief screen, just a punch and a cut.
+   * Deliberately ~420ms - long enough that the grade registers, short enough
+   * that it reads as the game getting out of your way.
+   */
+  _snapCutOut(result, width, height, centerY, themeColor) {
+    const flash = this.add.rectangle(0, 0, width, height, themeColor, 0.5)
+      .setOrigin(0, 0).setDepth(201).setBlendMode(Phaser.BlendModes.SCREEN);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 380, ease: 'Quad.easeOut' });
+    this.shake(120, 0.006);
+
+    const grade = this.add.text(width / 2, centerY, 'S', {
+      fontFamily: '"IBM Plex Mono", monospace', fontSize: '76px', fontStyle: 'bold',
+      color: hexColor(result.gradeColor ?? themeColor),
+    }).setOrigin(0.5).setDepth(202).setScale(2.4).setAlpha(0);
+    this.tweens.add({ targets: grade, alpha: 1, scale: 1, duration: 200, ease: 'Back.easeOut' });
+    this._burst(width / 2, centerY, result.gradeColor ?? themeColor, 26);
+
+    if (result.newBest) {
+      const badge = this.add.text(width / 2, centerY + 54, 'NEW BEST', {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: '14px', fontStyle: 'bold',
+        color: hexColor(MG_COLORS.good),
+      }).setOrigin(0.5).setDepth(202).setAlpha(0);
+      this.tweens.add({ targets: badge, alpha: 1, duration: 180, delay: 120 });
+    }
+
+    this.time.delayedCall(420, () => this.completeGame(result));
   }
 
   /**
