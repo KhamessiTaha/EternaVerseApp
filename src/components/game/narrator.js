@@ -315,6 +315,41 @@ export const CURATOR = {
       "A word before you guess in here, warden: this is a cluster. Ellipticals crowd together - they're what galaxies become after they collide, and crowds mean collisions. Out in the empty field it's mostly spirals, still calmly turning gas into stars. Where you are is evidence about what you're looking at.",
     ],
   },
+  // SITUATIONS: the large beat, one every 15-20 minutes. These lines carry the
+  // stakes and the clock, because a situation the player doesn't NOTICE is
+  // just ambient noise with a countdown attached.
+  situation: {
+    cascade: [
+      "Warden — the fabric is going. Not a tear, a CASCADE: they're opening faster than they're closing and each one makes the next likelier. You have a few minutes before this stops being something you can contain and starts being something you survive. Move.",
+      "Cascade failure. I want to be clear about what that means: the tears are now causing each other. Seal them fast enough and it stops. Don't, and it won't.",
+    ],
+    distress: [
+      "A world is dying while we speak, and you are the only thing in the sky that can reach it. There is a clock on this one, warden, and it is not a generous one. Locator [B].",
+      "Distress call, and this time you have a deadline. Somebody's fleet is over an inhabited world and the bombers do not stop to negotiate. Go now or don't go at all.",
+    ],
+    windfall: [
+      "Something out there is putting out a reading I can't account for, and it's decaying. Not dangerous, for once - just brief. Reach it before it stops being interesting.",
+      "Anomalous signature, and a short window on it. Go and look. Curiosity is the cheapest thing you'll ever be paid for.",
+    ],
+    resolved: [
+      "Handled. That was a real thing that was really happening, and you were really there for it. Sessions blur together, warden - that one won't.",
+      "Contained, in time. I keep a private list of the moments that actually mattered. That one's on it.",
+    ],
+    missed: {
+      cascade: [
+        "The cascade burned itself out without you. The universe is thinner for it - not fatally, not yet, but thinner. Some of these you don't get to walk away from twice.",
+      ],
+      distress: [
+        "The call stopped. I won't tell you what that means, because you already know, and because I'd rather you felt it than heard it from me.",
+      ],
+      windfall: [
+        "The signature decayed. Nothing lost but a reading and whatever you'd have learned from it, which is - admittedly - the only thing out here that lasts.",
+      ],
+      generic: [
+        "That one resolved itself without you. They mostly do. That's rather the problem with a universe this size.",
+      ],
+    },
+  },
   firstResolve: [
     "One anomaly contained. The universe has taken notice. The universe also forgets very quickly.",
     "Containment successful. The fabric of spacetime thanks you, in its way, which is silence.",

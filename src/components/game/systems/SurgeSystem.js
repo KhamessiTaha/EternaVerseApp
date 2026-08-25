@@ -63,6 +63,31 @@ export class SurgeSystem {
       && this.scene.time.now > (s.player.invulnerableUntil || 0);
   }
 
+  /**
+   * Stage a surge on demand, larger than the ambient ones, for
+   * SituationDirector. Returns the spawned ids (empty if no loaded chunk was
+   * near enough to hold them, which the caller treats as "couldn't stage").
+   *
+   * Kept separate from _begin so the ambient rhythm keeps its own cadence and
+   * its own narration - a Cascade Failure is announced by the Director with a
+   * deadline, not by the routine surge line.
+   */
+  forceSurge(count) {
+    if (this.active || !this._canSurge()) return [];
+    const stability = this._stability();
+    const ids = [];
+    for (let i = 0; i < count; i++) {
+      const id = this._spawnOne(stability);
+      if (id) ids.push(id);
+    }
+    if (ids.length === 0) return [];
+
+    this.active = { ids, total: ids.length, startedAt: this.scene.time.now, escalated: false };
+    // Push the next ambient surge out so the player isn't fighting two.
+    this.nextAt = this.scene.time.now + CALM_MAX;
+    return ids;
+  }
+
   _begin(time) {
     const stability = this._stability();
     const count = 3 + Math.floor((1 - stability) * 3); // 3..6, worse when unstable

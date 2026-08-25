@@ -53,7 +53,10 @@ export class HUD {
       gamma: this.scene.gamma ?? 1,
       survey: this.scene.scanSystem?.getSurvey() ?? null,
       traversal: this.scene.gravitySlingSystem?.getTraversal() ?? null,
-      surge: this.scene.surgeSystem?.getSurge() ?? null
+      surge: this.scene.surgeSystem?.getSurge() ?? null,
+      // The large beat (SituationDirector): null almost always, and the most
+      // important thing on screen when it isn't.
+      situation: this.scene.situationDirector?.getSituation() ?? null
     };
   }
 

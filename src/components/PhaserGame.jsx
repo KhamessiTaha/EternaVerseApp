@@ -18,6 +18,7 @@ import { HUDPanel } from "./game/ui/HUDPanel";
 import { SurveyStreakOverlay } from "./game/ui/SurveyStreakOverlay";
 import SpeedLinesOverlay from "./game/ui/SpeedLinesOverlay";
 import SurgeAlarmOverlay from "./game/ui/SurgeAlarmOverlay";
+import SituationBanner from "./game/ui/SituationBanner";
 import { MinimapPanel } from "./game/ui/MinimapPanel";
 import { FullMapPanel } from "./game/ui/FullMapPanel";
 import { CodexPanel } from "./game/ui/CodexPanel";
@@ -396,6 +397,10 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
 
       {/* Anomaly surge alarm (top center, above the streak) */}
       <SurgeAlarmOverlay surge={hudData?.surge} />
+
+      {/* The large beat: a timed, located SITUATION. Rendered above the surge
+          alarm because a Cascade Failure outranks the tears it's made of. */}
+      <SituationBanner situation={hudData?.situation} />
 
       {/* Full Map Overlay */}
       <FullMapPanel

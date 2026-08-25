@@ -23,6 +23,7 @@ import { CivFleetSystem } from "../systems/CivFleetSystem";
 import { WaypointSystem } from "../systems/WaypointSystem";
 import { GravitySlingSystem } from "../systems/GravitySlingSystem";
 import { SurgeSystem } from "../systems/SurgeSystem";
+import { SituationDirector } from "../systems/SituationDirector";
 import { HazardSystem } from "../systems/HazardSystem";
 import { SalvageSystem } from "../systems/SalvageSystem";
 import { AbilitySystem } from "../systems/AbilitySystem";
@@ -209,6 +210,10 @@ export const UniverseSceneFactory = (props) => {
       this.hazardSystem = new HazardSystem(this);
       this.gravitySlingSystem = new GravitySlingSystem(this);
       this.surgeSystem = new SurgeSystem(this);
+      // The large beat: one real, timed, located event every 15-20 minutes, so
+      // a session that never reaches Ascension still had things HAPPEN in it.
+      // Constructed after the systems it stages (surge, cosmic events).
+      this.situationDirector = new SituationDirector(this);
       this.salvageSystem = new SalvageSystem(this);
       this.abilitySystem = new AbilitySystem(this);
       this.cosmicEventSystem = new CosmicEventSystem(this);
@@ -776,6 +781,7 @@ export const UniverseSceneFactory = (props) => {
       // Anomaly surges (the loop's tension spikes) - self-gates to the galactic
       // scale and manages its own calm/spike cadence.
       this.surgeSystem.update(time);
+      this.situationDirector.update(time);
 
       // Update minimap (now sends data to React)
       this.minimapSystem.update(

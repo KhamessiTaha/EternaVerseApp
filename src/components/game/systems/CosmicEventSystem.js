@@ -65,6 +65,30 @@ export class CosmicEventSystem {
     this.active = null;
   }
 
+  /**
+   * Spawn a specific event right now, for SituationDirector. Returns its
+   * {x, y} so the situation can be waypointed, or null if one is already
+   * running. Unlike _spawn it doesn't roll for a kind - a headline event
+   * should be the one that was promised on the banner.
+   */
+  forceEvent(kind) {
+    if (this.active || this.scene.respawning) return null;
+    const p = this.scene.player;
+    if (!p) return null;
+
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Phaser.Math.Between(...SPAWN_DIST);
+    const x = p.x + Math.cos(angle) * dist;
+    const y = p.y + Math.sin(angle) * dist;
+    const dir = compass(x - p.x, y - p.y);
+
+    const spawn = this[`_spawn${kind.charAt(0).toUpperCase()}${kind.slice(1)}`];
+    if (typeof spawn !== "function") return null;
+    spawn.call(this, this.scene.time.now, x, y, dir);
+    playSfx("alert");
+    return { x, y };
+  }
+
   _spawn(time) {
     const p = this.scene.player;
     const angle = Math.random() * Math.PI * 2;
