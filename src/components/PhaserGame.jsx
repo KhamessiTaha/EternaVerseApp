@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useContext } from "react";
+﻿import { useEffect, useRef, useState, useContext } from "react";
 import Phaser from "phaser";
 import { AuthContext } from "../context/AuthContext";
 import { getSettings, onSettingsChange } from "./game/settings.js";
@@ -43,7 +43,7 @@ import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
 
-const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine, onWarStrike, onBombardment, onPreviewEnding }) => {
+const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDiscovery, onPurchaseUpgrade, onContactAction, onDevAction, onClaimMission, onEventReward, onVesselLost, onSetDoctrine, onWarStrike, onBombardment, onPreviewEnding, onHarvest }) => {
   const { user } = useContext(AuthContext);
   const toast = useToast();
 
@@ -279,6 +279,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
       onHint: showHint,
       onWarStrike,
       onBombardment,
+      onHarvest,
     });
 
     const container = document.getElementById("phaser-container");
@@ -522,7 +523,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
             settings: setIsSettingsOpen,
             'replay-tutorial': () => {
               resetTutorial();
-              showHint('Tutorial re-enabled — start a new universe to replay the guided opening.', 'info', 7000);
+              showHint('Tutorial re-enabled â€” start a new universe to replay the guided opening.', 'info', 7000);
             },
           }[id];
           open?.(true);
@@ -544,7 +545,7 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
           setWaypointCivId(civId);
           sceneRef.current.setCivWaypoint(civId);
           setIsLocatorOpen(false);
-          showHint('Locator engaged — follow the green arrow. ENTER to descend into a marked structure.', 'info', 7000);
+          showHint('Locator engaged â€” follow the green arrow. ENTER to descend into a marked structure.', 'info', 7000);
         }}
         onStop={() => {
           setWaypointCivId(null);

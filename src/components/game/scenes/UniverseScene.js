@@ -41,7 +41,7 @@ import { dlog } from "../../../devLog.js";
 let welcomeHintShown = false;
 
 export const UniverseSceneFactory = (props) => {
-  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onVesselLost, onWaypointArrive, onHint, onWarStrike, onBombardment } = props;
+  const { onHUDUpdate, onMinimapUpdate, onFullMapUpdate, onDiscovery, onCivContact, onSceneReady, onEventReward, onVesselLost, onWaypointArrive, onHint, onWarStrike, onBombardment, onHarvest } = props;
 
   return class UniverseScene extends Phaser.Scene {
     constructor() {
@@ -61,6 +61,9 @@ export const UniverseSceneFactory = (props) => {
       this.onHint = onHint;
       this.onWarStrike = onWarStrike;
       this.onBombardment = onBombardment;
+      // Matter harvested from a cosmic source (materials.js). The server owns
+      // the era gate, so this only reports WHERE the harvest happened.
+      this.onHarvest = onHarvest;
     }
 
     init({ universe, onAnomalyResolved, setStats }) {

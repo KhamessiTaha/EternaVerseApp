@@ -560,6 +560,19 @@ export const CURATOR = {
       "Spectral data captured. Now would be an excellent time to be somewhere else.",
       "You have the data. The star has seconds. Do the arithmetic while accelerating.",
     ],
+    // The kilonova. The only source of the heavy elements, in this game and in
+    // reality - so these lines carry the one fact that makes it worth the trip.
+    merger: (dir) => pick([
+      `Two neutron stars to the ${dir}, warden, and they are falling into each other. Whatever you are doing is less important than this. Everything heavier than iron was made in a moment like the one about to happen — there is no other kitchen. GO.`,
+      `Inspiral, ${dir} of you. Two dead stars spiralling into a collision that will forge more gold in two seconds than every star that ever lived. You have about forty seconds to be there for it.`,
+    ]),
+    mergerCaptured: [
+      "You took matter out of a kilonova. Gold, platinum, things heavier than a star can build — the r-process, in your hold. Very few things have ever done what you just did, and most of them were stars.",
+      "Harvested. Do you understand what that is? Not mined, not manufactured — witnessed into your possession at the exact instant the universe invented it.",
+    ],
+    mergerMissed: [
+      "They merged without you. The heavy elements are out there now, scattered into gas you will never separate them from. The universe makes these rarely, warden. It does not schedule them around you.",
+    ],
     comet: (dir) => pick([
       `A comet is crossing to the ${dir}. Older than most civilizations, faster than most regrets. Skim it.`,
       `Comet inbound from the ${dir}. Its tail is full of usable ice. Its head is full of momentum. Respect both.`,

@@ -19,7 +19,9 @@ import {
   setDoctrine,
   reportWarStrike,
   reportBombardment,
+  reportHarvest,
 } from "../api/universeApi";
+import { materialById } from "../components/game/world/materials";
 import { getPantheon } from "../api/userApi";
 import { Button } from "../components/ui/primitives";
 import { FadeFromColor } from "../components/ui/ScreenFlash";
@@ -694,6 +696,21 @@ const GameplayPage = () => {
     }
   };
 
+  // Matter harvested from a cosmic source. The server owns the era gate, so an
+  // empty result is a normal outcome the player should be TAUGHT rather than
+  // an error - "this universe has not forged gold yet" is the whole mechanic.
+  const handleHarvest = async (source, grade = 1) => {
+    const data = await reportHarvest(id, source, grade);
+    if (data.ok) {
+      const mat = materialById(data.id);
+      setUniverse((prev) => (prev ? { ...prev, materials: data.materials } : prev));
+      toast(`+${data.amount} ${mat?.label || data.id}`, 'success', 5000);
+      narrateOnce(`material-first:${data.id}`, `${mat?.tell || ''}`, 'awe');
+    } else if (data.empty) {
+      toast(data.reason, 'info', 7000);
+    }
+  };
+
   // Admin dev/test actions - server re-validates the admin flag per request
   const handleDevAction = async (action, payload) => {
     try {
@@ -891,6 +908,7 @@ const GameplayPage = () => {
         onWarStrike={handleWarStrike}
         onBombardment={handleBombardment}
         onPreviewEnding={setPreviewEnd}
+        onHarvest={handleHarvest}
       />
       {previewEnd && (
         <CinematicBoundary

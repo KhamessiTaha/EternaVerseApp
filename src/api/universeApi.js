@@ -344,6 +344,23 @@ export const reportBombardment = async (universeId, civId, runs, attackerCivId) 
   }
 };
 
+// Harvest matter from a cosmic source. The server owns the era gate - it knows
+// whether this universe has forged gold yet - so it decides the yield and we
+// only report where we were and how well we did.
+export const reportHarvest = async (universeId, source, grade) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/${universeId}/harvest`,
+      { source, grade },
+      getAuthHeaders()
+    );
+    return res.data;
+  } catch (error) {
+    console.warn("Harvest failed:", error.response?.data || error.message);
+    return { ok: false };
+  }
+};
+
 // Prune old resolved anomalies from the universe document
 export const cleanupAnomalies = async (universeId, keepRecentMinutes = 60) => {
   try {

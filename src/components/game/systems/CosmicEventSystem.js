@@ -17,6 +17,7 @@ import { narrate, pick, CURATOR } from "../narrator.js";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import { HULL_STATS } from "../content/hullCatalog.js";
 import { TextureFactory } from "../graphics/TextureFactory.js";
+import { harvestableFrom } from "../world/materials.js";
 
 const FIRST_EVENT_DELAY = [45000, 80000];
 const EVENT_INTERVAL = [70000, 130000];
@@ -59,7 +60,7 @@ export class CosmicEventSystem {
   clear() {
     const e = this.active;
     if (!e) return;
-    ["core", "glow", "head", "tail", "hulk", "ring", "label"].forEach((k) => e[k]?.destroy?.());
+    ["core", "glow", "head", "tail", "hulk", "ring", "label", "a", "b"].forEach((k) => e[k]?.destroy?.());
     (e.motes || []).forEach((m) => m?.destroy?.());
     if (e.light) this.scene.lights.removeLight(e.light);
     this.active = null;
@@ -97,9 +98,16 @@ export class CosmicEventSystem {
     const y = p.y + Math.sin(angle) * dist;
     const dir = compass(x - p.x, y - p.y);
 
+    // A kilonova only appears once the universe is rich enough for one to pay
+    // out. Spawning it earlier would send the player sprinting across the map
+    // for an empty harvest, which teaches the wrong lesson about the gate.
+    const cs = this.scene.universe?.currentState;
+    const mergerPossible = harvestableFrom("merger", cs).length > 0;
+
     const roll = Math.random();
-    if (roll < 0.35) this._spawnSupernova(time, x, y, dir);
-    else if (roll < 0.7) this._spawnComet(time, x, y, dir);
+    if (mergerPossible && roll < 0.12) this._spawnMerger(time, x, y, dir);
+    else if (roll < 0.42) this._spawnSupernova(time, x, y, dir);
+    else if (roll < 0.72) this._spawnComet(time, x, y, dir);
     else this._spawnDerelict(time, x, y, dir);
 
     playSfx("alert");
@@ -118,6 +126,82 @@ export class CosmicEventSystem {
       backgroundColor: "#0c0f1c",
       padding: { x: 8, y: 5 },
     }).setOrigin(0.5).setDepth(1000);
+  }
+
+  // ------------------------------------------------------------- kilonova
+  //
+  // Two neutron stars falling into each other. The ONLY source of gold,
+  // platinum and uranium in the game, because it's the only source of them in
+  // reality - the r-process needs a neutron flux nothing else provides.
+  //
+  // Deliberately the rarest and shortest-lived event: it is the thing players
+  // learn to drop everything for, and the reason the age of a universe starts
+  // mattering minute to minute.
+
+  _spawnMerger(time, x, y, dir) {
+    const lowQuality = this.scene.graphicsQualityLow;
+    const lightIntensity = this.scene.graphicsQualityHigh ? 2.4 : this.scene.graphicsQualityMedium ? 1.6 : 0;
+
+    // Two cores in a tightening orbit - the inspiral you can actually watch.
+    const a = this.scene.add.circle(x, y, 5, 0xdff0ff, 1)
+      .setDepth(9).setBlendMode(Phaser.BlendModes.ADD);
+    const b = this.scene.add.circle(x, y, 5, 0xdff0ff, 1)
+      .setDepth(9).setBlendMode(Phaser.BlendModes.ADD);
+    const glow = this.scene.add.circle(x, y, 26, 0x9fd8ff, lowQuality ? 0.16 : 0.28)
+      .setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+    const light = lightIntensity > 0
+      ? this.scene.lights.addLight(x, y, 620, 0xbfe3ff, lightIntensity) : null;
+    const label = this._label(x, y, "", "#9fd8ff");
+
+    this.active = {
+      kind: "merger", x, y, a, b, glow, light, label,
+      // Short window on purpose. A kilonova is a sprint, not an errand.
+      mergeAt: time + 42000,
+      separation: 46,
+      captured: false,
+    };
+    narrate(CURATOR.events.merger(dir), "awe");
+  }
+
+  _update_merger(time) {
+    const e = this.active;
+    const p = this.scene.player;
+    const remaining = Math.max(0, Math.ceil((e.mergeAt - time) / 1000));
+    const t = 1 - Math.max(0, (e.mergeAt - time) / 42000); // 0 -> 1
+
+    // The inspiral: separation collapses and the orbit accelerates, which is
+    // what a real one does - it loses energy to gravitational waves.
+    const sep = e.separation * Math.pow(1 - t, 0.7);
+    const spin = time / (260 - t * 210);
+    e.a.setPosition(e.x + Math.cos(spin) * sep, e.y + Math.sin(spin) * sep);
+    e.b.setPosition(e.x - Math.cos(spin) * sep, e.y - Math.sin(spin) * sep);
+    e.glow.setScale(1 + t * 1.8);
+    if (e.light) e.light.setIntensity(1.6 + t * 3.2);
+
+    e.label.setText(
+      `NEUTRON STAR INSPIRAL\nT-${remaining}s${e.captured ? " · MATTER TAKEN" : " · CLOSE TO HARVEST"}`
+    );
+
+    if (!e.captured && Phaser.Math.Distance.Between(p.x, p.y, e.x, e.y) < 300) {
+      e.captured = true;
+      playSfx("surveyMilestone");
+      narrate(pick(CURATOR.events.mergerCaptured), "awe");
+      this.scene.onHarvest?.("merger");
+    }
+
+    if (time >= e.mergeAt) this._detonateMerger();
+  }
+
+  _detonateMerger() {
+    const e = this.active;
+    // The kilonova itself: a hard blue-white flash, then gone.
+    this.scene.cameras.main.flash(320, 190, 220, 255, false);
+    playSfx("explosion");
+    if (!e.captured) narrate(pick(CURATOR.events.mergerMissed), "grim");
+
+    ["a", "b", "glow", "label"].forEach((k) => e[k]?.destroy?.());
+    if (e.light) this.scene.lights.removeLight(e.light);
+    this._finish();
   }
 
   // ---------------------------------------------------------- supernova
@@ -164,6 +248,8 @@ export class CosmicEventSystem {
       playSfx("scanComplete");
       narrate(pick(CURATOR.events.supernovaCaptured));
       this._claim("supernova");
+      // A dying massive star is where iron comes from, and the only place.
+      this.scene.onHarvest?.("supernova");
     }
 
     if (time >= e.detonateAt) this._detonateSupernova();
