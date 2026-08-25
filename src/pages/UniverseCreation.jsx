@@ -2,9 +2,10 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createUniverse } from "../api/universeApi";
-import { Sparkles, Activity, Zap, Info, Loader2, ArrowLeft, Shuffle } from "lucide-react";
+import { Sparkles, Activity, Zap, Info, Loader2, ArrowLeft } from "lucide-react";
 import { Button, Panel, Field, Eyebrow, Alert } from "../components/ui/primitives";
 import { useToast } from "../components/ui/ToastProvider";
+import { normalizeCode } from "../components/game/world/seedCode";
 
 const DIFFICULTIES = [
   {
@@ -35,9 +36,15 @@ const UniverseCreation = () => {
   const toast = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  // Optional: play the universe someone handed you. The code IS the seed, so
+  // an identical cosmos is generated with no shared lookup anywhere.
+  const [shareCode, setShareCode] = useState("");
+  const [codeError, setCodeError] = useState("");
   const [universeData, setUniverseData] = useState({
+    // No seed sent on purpose: the server generates a SHARE CODE and uses it
+    // as the seed, so every new universe is reproducible from seven readable
+    // characters. Sending a random string here would defeat that.
     name: "",
-    seed: Math.random().toString(36).substring(2, 15),
     difficulty: "Beginner",
     constants: { gravitationalConstant: 6.67430e-11 },
     initialConditions: { matterAntimatterRatio: 1.0000001 },
@@ -45,10 +52,6 @@ const UniverseCreation = () => {
 
   const handleChange = (e) => {
     setUniverseData({ ...universeData, [e.target.name]: e.target.value });
-  };
-
-  const randomizeSeed = () => {
-    setUniverseData({ ...universeData, seed: Math.random().toString(36).substring(2, 15) });
   };
 
   const handleCreateUniverse = async () => {
@@ -60,8 +63,22 @@ const UniverseCreation = () => {
     setError("");
     setIsLoading(true);
 
+    // Validate the code before spending a round trip, so a typo is corrected
+    // here rather than becoming a universe that isn't the one they wanted.
+    let normalized = null;
+    if (shareCode.trim()) {
+      normalized = normalizeCode(shareCode);
+      if (!normalized) {
+        setCodeError("That doesn't look like a universe code. They read like KX7-2291.");
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
-      const universe = await createUniverse(universeData);
+      const universe = await createUniverse(
+        normalized ? { ...universeData, shareCode: normalized } : universeData
+      );
       toast(`Universe "${universe.name}" created - initiating genesis`, 'success');
       navigate(`/big-bang/${universe._id}`, { state: { universe } });
     } catch (error) {
@@ -114,29 +131,27 @@ const UniverseCreation = () => {
                 onChange={handleChange}
               />
 
+              {/* A universe you can be handed. Leave it blank for a fresh
+                  cosmos; type a friend's code to get the identical one. */}
               <div>
                 <label className="block font-mono text-[10px] uppercase tracking-wider text-ink-faint mb-2">
-                  Cosmic Seed
+                  Universe Code · optional
                 </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    name="seed"
-                    value={universeData.seed}
-                    readOnly
-                    className="flex-1 px-3 py-2.5 bg-void border border-line text-ink font-mono text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={randomizeSeed}
-                    title="Generate new seed"
-                    className="px-3.5 border border-line hover:border-accent text-ink-dim hover:text-accent transition-colors"
-                  >
-                    <Shuffle className="w-4 h-4" />
-                  </button>
-                </div>
-                <p className="text-xs text-ink-faint mt-1.5">
-                  This seed determines your universe's quantum randomness
+                <input
+                  type="text"
+                  value={shareCode}
+                  onChange={(e) => {
+                    setShareCode(e.target.value.toUpperCase());
+                    setCodeError("");
+                  }}
+                  placeholder="KX7-2291"
+                  maxLength={9}
+                  className={`w-full px-3 py-2.5 bg-void border text-ink font-mono text-lg tracking-[0.15em] ${
+                    codeError ? 'border-critical' : 'border-line focus:border-accent'
+                  } outline-none transition-colors`}
+                />
+                <p className={`text-xs mt-1.5 ${codeError ? 'text-critical' : 'text-ink-faint'}`}>
+                  {codeError || "Someone shared a universe with you? Enter its code to play the same cosmos. Leave empty for a new one."}
                 </p>
               </div>
 

@@ -11,9 +11,11 @@
 // moment the universe died. Falls back to reading the live document for
 // universes that ended before chronicles existed - those are missing the parts
 // that get culled as a simulation runs, which is exactly why chronicles exist.
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button, Eyebrow } from '../../ui/primitives';
 import { sceneFor } from '../content/universeEnds';
+import { downloadDeathCard } from './deathCard';
 
 const Row = ({ label, value, tone = 'text-ink' }) => (
   <div className="flex justify-between gap-6">
@@ -64,6 +66,7 @@ const big = (n) => {
 };
 
 export const UniverseEndPanel = ({ universe, onReturn }) => {
+  const [copied, setCopied] = useState(false);
   const scene = sceneFor(universe?.endCondition);
   const c = summarise(universe);
 
@@ -135,7 +138,45 @@ export const UniverseEndPanel = ({ universe, onReturn }) => {
           </Group>
         </div>
 
-        <Button onClick={onReturn}>Return to Dashboard</Button>
+        {/* The invitation. A universe nobody can replay is a story that ends
+            with you; a code turns it into something you can hand over. */}
+        {c.shareCode && (
+          <div className="mb-6 border border-accent/40 bg-accent/5 p-4">
+            <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-accent/80 mb-1.5">
+              This universe
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <span className="font-mono text-2xl text-accent tracking-[0.15em]">
+                {c.shareCode}
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(c.shareCode);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1800);
+                }}
+                className="font-mono text-[10px] uppercase tracking-wider text-ink-dim hover:text-ink border border-line-bright hover:border-accent px-2.5 py-1 transition-colors"
+              >
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <p className="font-mono text-[10px] text-ink-faint mt-2 leading-relaxed">
+              {c.shareCodeReproducible === false
+                ? 'This universe predates share codes — the code identifies it, but will not rebuild it.'
+                : 'Anyone who starts a universe with this code gets the same cosmos you did.'}
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2.5">
+          <Button onClick={onReturn}>Return to Dashboard</Button>
+          <button
+            onClick={() => downloadDeathCard(universe)}
+            className="font-mono text-[11px] tracking-wider uppercase text-ink-dim hover:text-ink border border-line-bright hover:border-accent px-4 py-2 transition-colors"
+          >
+            Save death card
+          </button>
+        </div>
       </motion.div>
     </div>
   );
