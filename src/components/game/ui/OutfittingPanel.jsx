@@ -30,6 +30,12 @@ export const OutfittingPanel = ({ isOpen, onClose, universe, onPurchase, onSetDo
   const upgrades = universe?.upgrades || {};
   const materials = universe?.materials || {};
   const currentDoctrine = universe?.doctrine || 'none';
+  // Total matter on hand, for the header. A bare count answers the question a
+  // player actually has here - "do I have anything to build with?" - without
+  // making them close this and open the Materials panel to find out.
+  const heldUnits = Object.values(materials).reduce(
+    (sum, n) => sum + (Number.isFinite(Number(n)) ? Number(n) : 0), 0
+  );
 
   const handleDoctrine = async (id) => {
     if (busyDoctrine || id === currentDoctrine || !onSetDoctrine) return;
@@ -70,13 +76,24 @@ export const OutfittingPanel = ({ isOpen, onClose, universe, onPurchase, onSetDo
       <div className="relative w-[90vw] max-w-2xl max-h-[88vh] overflow-y-auto bg-void border border-line">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <div>
-            <h2 className="font-sans text-ink font-medium text-lg tracking-wide">Outfitting</h2>
-            <p className="text-ink-faint text-[10px] font-mono tracking-wider uppercase">Ship Systems</p>
+            {/* Named for what it does. This IS the crafting bench - Mk2 and Mk3
+                are built from harvested matter - but it was called "Outfitting
+                / Ship Systems" and showed only RP, so players with a full hold
+                never opened it looking for crafting. */}
+            <h2 className="font-sans text-ink font-medium text-lg tracking-wide">Crafting &amp; Outfitting</h2>
+            <p className="text-ink-faint text-[10px] font-mono tracking-wider uppercase">Ship Systems · Fabrication</p>
           </div>
           <div className="flex items-center gap-6 font-mono">
+            {/* Both currencies, because both are spent here. RP researches the
+                design; matter builds the thing. Showing only RP hid half the
+                cost model from the one screen that charges it. */}
             <div className="text-right">
               <div className="text-[9px] text-ink-faint uppercase tracking-wider">Research</div>
               <div className="text-accent text-sm tabular-nums">{points} RP</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[9px] text-ink-faint uppercase tracking-wider">Matter</div>
+              <div className="text-good text-sm tabular-nums">{heldUnits} units</div>
             </div>
             <button
               onClick={onClose}
