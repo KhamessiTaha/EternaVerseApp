@@ -41,6 +41,7 @@ import { CivilizationLocatorPanel } from "./game/ui/CivilizationLocatorPanel";
 import { narrate, narrateOnce, pick, CURATOR } from "./game/narrator";
 import { resetTutorial } from "./game/tutorialGate";
 import { resetBests } from "./game/bestScores";
+import { resetClassifyRecord, certifyAllClassify } from "./game/wardenProgress";
 import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
@@ -505,6 +506,17 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
             if (action === 'reset-bests') {
               resetBests();
               showHint('Minigame personal bests cleared.', 'info', 4000);
+              return true;
+            }
+            // Certification also lives in a module (The Self), not the scene.
+            if (action === 'reset-classify') {
+              resetClassifyRecord();
+              showHint('Classify certification cleared — the prompt is back on every galaxy.', 'info', 5000);
+              return true;
+            }
+            if (action === 'certify-classify') {
+              certifyAllClassify();
+              showHint('Certified in every morphology — the prompt should now stay quiet, and still pay.', 'info', 6000);
               return true;
             }
             // Logic lives on the scene (devAction) - if this warns, the

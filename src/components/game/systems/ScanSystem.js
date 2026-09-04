@@ -12,8 +12,9 @@ import { getShipModifiers } from "../content/upgradeCatalog.js";
 import { playSfx } from "../audio.js";
 import { narrate, narrateOnce, pick, CURATOR } from "../narrator.js";
 import {
-  CLASSIFY_BUCKETS, isClassifiable, classifyResult,
+  CLASSIFY_BUCKETS, isClassifiable, classifyResult, shouldPrompt,
 } from "../world/classifyModel.js";
+import { getClassifyRecord, recordClassifyCall } from "../wardenProgress.js";
 import { ClassifyPrompt, showClassifyResult } from "../ui/classifyPrompt.js";
 import { getClassInfo } from "../world/researchValues.js";
 import { getChunkWeb } from "../world/densityField.js";
@@ -75,7 +76,7 @@ export class ScanSystem {
     // late call still lands.
     if (this.active) {
       const t = this.active.target;
-      if (isClassifiable(t.discovery)) this.classify.show(t.id, t.x, t.y);
+      if (this._wantsPrompt(t.discovery)) this.classify.show(t.id, t.x, t.y);
       return;
     }
 
@@ -88,7 +89,7 @@ export class ScanSystem {
     let nearest = null;
     let best = SCAN_RANGE * this._mods().scanRange;
     for (const c of this._candidates()) {
-      if (!isClassifiable(c.discovery)) continue;
+      if (!this._wantsPrompt(c.discovery)) continue;
       const d = Phaser.Math.Distance.Between(player.x, player.y, c.x, c.y);
       if (d < best) { best = d; nearest = c; }
     }
@@ -99,6 +100,40 @@ export class ScanSystem {
     } else {
       this.classify.hide();
     }
+  }
+
+  /**
+   * Whether to OFFER a call on this object.
+   *
+   * A certified family is never asked about again - that is the deal
+   * certification makes, and the reason this mechanic doesn't wear out. The
+   * bonus still pays (classifyModel.classifyResult), so nothing is lost by
+   * going quiet.
+   */
+  _wantsPrompt(discovery) {
+    return isClassifiable(discovery) && shouldPrompt(discovery.objectClass, this._record());
+  }
+
+  /** The player's account-wide morphology record; cached per scan cycle. */
+  _record() {
+    return getClassifyRecord();
+  }
+
+  /**
+   * The moment a family goes quiet for good. Said once, loudly enough to read
+   * as a reward rather than as a feature switching off - because that is
+   * exactly what the player just earned.
+   */
+  _announceCertified(bucketId) {
+    const bucket = CLASSIFY_BUCKETS.find((b) => b.id === bucketId);
+    const label = bucket?.full ?? bucketId;
+    playSfx('surveyMilestone');
+    this.scene.cameras.main.flash(220, 78, 200, 220, false);
+    narrate(
+      `You don't need to be asked about ${label.toLowerCase()} galaxies any more. ` +
+      `You know one when you see it - the bonus is yours from here.`,
+      'proud'
+    );
   }
 
   /**
@@ -261,8 +296,15 @@ export class ScanSystem {
     // Resolve any Hubble call BEFORE the streak advances, so a correct one can
     // add its extra step and the reported multiplier includes it.
     const guess = this.classify.shownFor === target.id ? this.classify.called : null;
-    const result = classifyResult(guess, target.discovery.objectClass);
+    const result = classifyResult(guess, target.discovery.objectClass, this._record());
     this.classify.hide();
+
+    // Log it against the family that was actually correct, and say something
+    // ONCE if this call is what certified them.
+    if (result.called) {
+      const earned = recordClassifyCall(result.answer, result.correct);
+      for (const bucket of earned) this._announceCertified(bucket);
+    }
 
     // Advance the survey streak: chain, juice, milestones. Knowing the answer
     // advances it an extra step - so understanding literally makes you faster,

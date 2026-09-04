@@ -6,6 +6,7 @@
 // identities. All identity MATH lives in self/selfModel.js; this is the
 // stateful adapter (persist + subscribe).
 import * as model from "./self/selfModel.js";
+import * as classify from "./world/classifyModel.js";
 import { MEMORIES } from "./content/memories.js";
 import { AUTHORED_SELVES } from "./content/revelations.js";
 import { INSIGHTS } from "./content/insights.js";
@@ -80,6 +81,12 @@ const defaults = () => ({
   insightsCompleted: [],       // cumulative
   identitiesRealized: [],      // the selves you've been - the collection
   anamnesisSeen: false,        // capstone shown once
+  // Classify Before Scan certification, per morphology family:
+  // { elliptical: { calls, correct }, ... }. Cumulative and account-wide,
+  // because it records something the PLAYER learned, not something a universe
+  // did - and once you can read a spiral you can still read one in the next
+  // cosmos. See world/classifyModel.js.
+  classify: {},
 });
 
 const hydrate = (s) => {
@@ -155,6 +162,58 @@ export function rankFor(ascensions) {
 export function getWarden() {
   const { ascensions } = load();
   return { ascensions, ...rankFor(ascensions) };
+}
+
+/**
+ * The player's morphology-reading record, account-wide.
+ * Shape: { [bucketId]: { calls, correct } }.
+ */
+export function getClassifyRecord() {
+  return load().classify || {};
+}
+
+/**
+ * Log one classification against the family that was actually correct.
+ * Returns the families newly certified by THIS call, so the caller can say so
+ * once rather than every scan afterwards.
+ */
+export function recordClassifyCall(answer, correct) {
+  const state = load();
+  const before = classify.certifiedBuckets(state.classify || {});
+  state.classify = classify.recordCall(state.classify || {}, answer, correct);
+  save(state);
+  const after = classify.certifiedBuckets(state.classify);
+  return after.filter((id) => !before.includes(id));
+}
+
+/**
+ * Wipe the morphology record (dev/testing). Certification is account-wide and
+ * permanent by design, so re-testing the learn -> certify arc otherwise needs
+ * a fresh account.
+ */
+export function resetClassifyRecord() {
+  const state = load();
+  state.classify = {};
+  save(state);
+}
+
+/** Certify every family at once (dev/testing). */
+export function certifyAllClassify() {
+  const state = load();
+  const done = { calls: classify.CERTIFY_MIN_CALLS, correct: classify.CERTIFY_MIN_CALLS };
+  state.classify = Object.fromEntries(classify.BUCKET_IDS.map((id) => [id, { ...done }]));
+  save(state);
+}
+
+/** Certification state for the dev panel / Codex: which families are done. */
+export function getClassifyStatus() {
+  const record = load().classify || {};
+  return classify.BUCKET_IDS.map((id) => ({
+    id,
+    calls: record[id]?.calls || 0,
+    correct: record[id]?.correct || 0,
+    certified: classify.isCertified(record, id),
+  }));
 }
 
 /** Record a completed Ascension (a chosen species reached Type III). */

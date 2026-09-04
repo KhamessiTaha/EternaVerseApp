@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   CLASSIFY_BUCKETS, BUCKET_IDS, CLASSIFY_MULT, CLASSIFY_STREAK_BONUS,
   DIAGNOSTICS, answerFor, isClassifiable, bucketForKey, classifyResult,
+  CERTIFY_MIN_CALLS, CERTIFY_ACCURACY, isCertified, certifiedBuckets,
+  recordCall, shouldPrompt, certifyProgress,
 } from "./classifyModel.js";
 import { OBJECT_CLASSES } from "./researchValues.js";
 
@@ -100,4 +102,87 @@ test("every bucket has a key, a diagnostic, and a unique id", () => {
   }
   assert.equal(bucketForKey("9"), null);
   assert.equal(bucketForKey(null), null);
+});
+
+// --- certification: the mechanic retires itself --------------------------
+// The failure mode was never "too easy", it was "too often". Depth is no cure
+// for frequency, so mastery has to REMOVE the prompt, not escalate it.
+
+const rec = (calls, correct) => ({ elliptical: { calls, correct } });
+
+test("certification needs a real sample, not a lucky streak", () => {
+  assert.equal(isCertified(rec(CERTIFY_MIN_CALLS - 1, CERTIFY_MIN_CALLS - 1), "elliptical"), false);
+  assert.equal(isCertified(rec(CERTIFY_MIN_CALLS, CERTIFY_MIN_CALLS), "elliptical"), true);
+});
+
+test("certification needs accuracy, not just volume", () => {
+  assert.equal(isCertified(rec(100, 50), "elliptical"), false);
+  assert.equal(isCertified(rec(100, 89), "elliptical"), false);
+  assert.equal(isCertified(rec(100, 90), "elliptical"), true);
+});
+
+test("an empty or missing record certifies nothing", () => {
+  for (const r of [null, undefined, {}, { elliptical: null }]) {
+    assert.equal(isCertified(r, "elliptical"), false);
+    assert.deepEqual(certifiedBuckets(r), []);
+  }
+});
+
+test("a certified family is never asked about again", () => {
+  const certified = rec(20, 20);
+  assert.equal(shouldPrompt("E4", certified), false);
+  assert.equal(shouldPrompt("S0", certified), false, "S0 answers as elliptical");
+  // ...but the families they haven't proved still are.
+  assert.equal(shouldPrompt("Sb", certified), true);
+  assert.equal(shouldPrompt("Irr", certified), true);
+});
+
+test("a certified family still PAYS - that is the whole deal", () => {
+  // Going quiet must not cost the player the bonus they earned, or
+  // certification would read as a punishment for getting good.
+  const r = classifyResult(null, "E4", rec(20, 20));
+  assert.equal(r.certified, true);
+  assert.equal(r.called, false, "nothing was asked");
+  assert.equal(r.mult, CLASSIFY_MULT, "and it still pays full");
+  assert.equal(r.streakBonus, CLASSIFY_STREAK_BONUS);
+  assert.equal(r.diagnostic, null);
+});
+
+test("an uncertified family behaves exactly as before", () => {
+  const none = {};
+  assert.equal(classifyResult(null, "Sb", none).mult, 1);
+  assert.equal(classifyResult("spiral", "Sb", none).mult, CLASSIFY_MULT);
+  assert.equal(classifyResult("barred", "Sb", none).mult, 1);
+  assert.ok(classifyResult("barred", "Sb", none).diagnostic, "a wrong call still teaches");
+});
+
+test("a wrong call counts against the family that was CORRECT", () => {
+  // Otherwise a player could certify in spirals by never calling spiral -
+  // logging against the guess would let them dodge their own mistakes.
+  const after = recordCall({}, "spiral", false);
+  assert.deepEqual(after.spiral, { calls: 1, correct: 0 });
+  assert.equal(after.barred, undefined);
+});
+
+test("recording is pure and accumulates", () => {
+  const first = recordCall({}, "spiral", true);
+  const second = recordCall(first, "spiral", false);
+  assert.deepEqual(first.spiral, { calls: 1, correct: 1 }, "the original was not mutated");
+  assert.deepEqual(second.spiral, { calls: 2, correct: 1 });
+});
+
+test("recording ignores a family that is not one of ours", () => {
+  assert.deepEqual(recordCall({}, "lenticular", true), {});
+  assert.deepEqual(recordCall({}, null, true), {});
+});
+
+test("twelve perfect calls certify, and the thirteenth is silent", () => {
+  // The whole arc, end to end.
+  let r = {};
+  for (let i = 0; i < CERTIFY_MIN_CALLS; i++) {
+    assert.equal(shouldPrompt("E2", r), true, `still asking at call ${i}`);
+    r = recordCall(r, "elliptical", true);
+  }
+  assert.equal(shouldPrompt("E2", r), false, "it should have gone quiet");
+  assert.deepEqual(certifiedBuckets(r), ["elliptical"]);
 });

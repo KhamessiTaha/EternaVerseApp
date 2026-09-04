@@ -67,6 +67,10 @@ const CLIENT_ACTIONS = [
   { label: '◈ Force situation: ANOMALOUS SIGNATURE', action: 'force-situation:windfall' },
 
   { label: '↺ Reset minigame personal bests (re-test NEW BEST)', action: 'reset-bests' },
+  // Certification is account-wide and permanent by design, so without this the
+  // only way to replay the learn -> go-quiet arc is a fresh account.
+  { label: '↺ Reset classify certification (re-test the learn → quiet arc)', action: 'reset-classify' },
+  { label: '✓ Certify ALL morphologies now (see the prompt go quiet)', action: 'certify-classify' },
 ];
 
 // Launch any anomaly minigame directly at a chosen severity - feel/difficulty

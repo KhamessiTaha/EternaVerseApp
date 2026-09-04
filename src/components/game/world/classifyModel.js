@@ -86,18 +86,111 @@ export function bucketForKey(key) {
   return CLASSIFY_BUCKETS.find((b) => b.key === String(key))?.id ?? null;
 }
 
+// --- Certification ---------------------------------------------------------
+//
+// The mechanic retires itself.
+//
+// Classification fires on the most-repeated action in the game. However good
+// the question is, asking it on every galaxy forever turns it into a tax - the
+// failure mode isn't that it gets too EASY, it's that it gets TIRING, and
+// depth is no cure for frequency. A harder question asked four hundred times
+// is still four hundred times.
+//
+// So: prove you can read a family and the game stops asking you about that
+// family, and pays the bonus anyway. Your reward for learning is never being
+// asked again while keeping the money - not a harder question, forever.
+//
+// Certification is knowledge, so it lives on The Self and outlives the
+// universe it was earned in.
+
+export const CERTIFY_MIN_CALLS = 12;   // enough to not be luck
+export const CERTIFY_ACCURACY = 0.9;   // and you have to be genuinely good
+
+/** A fresh, empty record. Shape: { [bucketId]: { calls, correct } }. */
+export const emptyClassifyRecord = () => ({});
+
+/** Have they earned the right to stop being asked about this family? */
+export function isCertified(record, bucketId) {
+  const r = record?.[bucketId];
+  if (!r || !Number.isFinite(r.calls) || r.calls < CERTIFY_MIN_CALLS) return false;
+  return (r.correct || 0) / r.calls >= CERTIFY_ACCURACY;
+}
+
+/** Every family they've been certified in. */
+export function certifiedBuckets(record) {
+  return BUCKET_IDS.filter((id) => isCertified(record, id));
+}
+
+/**
+ * Log one call against the family that was actually CORRECT, not the one the
+ * player guessed - certification is "can you recognise an elliptical", so a
+ * wrong call has to count against the elliptical's record or a player could
+ * certify in a family by never calling it.
+ *
+ * Pure: returns a new record.
+ */
+export function recordCall(record, answer, correct) {
+  if (!answer || !BUCKET_IDS.includes(answer)) return record || {};
+  const base = record || {};
+  const prev = base[answer] || { calls: 0, correct: 0 };
+  return {
+    ...base,
+    [answer]: {
+      calls: (prev.calls || 0) + 1,
+      correct: (prev.correct || 0) + (correct ? 1 : 0),
+    },
+  };
+}
+
+/** How close they are, for the prompt's progress hint. 0..1 */
+export function certifyProgress(record, bucketId) {
+  const r = record?.[bucketId];
+  if (!r || !r.calls) return 0;
+  return Math.min(1, r.calls / CERTIFY_MIN_CALLS);
+}
+
+/**
+ * Should the prompt be OFFERED for this object?
+ *
+ * No, once you're certified in the family it belongs to - that is the whole
+ * point. The bonus still pays; see classifyResult.
+ */
+export function shouldPrompt(objectClass, record) {
+  const answer = answerFor(objectClass);
+  if (!answer) return false;
+  return !isCertified(record, answer);
+}
+
 /**
  * Resolve a call. `guess` may be null (no call was made), which is never
  * punished - it just pays normally and says nothing.
  *
- * Returns { called, correct, answer, mult, streakBonus, diagnostic }.
+ * `record` is the player's certification history. When they are certified in
+ * the family this object belongs to, no call was asked for and the bonus is
+ * paid regardless - that is the deal certification makes.
+ *
+ * Returns { called, correct, answer, mult, streakBonus, diagnostic, certified }.
  */
-export function classifyResult(guess, objectClass) {
+export function classifyResult(guess, objectClass, record = null) {
   const answer = answerFor(objectClass);
-  if (!answer) return { called: false, correct: false, answer: null, mult: 1, streakBonus: 0, diagnostic: null };
+  const none = { called: false, correct: false, answer: null, mult: 1, streakBonus: 0, diagnostic: null, certified: false };
+  if (!answer) return none;
+
+  // Certified: they proved this one already. Pay it and stay out of the way.
+  if (isCertified(record, answer)) {
+    return {
+      called: false,
+      correct: true,
+      answer,
+      mult: CLASSIFY_MULT,
+      streakBonus: CLASSIFY_STREAK_BONUS,
+      diagnostic: null,
+      certified: true,
+    };
+  }
 
   if (!guess) {
-    return { called: false, correct: false, answer, mult: 1, streakBonus: 0, diagnostic: null };
+    return { ...none, answer };
   }
 
   const correct = guess === answer;
@@ -109,5 +202,6 @@ export function classifyResult(guess, objectClass) {
     streakBonus: correct ? CLASSIFY_STREAK_BONUS : 0,
     // Wrong calls teach; right calls don't need to.
     diagnostic: correct ? null : DIAGNOSTICS[answer] ?? null,
+    certified: false,
   };
 }

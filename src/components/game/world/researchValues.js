@@ -46,3 +46,24 @@ export const KNOWN_CLASS_COUNT =
   Object.keys(OBJECT_CLASSES).length + Object.keys(ANOMALY_TYPE_MAP).length;
 
 export const getClassInfo = (objectClass) => OBJECT_CLASSES[objectClass] ?? null;
+
+/**
+ * How flattened this class is drawn: the rendered height/width ratio.
+ *
+ * The Hubble number IS the flattening - En is defined as n = 10(1 - b/a), so
+ * an E0 is circular and an E7 is a lens. The renderer ignored it and picked a
+ * texture by hashing the object id, which meant E0 and E7 were the same three
+ * pictures chosen at random. That's a live fairness bug, not just a cosmetic
+ * one: E0-E3 pay 6 RP and E4-E7 pay 12-14, so the payoff varied while the
+ * evidence didn't.
+ *
+ * Ellipticity is a pure shape transform, so honouring it needs no new
+ * textures - the sprite is simply squashed on one axis and rotated with the
+ * galaxy, as it already is.
+ */
+export function axisRatioFor(objectClass) {
+  const m = /^E([0-7])$/.exec(String(objectClass ?? ""));
+  if (m) return 1 - Number(m[1]) / 10;   // E0 -> 1.0 round, E7 -> 0.3 lens
+  if (objectClass === "S0") return 0.35;  // lenticulars are disks seen tilted
+  return 1;
+}

@@ -5,6 +5,7 @@ import { getChunkKey } from '../utils';
 import { generateScaleObjects } from '../world/worldScales.js';
 import { cosmicProfile } from '../world/cosmicProfile.js';
 import { TextureFactory } from '../graphics/TextureFactory.js';
+import { axisRatioFor } from '../world/researchValues.js';
 
 export class ChunkSystem {
   constructor(scene, anomalySystem) {
@@ -137,8 +138,14 @@ export class ChunkSystem {
 
     const textureKey = this.scene.textureFactory.keyFor(descriptor);
     const isCustom = TextureFactory.isCustom(textureKey);
+    // Ellipticals are drawn at their actual Hubble flattening - an E7 is a lens,
+    // an E0 is round. The class always said so; the renderer used to ignore it
+    // and pick a texture by hashing the id, so a player could be paid 14 RP for
+    // something drawn as a 6-RP round blob. Rotation is applied after, so the
+    // flattening tilts with the galaxy.
+    const ratio = axisRatioFor(descriptor.objectClass);
     const image = this.scene.add.image(descriptor.x, descriptor.y, textureKey)
-      .setScale(descriptor.scale)
+      .setScale(descriptor.scale, descriptor.scale * ratio)
       .setRotation(descriptor.rotation)
       .setAlpha(descriptor.alpha)
       .setDepth(isNebula ? -3 : -1);
