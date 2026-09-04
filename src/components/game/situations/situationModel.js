@@ -148,7 +148,41 @@ export function situationProgress(active, now) {
     expired: remainingMs <= 0,
     x: active.x,
     y: active.y,
+    // {done,total} when the situation is countable, else null. "Contain 6
+    // tears" with no running count is a demand you cannot tell you are
+    // meeting - which is most of what made these read as background noise.
+    progress: active.progress?.() ?? null,
   };
+}
+
+const ARROWS = ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"];
+
+/**
+ * Which way, and how far.
+ *
+ * A situation already knows where it is - staging returns x/y - but the player
+ * was only ever told WHAT and HOW LONG. A deadline you can't walk toward is
+ * noise: it demands something without handing you a way to act on it. This is
+ * the handle.
+ *
+ * Pure, so the compass can be tested without a scene.
+ */
+export function bearingTo(from, to) {
+  if (!from || !to || !Number.isFinite(to.x) || !Number.isFinite(to.y)) return null;
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const distance = Math.hypot(dx, dy);
+  // Screen space: +y is down, so this reads the same way the world looks.
+  const idx = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+  return { distance, arrow: ARROWS[((idx % 8) + 8) % 8] };
+}
+
+/** Distance as something readable at a glance: "820", "1.4k", "12k". */
+export function formatDistance(d) {
+  if (!Number.isFinite(d) || d < 0) return "";
+  if (d < 1000) return `${Math.round(d)}`;
+  if (d < 10000) return `${(d / 1000).toFixed(1)}k`;
+  return `${Math.round(d / 1000)}k`;
 }
 
 /** mm:ss for the banner clock. */

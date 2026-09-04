@@ -21,11 +21,17 @@
 // as "elliptical" here, so nobody is ever wrong for a reason the screen never
 // showed them. Give S0 its own texture and it can become a fifth answer.
 
+// `key` is what the prompt PRINTS; `code` is the Phaser KeyCodes NAME that
+// ScanSystem resolves to bind it. They are separate on purpose: this module is
+// Phaser-free so the rules stay unit-testable, and passing the printed "1"
+// straight to addKey() is exactly the bug that shipped - Phaser looks up
+// KeyCodes["1"], which is undefined (the map defines ONE), so it built four
+// keys with no keycode and the prompt was decorative.
 export const CLASSIFY_BUCKETS = [
-  { id: "elliptical", key: "1", label: "ELL", full: "Elliptical" },
-  { id: "spiral", key: "2", label: "SPIRAL", full: "Spiral" },
-  { id: "barred", key: "3", label: "BARRED", full: "Barred Spiral" },
-  { id: "irregular", key: "4", label: "IRR", full: "Irregular" },
+  { id: "elliptical", key: "1", code: "ONE", label: "ELL", full: "Elliptical" },
+  { id: "spiral", key: "2", code: "TWO", label: "SPIRAL", full: "Spiral" },
+  { id: "barred", key: "3", code: "THREE", label: "BARRED", full: "Barred Spiral" },
+  { id: "irregular", key: "4", code: "FOUR", label: "IRR", full: "Irregular" },
 ];
 
 export const BUCKET_IDS = CLASSIFY_BUCKETS.map((b) => b.id);

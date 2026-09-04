@@ -7,6 +7,18 @@ import {
 } from "./classifyModel.js";
 import { OBJECT_CLASSES } from "./researchValues.js";
 
+test("every bucket is bindable by Phaser, not just printable", () => {
+  // The shipped bug: `key` ("1") was passed straight to addKey(), which
+  // resolves KeyCodes["1"] - undefined - so all four keys had no keycode and
+  // the prompt could not be answered at all. `code` must be the spelled-out
+  // KeyCodes NAME, never the digit.
+  const SPELLED = { 1: "ONE", 2: "TWO", 3: "THREE", 4: "FOUR" };
+  for (const b of CLASSIFY_BUCKETS) {
+    assert.match(b.key, /^\d$/, `${b.id} should print a single digit`);
+    assert.equal(b.code, SPELLED[b.key], `${b.id} must bind the KeyCodes name`);
+  }
+});
+
 test("every galaxy the generator can place has a correct answer", () => {
   // If a class can be rendered but can't be classified, the prompt would
   // appear on something unanswerable.

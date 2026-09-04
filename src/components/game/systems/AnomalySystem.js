@@ -3,6 +3,7 @@ import { ANOMALY_TYPE_MAP } from '../constants';
 import { getChunkCoords, getChunkKey } from '../utils';
 import { getSettings } from '../settings.js';
 import { dangerRadius } from './HazardSystem.js';
+import { drawAnomalyGlyph } from '../graphics/anomalyGlyph.js';
 
 export class AnomalySystem {
   constructor(scene) {
@@ -81,10 +82,8 @@ export class AnomalySystem {
   createAnomaly(x, y, typeObj, severity, id, isBackend = false) {
     const radius = typeObj.baseRadius + severity * 2;
     const ringAlpha = isBackend ? 0.95 : 0.65;
-    const coreAlpha = isBackend ? 0.96 : 0.68;
     const glowAlpha = isBackend ? 0.24 : 0.16;
     const lineWidth = isBackend ? 1.75 : 1.2;
-    const tickLength = radius * 0.33;
 
     // Soft halo + ambient bloom for the anomaly. This is the main visual
     // signature players will track through the world.
@@ -107,20 +106,20 @@ export class AnomalySystem {
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(8);
 
+    // The body. Its SHAPE is the category, which is also the minigame this
+    // anomaly launches - so a player who reads silhouettes knows what they're
+    // flying into before the label is legible. Severity is countable pips
+    // rather than a size the player has nothing to compare against.
     const entity = this.scene.add.graphics({ x, y }).setDepth(10);
-    entity.lineStyle(lineWidth, typeObj.color, ringAlpha);
-    entity.strokeCircle(0, 0, radius);
-    [0, 90, 180, 270].forEach((deg) => {
-      const rad = Phaser.Math.DegToRad(deg);
-      const inner = radius + 2;
-      const outer = inner + tickLength;
-      entity.lineBetween(
-        Math.cos(rad) * inner, Math.sin(rad) * inner,
-        Math.cos(rad) * outer, Math.sin(rad) * outer
-      );
+    drawAnomalyGlyph(entity, {
+      category: typeObj.category,
+      color: typeObj.color,
+      radius,
+      severity,
+      alpha: ringAlpha,
+      width: lineWidth,
+      detail: !isLowQuality,
     });
-    entity.fillStyle(typeObj.color, coreAlpha);
-    entity.fillCircle(0, 0, radius * 0.26);
 
     // Danger ring: hull damage inside this radius (HazardSystem) - faint,
     // but a player who's been burned once learns to read it.

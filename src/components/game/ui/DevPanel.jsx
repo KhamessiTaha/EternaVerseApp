@@ -40,8 +40,11 @@ const ACTIONS = [
   // NEVER show you gold, uranium or a kilonova. These make that reachable.
   { label: '⚛ Era: young (only H/He — everything else locked)', action: 'set-era', payload: { metallicity: 0, stellarGenerations: 0, blackHoleCount: 0 } },
   { label: '⚛ Era: enriched (unlocks C/O + iron)', action: 'set-era', payload: { metallicity: 0.2, stellarGenerations: 2, blackHoleCount: 0 } },
-  { label: '⚛ Era: r-process (unlocks GOLD + kilonovae)', action: 'set-era', payload: { metallicity: 0.45, stellarGenerations: 3, blackHoleCount: 1000 } },
-  { label: '⚛ Era: mature (unlocks everything incl. uranium)', action: 'set-era', payload: { metallicity: 0.8, stellarGenerations: 6, blackHoleCount: 1e6 } },
+  // blackHoleCount is what gates the two tier-5 materials now (stellarGenerations
+  // saturates by step 25 and could never gate anything). A real run reaches
+  // ~1e17 black holes, so these numbers are the eras they name, not round ones.
+  { label: '⚛ Era: r-process (unlocks GOLD + platinum + uranium)', action: 'set-era', payload: { metallicity: 0.5, stellarGenerations: 3, blackHoleCount: 1e15 } },
+  { label: '⚛ Era: mature (unlocks EVERYTHING incl. degenerate + hawking)', action: 'set-era', payload: { metallicity: 0.8, stellarGenerations: 6, blackHoleCount: 1e17 } },
   { label: '⚛ Grant 20 of every material (test Mk2/Mk3 crafting)', action: 'grant-materials', payload: { amount: 20 } },
 ];
 

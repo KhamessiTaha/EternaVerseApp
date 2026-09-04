@@ -25,7 +25,7 @@ import { besiegedWorlds } from "../combat/fleetModel.js";
 import { civLocation } from "../world/civPlacement.js";
 import { cosmicProfile } from "../world/cosmicProfile.js";
 import {
-  SITUATIONS, pickSituation, scheduleNext, situationProgress, MIN_GAP_MS,
+  SITUATIONS, pickSituation, scheduleNext, situationProgress, bearingTo, MIN_GAP_MS,
 } from "../situations/situationModel.js";
 
 const POLL_MS = 500; // how often we re-check a running situation
@@ -42,7 +42,14 @@ export class SituationDirector {
 
   /** Banner state for the HUD, or null when nothing is running. */
   getSituation() {
-    return situationProgress(this.active, this.scene.time.now);
+    const p = situationProgress(this.active, this.scene.time.now);
+    if (!p) return null;
+    // Where it is, relative to the player. Staging always records a position;
+    // until now nothing ever showed it, so a situation could time out while
+    // the player looked for it.
+    const player = this.scene.player;
+    const bearing = player ? bearingTo({ x: player.x, y: player.y }, p) : null;
+    return { ...p, bearing };
   }
 
   update(time) {
@@ -160,6 +167,13 @@ export class SituationDirector {
       brief: def.brief(ids.length),
       x: p.x,
       y: p.y,
+      // The running count, so the banner can say 3/6 instead of restating the
+      // demand. SurgeSystem already tallies this every frame.
+      progress: () => {
+        const s = this.scene.surgeSystem?.getSurge?.();
+        if (!s?.active) return null;
+        return { done: s.resolved, total: s.total };
+      },
       // Contained when the surge system says the cluster is gone.
       check: () => !this.scene.surgeSystem?.active,
     };

@@ -92,21 +92,31 @@ export const MATERIALS = {
     forgedBy: "r-process, rare capture",
     tell: "Heavier than anything a star can build. Only a merger's neutron flux gets this far up the table, and only sometimes.",
     sources: [SOURCES.merger],
-    gate: (cs) => num(cs?.metallicity) >= 0.6,
+    // 0.45, not 0.6. Enrichment saturates against a depleting gas reservoir and
+    // asymptotes near 60% of solar, so 0.6 sat just above the ceiling - it
+    // opened past step 700 on Beginner and never at all on Advanced.
+    gate: (cs) => num(cs?.metallicity) >= 0.45,
   },
   degenerate: {
     label: "Degenerate Matter", symbol: "◈", tier: 5,
     forgedBy: "neutron-star interiors",
     tell: "Matter crushed past atoms, held up only by the refusal of neutrons to share a state. A teaspoon outweighs a mountain.",
     sources: [SOURCES.merger],
-    gate: (cs) => num(cs?.stellarGenerations) >= 5,
+    // Black holes, NOT stellarGenerations: that counter is clamped at 10 and
+    // hits the clamp by step 25, so `>= 5` opened the rarest material in the
+    // game on step 3. Remnants accumulating as stars die is also what
+    // degenerate matter physically is.
+    gate: (cs) => num(cs?.blackHoleCount) >= 3e16,
   },
   hawking: {
     label: "Hawking Quanta", symbol: "☼", tier: 5,
     forgedBy: "black-hole evaporation",
     tell: "Radiation leaking from an event horizon. The only thing that ever comes back out.",
     sources: [SOURCES.quasar],
-    gate: (cs) => num(cs?.blackHoleCount) > 0,
+    // `> 0` was true on step 1 - a universe is seeded with 5e3 black holes at
+    // genesis. Hawking radiation marks a cosmos its black holes have come to
+    // dominate, so it asks for a population, not for one to exist.
+    gate: (cs) => num(cs?.blackHoleCount) >= 5e16,
   },
 };
 

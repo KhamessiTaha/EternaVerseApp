@@ -9,7 +9,7 @@
 //
 // Sits above the surge alarm because a Cascade Failure outranks the routine
 // tears it's made of, and the two can legitimately be on screen together.
-import { formatClock } from '../situations/situationModel.js';
+import { formatClock, formatDistance } from '../situations/situationModel.js';
 
 const TONE = {
   cascade: { color: '#e0524a', glow: 'rgba(224,82,74,0.35)' },
@@ -53,9 +53,26 @@ const SituationBanner = ({ situation }) => {
           </span>
         </div>
 
-        <div className="mt-0.5 text-[11px] text-ink-dim">{situation.brief}</div>
-        <div className="mt-0.5 text-[9px] uppercase tracking-[0.2em] text-ink-faint">
-          {situation.payoff}
+        {/* WHAT, and how far along you are. A brief with no running count is a
+            demand you can't tell you're meeting. */}
+        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-dim">
+          <span>{situation.brief}</span>
+          {situation.progress && (
+            <span className="tabular-nums font-bold" style={{ color: tone.color }}>
+              {situation.progress.done}/{situation.progress.total}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-0.5 flex items-center gap-2.5 text-[9px] uppercase tracking-[0.2em] text-ink-faint">
+          <span>{situation.payoff}</span>
+          {/* WHERE. Staging always knew; the player never did, so a situation
+              could time out while they were looking for it. */}
+          {situation.bearing && (
+            <span className="tabular-nums normal-case tracking-normal text-[11px]" style={{ color: tone.color }}>
+              {situation.bearing.arrow} {formatDistance(situation.bearing.distance)}
+            </span>
+          )}
         </div>
       </div>
 

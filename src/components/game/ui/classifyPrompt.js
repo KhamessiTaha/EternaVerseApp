@@ -65,8 +65,15 @@ function drawIcon(g, id, color, alpha) {
 }
 
 export class ClassifyPrompt {
-  constructor(scene) {
+  /**
+   * @param onCall called with a bucket id when the player clicks a slot. The
+   *   slots are clickable as well as keyed because the prompt draws itself like
+   *   a row of buttons, and anything that looks like a button and ignores the
+   *   mouse reads as broken rather than as keyboard-only.
+   */
+  constructor(scene, onCall) {
     this.scene = scene;
+    this.onCall = onCall;
     this.container = null;
     this.shownFor = null;   // target id currently prompted
     this.guess = null;      // bucket id the player called
@@ -154,6 +161,13 @@ export class ClassifyPrompt {
     CLASSIFY_BUCKETS.forEach((b, i) => {
       const x = -w / 2 + 8 + SLOT_W * i + SLOT_W / 2;
 
+      // Hover plate, drawn under the slot's contents and revealed on pointerover.
+      const hover = this.scene.add.graphics();
+      hover.fillStyle(CYAN, 0.14);
+      hover.fillRoundedRect(x - SLOT_W / 2 + 3, -19, SLOT_W - 6, 38, 3);
+      hover.setAlpha(0);
+      c.add(hover);
+
       const icon = this.scene.add.graphics();
       icon.setPosition(x, -6);
       drawIcon(icon, b.id, INK, 0.9);
@@ -168,9 +182,23 @@ export class ClassifyPrompt {
         fontFamily: '"IBM Plex Mono", monospace', fontSize: "8px", color: "#9497ad",
       }).setOrigin(0.5);
       c.add(label);
+
+      // The click target. A Zone rather than making the graphics interactive,
+      // because the slot is four separate objects and the whole cell should
+      // answer the mouse, not just the pixels that happen to be filled.
+      const hit = this.scene.add
+        .zone(x, -2, SLOT_W - 6, 40)
+        .setInteractive({ useHandCursor: true });
+      hit.on("pointerover", () => hover.setAlpha(1));
+      hit.on("pointerout", () => hover.setAlpha(0));
+      hit.on("pointerdown", (p, lx, ly, event) => {
+        event?.stopPropagation?.();
+        this.onCall?.(b.id);
+      });
+      c.add(hit);
     });
 
-    const hint = this.scene.add.text(0, 30, "classify · optional", {
+    const hint = this.scene.add.text(0, 30, "classify · click or press a number", {
       fontFamily: '"IBM Plex Mono", monospace', fontSize: "8px", color: "#5a5f73",
     }).setOrigin(0.5);
     c.add(hint);

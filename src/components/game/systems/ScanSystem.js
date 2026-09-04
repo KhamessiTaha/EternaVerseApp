@@ -42,14 +42,18 @@ export class ScanSystem {
     // enough time for a four-way choice; forcing the call into that window
     // would make the mechanic punish the streak. The shape is legible while
     // you fly toward it, so that is when the decision actually happens.
-    this.classify = new ClassifyPrompt(scene);
+    this.classify = new ClassifyPrompt(scene, (id) => this._callClass(id));
     this._nearestTimer = 0;
     this._bindClassifyKeys();
   }
 
   _bindClassifyKeys() {
     for (const bucket of CLASSIFY_BUCKETS) {
-      const key = this.scene.input.keyboard.addKey(bucket.key);
+      // Resolve the KeyCodes NAME, not the printed digit. addKey("1") looks up
+      // KeyCodes["1"] - undefined - and yields a key that can never fire.
+      const code = Phaser.Input.Keyboard.KeyCodes[bucket.code];
+      if (code === undefined) continue;
+      const key = this.scene.input.keyboard.addKey(code);
       key.on("down", () => this._callClass(bucket.id));
     }
   }

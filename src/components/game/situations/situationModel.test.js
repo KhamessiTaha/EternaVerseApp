@@ -3,7 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   SITUATIONS, situationById, pickSituation, scheduleNext, situationProgress,
-  formatClock, FIRST_SITUATION_MS, INTERVAL_MS, REPEAT_WEIGHT_PENALTY,
+  formatClock, formatDistance, bearingTo,
+  FIRST_SITUATION_MS, INTERVAL_MS, REPEAT_WEIGHT_PENALTY,
 } from "./situationModel.js";
 
 const ctx = (over = {}) => ({
@@ -127,4 +128,35 @@ test("the clock reads as a clock", () => {
   assert.equal(formatClock(9000), "0:09");
   assert.equal(formatClock(65000), "1:05");
   assert.equal(formatClock(-500), "0:00");
+});
+
+// --- the compass ---------------------------------------------------------
+// A situation always knew where it was; nothing ever showed the player. A
+// deadline you cannot walk toward is noise, not an event.
+
+test("the arrow points the way the world actually looks", () => {
+  const here = { x: 0, y: 0 };
+  assert.equal(bearingTo(here, { x: 100, y: 0 }).arrow, "\u2192");
+  assert.equal(bearingTo(here, { x: -100, y: 0 }).arrow, "\u2190");
+  assert.equal(bearingTo(here, { x: 0, y: 100 }).arrow, "\u2193"); // +y is DOWN on screen
+  assert.equal(bearingTo(here, { x: 0, y: -100 }).arrow, "\u2191");
+  assert.equal(bearingTo(here, { x: 100, y: 100 }).arrow, "\u2198");
+  assert.equal(bearingTo(here, { x: -100, y: -100 }).arrow, "\u2196");
+});
+
+test("distance is measured, not guessed", () => {
+  assert.equal(Math.round(bearingTo({ x: 0, y: 0 }, { x: 300, y: 400 }).distance), 500);
+});
+
+test("a situation with no position yields no compass instead of a wrong one", () => {
+  assert.equal(bearingTo({ x: 0, y: 0 }, null), null);
+  assert.equal(bearingTo(null, { x: 1, y: 1 }), null);
+  assert.equal(bearingTo({ x: 0, y: 0 }, { x: undefined, y: 2 }), null);
+});
+
+test("distance reads at a glance", () => {
+  assert.equal(formatDistance(820), "820");
+  assert.equal(formatDistance(1400), "1.4k");
+  assert.equal(formatDistance(12400), "12k");
+  assert.equal(formatDistance(NaN), "");
 });

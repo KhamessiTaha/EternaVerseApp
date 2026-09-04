@@ -13,7 +13,23 @@ const cs = (over = {}) => ({
 });
 
 const youngCosmos = cs();
-const matureCosmos = cs({ metallicity: 0.7, stellarGenerations: 6, blackHoleCount: 1e6 });
+const matureCosmos = cs({ metallicity: 0.7, stellarGenerations: 6, blackHoleCount: 1e17 });
+
+// The state a real universe is actually IN at the end of a 400-step run, on the
+// HARDEST difficulty - measured by stepping the live PhysicsEngine, not guessed.
+// Advanced ages slowest per step, so it is the worst case for every gate.
+//
+// This fixture exists because gates were being written against the 0-1 range
+// they appeared to have rather than the range a universe reaches. Enrichment
+// saturates near 60% of solar and stops; uranium's old 0.6 gate sat above that
+// ceiling and opened on step 748, 1110, or never. Everything must be
+// obtainable inside a run, on every difficulty, or it is not a rare material -
+// it is a missing one.
+const endOfHardestRun = cs({
+  metallicity: 0.483,
+  stellarGenerations: 10,
+  blackHoleCount: 8.3e16,
+});
 
 test("every material declares where it came from and how to recognise it", () => {
   for (const id of MATERIAL_IDS) {
@@ -51,13 +67,30 @@ test("carbon and oxygen wait for the first generation of stars to die", () => {
 test("the heaviest elements need the richest universes", () => {
   // Uranium is above gold on the table AND above it in the gate.
   assert.ok(MATERIALS.uranium.tier > MATERIALS.gold.tier);
-  assert.equal(isAvailable("uranium", cs({ metallicity: 0.5 })), false);
-  assert.equal(isAvailable("uranium", cs({ metallicity: 0.6 })), true);
+  assert.equal(isAvailable("uranium", cs({ metallicity: 0.4 })), false);
+  assert.equal(isAvailable("uranium", cs({ metallicity: 0.45 })), true);
 });
 
-test("Hawking quanta need something to evaporate", () => {
-  assert.equal(isAvailable("hawking", cs({ blackHoleCount: 0 })), false);
-  assert.equal(isAvailable("hawking", cs({ blackHoleCount: 1 })), true);
+test("Hawking quanta need a universe its black holes have taken over", () => {
+  // NOT `> 0`: a universe is seeded with 5e3 black holes at genesis, so the
+  // old gate handed out a tier-5 material on step 1.
+  assert.equal(isAvailable("hawking", cs({ blackHoleCount: 5e3 })), false);
+  assert.equal(isAvailable("hawking", cs({ blackHoleCount: 5e16 })), true);
+});
+
+test("degenerate matter is not gated on a counter that saturates instantly", () => {
+  // stellarGenerations is clamped at 10 and reaches the clamp by step 25 on
+  // every difficulty, so `>= 5` opened the rarest material in the game on
+  // step 3. A gate that a brand-new universe passes is not a gate.
+  assert.equal(isAvailable("degenerate", cs({ stellarGenerations: 10 })), false);
+  assert.equal(isAvailable("degenerate", cs({ blackHoleCount: 3e16 })), true);
+});
+
+test("every material is obtainable inside a run, on the hardest difficulty", () => {
+  // The guard for the whole class of bug: a gate written against a range the
+  // universe never reaches. If this fails, something is decorative.
+  const missing = MATERIAL_IDS.filter((id) => !isAvailable(id, endOfHardestRun));
+  assert.deepEqual(missing, [], `unreachable in a real run: ${missing.join(", ")}`);
 });
 
 test("a mature universe eventually offers everything", () => {

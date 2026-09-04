@@ -217,7 +217,12 @@ export const UniverseEndPanel = ({ universe, onReturn }) => {
 
         {/* The invitation. A universe nobody can replay is a story that ends
             with you; a code turns it into something you can hand over. */}
-        {c.shareCode && (
+        {/* A code that cannot rebuild its universe must not LOOK like one that
+            can. Presenting both the same way - big accent number, copy button,
+            only the small print differing - is why a legacy code reads as
+            broken: you hand it over, it builds a different cosmos, and nothing
+            warned you loudly enough. Legacy codes get no copy button at all. */}
+        {c.shareCode && c.shareCodeReproducible !== false && (
           <div className="mb-6 border border-accent/40 bg-accent/5 p-4">
             <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-accent/80 mb-1.5">
               This universe
@@ -237,10 +242,29 @@ export const UniverseEndPanel = ({ universe, onReturn }) => {
                 {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
+            {/* Says what a code actually reproduces. It rebuilds the COSMOS -
+                the same galaxies in the same places - not this universe at the
+                age you left it. Someone expecting their friend's 24-Gyr ruin
+                and getting a young one thinks the code failed. */}
             <p className="font-mono text-[10px] text-ink-faint mt-2 leading-relaxed">
-              {c.shareCodeReproducible === false
-                ? 'This universe predates share codes — the code identifies it, but will not rebuild it.'
-                : 'Anyone who starts a universe with this code gets the same cosmos you did.'}
+              Anyone who starts a universe with this code gets the same cosmos —
+              the same galaxies, in the same places, young again as you first
+              found it.
+            </p>
+          </div>
+        )}
+
+        {c.shareCode && c.shareCodeReproducible === false && (
+          <div className="mb-6 border border-line bg-void-raised p-4">
+            <div className="font-mono text-[9px] uppercase tracking-[0.28em] text-ink-faint mb-1.5">
+              This universe
+            </div>
+            <div className="font-mono text-lg text-ink-dim tracking-[0.15em]">
+              {c.shareCode}
+            </div>
+            <p className="font-mono text-[10px] text-ink-faint mt-2 leading-relaxed">
+              A name, not a key. This universe was made before share codes, so
+              nothing can rebuild it — it was only ever yours.
             </p>
           </div>
         )}
