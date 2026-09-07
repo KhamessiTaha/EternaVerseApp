@@ -41,7 +41,8 @@ import { CivilizationLocatorPanel } from "./game/ui/CivilizationLocatorPanel";
 import { narrate, narrateOnce, pick, CURATOR } from "./game/narrator";
 import { resetTutorial } from "./game/tutorialGate";
 import { resetBests } from "./game/bestScores";
-import { resetClassifyRecord, certifyAllClassify } from "./game/wardenProgress";
+import { resetClassifyRecord, certifyAllClassify, syncDirectives, resetDirectives } from "./game/wardenProgress";
+import { directiveById } from "./game/content/directives";
 import { getLoadout } from "../api/userApi";
 import { setLoadoutLocal } from "./game/loadoutStore";
 import { playSfx, stopEngine, stopAmbient } from "./game/audio";
@@ -111,6 +112,20 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
   // Open/close blips for the overlay panels. Compared against previous state
   // so the mount itself (all closed) never fires a sound.
   const prevPanelsRef = useRef({ map: false, codex: false, outfitting: false, settings: false, chronicle: false, contact: false });
+  // The Long Directive advances by DERIVATION - each beat is a pure predicate
+  // over the universe and The Self - so the whole arc needs exactly one hook
+  // instead of a completion call in every reward path it touches.
+  useEffect(() => {
+    if (!universe) return;
+    const earned = syncDirectives(universe);
+    for (const id of earned) {
+      const beat = directiveById(id);
+      if (!beat) continue;
+      playSfx('surveyMilestone');
+      narrate(`${beat.label} — done. ${beat.reward}`, 'proud');
+    }
+  }, [universe]);
+
   useEffect(() => {
     const prev = prevPanelsRef.current;
     const next = { map: isFullMapOpen, codex: isCodexOpen, outfitting: isOutfittingOpen, settings: isSettingsOpen, chronicle: isChronicleOpen, contact: !!contactCivId, missions: isMissionsOpen, achievements: isAchievementsOpen, hangar: isHangarOpen, menu: isMenuOpen };
@@ -512,6 +527,11 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
             if (action === 'reset-classify') {
               resetClassifyRecord();
               showHint('Classify certification cleared — the prompt is back on every galaxy.', 'info', 5000);
+              return true;
+            }
+            if (action === 'reset-directives') {
+              resetDirectives();
+              showHint('The Long Directive reset — reopen Objectives [O] to see it from the top.', 'info', 5000);
               return true;
             }
             if (action === 'certify-classify') {

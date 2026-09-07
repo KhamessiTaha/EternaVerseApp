@@ -7,6 +7,8 @@
 // remains the authority on the actual claim.
 import { useState } from 'react';
 import { playSfx } from '../audio.js';
+import { DIRECTIVES, currentDirective, directiveProgress } from '../content/directives.js';
+import { getDirectivesDone } from '../wardenProgress.js';
 
 // Mirror of the backend's METRICS in utils/missionSystem.js - display only
 const METRICS = {
@@ -32,6 +34,12 @@ export const progressOf = (universe, mission) => {
 };
 
 export const MissionsPanel = ({ isOpen, onClose, universe, onClaim }) => {
+  // The cross-universe arc. Read on open rather than subscribed: it advances on
+  // universe sync, and this panel is only ever looked at, not lived in.
+  const arcDone = new Set(getDirectivesDone());
+  const arcProgress = directiveProgress(arcDone);
+  const currentArc = currentDirective(arcDone);
+
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState(null);
 
@@ -87,6 +95,76 @@ export const MissionsPanel = ({ isOpen, onClose, universe, onClaim }) => {
             {error}
           </div>
         )}
+
+        {/* The Long Directive: the arc that runs across every universe you are
+            ever handed. It sits ABOVE the rotating missions because those are
+            this cosmos's errands, and this is the reason you're here at all.
+            Only the current beat shows its instruction - eight paragraphs of
+            fiction at once is a wall, not a thread. */}
+        <div className="border-b border-line">
+          <div className="flex items-center justify-between px-5 pt-4 pb-2">
+            <span className="font-mono text-[10px] tracking-[0.22em] uppercase text-accent">
+              ◈ The Long Directive
+            </span>
+            <span className="font-mono text-[9px] tabular-nums text-ink-faint">
+              {arcProgress.done}/{arcProgress.total}
+            </span>
+          </div>
+
+          {arcProgress.complete ? (
+            <div className="px-5 pb-4">
+              <div className="font-mono text-[11px] tracking-[0.2em] uppercase text-good mb-1">
+                ✓ The whole arc
+              </div>
+              <p className="font-sans text-[12px] leading-relaxed text-ink-dim italic">
+                You have done everything this universe knows how to ask of you.
+                What you do next is your own idea — which was always the point.
+              </p>
+            </div>
+          ) : (
+            <div className="pb-2">
+              {DIRECTIVES.map((d) => {
+                const done = arcDone.has(d.id);
+                const active = d.id === currentArc?.id;
+                if (!done && !active) {
+                  // Unreached beats stay as titles only: a spine you can see the
+                  // length of, without spoiling what each one asks.
+                  return (
+                    <div key={d.id} className="px-5 py-1 font-mono text-[11px] text-ink-faint/50">
+                      · {d.label}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={d.id} className="px-5 py-1.5">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-mono ${
+                          done ? 'border-good bg-good/15 text-good' : 'border-accent text-accent animate-pulse'
+                        }`}
+                      >
+                        {done ? '✓' : ''}
+                      </span>
+                      <span className={`font-mono text-[12px] tracking-wide ${done ? 'text-ink-faint line-through' : 'text-ink'}`}>
+                        {d.label}
+                      </span>
+                      {active && (
+                        <span className="ml-auto font-mono text-[9px] tracking-wider uppercase text-accent border border-accent/40 px-1.5 py-0.5">
+                          {d.hint}
+                        </span>
+                      )}
+                    </div>
+                    {active && (
+                      <p className="mt-1.5 pl-[26px] font-sans text-[11px] leading-relaxed text-ink-dim">
+                        {d.instruction}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div>
           {activeMissions.length === 0 && (

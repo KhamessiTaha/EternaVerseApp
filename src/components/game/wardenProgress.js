@@ -7,6 +7,7 @@
 // stateful adapter (persist + subscribe).
 import * as model from "./self/selfModel.js";
 import * as classify from "./world/classifyModel.js";
+import * as directives from "./content/directives.js";
 import { MEMORIES } from "./content/memories.js";
 import { AUTHORED_SELVES } from "./content/revelations.js";
 import { INSIGHTS } from "./content/insights.js";
@@ -87,6 +88,10 @@ const defaults = () => ({
   // did - and once you can read a spiral you can still read one in the next
   // cosmos. See world/classifyModel.js.
   classify: {},
+  // The Long Directive (content/directives.js): completed beat ids, in the
+  // order they were finished. Account-wide, because it is the WARDEN's arc -
+  // you shouldn't have to rediscover iron in every cosmos you're handed.
+  directives: [],
 });
 
 const hydrate = (s) => {
@@ -194,6 +199,50 @@ export function recordClassifyCall(answer, correct) {
 export function resetClassifyRecord() {
   const state = load();
   state.classify = {};
+  save(state);
+}
+
+// --- The Long Directive ----------------------------------------------------
+
+/** Completed beat ids, account-wide. */
+export function getDirectivesDone() {
+  return load().directives || [];
+}
+
+/**
+ * Reconcile the arc against the world.
+ *
+ * Called on universe sync. Beats are DERIVED - each is a pure predicate over
+ * the universe and The Self - so nothing has to be plumbed into reward paths,
+ * and a beat can complete out of order without stalling the chain. Completion
+ * is sticky: once earned it stays, even after the universe that earned it dies.
+ *
+ * Returns the beats newly finished by THIS sync, so the caller can announce
+ * them once instead of every tick.
+ */
+export function syncDirectives(universe) {
+  const state = load();
+  const before = new Set(state.directives || []);
+
+  const satisfied = directives.satisfiedBy({
+    universe,
+    certified: classify.certifiedBuckets(state.classify || {}),
+  });
+
+  const earned = satisfied.filter((id) => !before.has(id));
+  if (earned.length === 0) return [];
+
+  // Preserve authored order in storage so the panel reads as a chain.
+  const merged = new Set([...before, ...earned]);
+  state.directives = directives.DIRECTIVE_IDS.filter((id) => merged.has(id));
+  save(state);
+  return earned;
+}
+
+/** Reset the arc (dev/testing). */
+export function resetDirectives() {
+  const state = load();
+  state.directives = [];
   save(state);
 }
 
