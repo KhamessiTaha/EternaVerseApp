@@ -91,6 +91,27 @@ export const HUDPanel = ({ hudData }) => {
               ))}
             </div>
           </div>
+
+          {/* Which gun is live. Sits beside the heat gauge and appears on the
+              same condition, so it shows up the moment a player starts
+              shooting and never before - shields vs hull is the whole
+              counterplay, and guessing which one you're holding would sink it. */}
+          {weapon.mode && (
+            <div
+              className="flex items-center gap-1.5 border px-1.5 py-0.5"
+              style={{
+                borderColor: `#${(weapon.mode.color ?? 0x4ec9e0).toString(16).padStart(6, '0')}66`,
+              }}
+            >
+              <span
+                className="text-[10px] font-bold uppercase tracking-[0.18em]"
+                style={{ color: `#${(weapon.mode.color ?? 0x4ec9e0).toString(16).padStart(6, '0')}` }}
+              >
+                {weapon.mode.label}
+              </span>
+              <span className="text-[8px] uppercase tracking-wider text-ink-faint">[R]</span>
+            </div>
+          )}
         </>
       )}
 

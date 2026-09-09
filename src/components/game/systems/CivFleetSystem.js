@@ -67,7 +67,9 @@ export class CivFleetSystem {
       x: s.x,
       y: s.y,
       radius: SHIP_ROLES[s.role].radius,
-      hit: (damage) => this._damageShip(s, damage, true),
+      // `profile` is the player's fire mode; ships shooting each other pass
+      // nothing and are damaged neutrally, as before.
+      hit: (damage, profile) => this._damageShip(s, damage, true, profile),
     }));
   }
 
@@ -197,12 +199,12 @@ export class CivFleetSystem {
    * diplomatic weight and are reported to the server) from ships killing each
    * other, which is just the war happening. Returns true when it dies.
    */
-  _damageShip(ship, damage, byPlayer) {
+  _damageShip(ship, damage, byPlayer, profile = null) {
     if (ship.dead) return true;
     const time = this.scene.time.now;
     const hadShields = ship.shields > 0;
 
-    const next = applyDamage({ hp: ship.hp, shields: ship.shields }, damage);
+    const next = applyDamage({ hp: ship.hp, shields: ship.shields }, damage, profile);
     ship.hp = next.hp;
     ship.shields = next.shields;
     ship.lastHitAt = time;

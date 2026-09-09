@@ -219,7 +219,10 @@ const PhaserGame = ({ universe, onAnomalyResolved, onPlayerPositionUpdate, onDis
       if (e.key === 'j' || e.key === 'J') {
         setIsSelfOpen(prev => !prev);
       }
-      if (e.key === 'g' || e.key === 'G') {
+      // I for inventory, NOT G: the scene already binds keydown-G to First
+      // Contact (InputSystem), so binding Materials there fired both - the
+      // panel opened and you hailed a civilization at the same time.
+      if (e.key === 'i' || e.key === 'I') {
         setIsMaterialsOpen(prev => !prev);
       }
       if (e.key === 'u' || e.key === 'U') {

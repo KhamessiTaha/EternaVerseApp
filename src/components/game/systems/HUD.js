@@ -1,3 +1,5 @@
+import { fireModeFor } from "../combat/combatModel.js";
+
 export class HUD {
   constructor(scene) {
     this.scene = scene;
@@ -48,6 +50,9 @@ export class HUD {
       weapon: {
         heat: Math.round(this.scene.player?.weaponHeat ?? 0),
         locked: this.scene.player?.weaponLocked || false,
+        // Which gun is live. Shields vs hull is the whole counterplay, so the
+        // player must never have to guess which one they're holding.
+        mode: fireModeFor(this.scene.combatSystem?.fireMode),
       },
       ability: this.scene.abilitySystem?.getHUD() ?? null,
       gamma: this.scene.gamma ?? 1,

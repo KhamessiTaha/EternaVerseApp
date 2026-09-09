@@ -14,6 +14,7 @@ import { playSfx } from "../audio.js";
 import { getLoadoutLocal } from "../loadoutStore.js";
 import {
   weaponFor, applyCooling, tryFire, pickTarget,
+  weaponInMode, nextFireMode, fireModeFor, DEFAULT_FIRE_MODE,
 } from "../combat/combatModel.js";
 
 const BOLT_LIFESPAN_MS = 1400;
@@ -25,6 +26,31 @@ export class CombatSystem {
     this.heatState = { heat: 0, locked: false, lastFiredAt: -Infinity };
     this.bolts = [];
     this.providers = [];
+    // LANCE kills hull, PULSE strips shields. One key toggles between them -
+    // see combatModel.FIRE_MODES for why the enemy roles demand both.
+    this.fireMode = DEFAULT_FIRE_MODE;
+    this._bindModeKey();
+  }
+
+  _bindModeKey() {
+    const kb = this.scene.input?.keyboard;
+    if (!kb) return;
+    // R, NOT Q. Q is already a movement key on both supported layouts -
+    // left-turn on AZERTY, strafe-left on QWERTY - so binding the toggle there
+    // would spin the ship every time the player switched guns. R is free on
+    // both and still sits under the hand that's on the movement cluster, which
+    // matters: a mid-fight switch you have to reach for won't get used.
+    this.modeKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    this.modeKey.on("down", () => this.cycleFireMode());
+  }
+
+  cycleFireMode() {
+    if (this.scene.inputSystem?.isMinigameActive) return;
+    this.fireMode = nextFireMode(this.fireMode);
+    const mode = fireModeFor(this.fireMode);
+    playSfx("uiClick");
+    this.scene.events.emit("weapon:mode", mode);
+    return mode;
   }
 
   /** Register a target source: fn() -> [{ id, x, y, radius, hit(dmg)->dead }] */
@@ -50,7 +76,9 @@ export class CombatSystem {
 
     if (!paused && player?.body && this.scene.inputSystem?.keys?.fire?.isDown) {
       const wasLocked = this.heatState.locked;
-      const weapon = weaponFor(getLoadoutLocal().hull);
+      // The hull's weapon AS THIS MODE FIRES IT: damage, cadence, heat and
+      // bolt speed are all scaled, so each hull keeps its character in both.
+      const weapon = weaponInMode(weaponFor(getLoadoutLocal().hull), this.fireMode);
       const res = tryFire(this.heatState, weapon, time);
       this.heatState = res.state;
       if (res.fired) this._spawnBolt(player, weapon);
@@ -61,6 +89,7 @@ export class CombatSystem {
     if (player) {
       player.weaponHeat = this.heatState.heat;
       player.weaponLocked = this.heatState.locked;
+      player.fireMode = this.fireMode;
     }
 
     this._updateBolts(time, delta);
@@ -78,9 +107,14 @@ export class CombatSystem {
     const x = player.x + Math.cos(noseAngle) * MUZZLE_OFFSET;
     const y = player.y + Math.sin(noseAngle) * MUZZLE_OFFSET;
 
+    // The bolt is coloured and shaped by its mode, so which gun is live is
+    // readable from the screen mid-fight without checking the HUD: LANCE is a
+    // long cyan splinter, PULSE a fat violet slug.
+    const isPulse = this.fireMode === "pulse";
     const gfx = this.scene.add.graphics({ x, y }).setDepth(6).setBlendMode(Phaser.BlendModes.ADD);
-    gfx.fillStyle(0xf5cf7a, 1);
-    gfx.fillEllipse(0, 0, 12, 4);
+    gfx.fillStyle(weapon.color ?? 0xf5cf7a, 1);
+    if (isPulse) gfx.fillEllipse(0, 0, 9, 7);
+    else gfx.fillEllipse(0, 0, 14, 3.5);
     gfx.rotation = angle;
 
     this.bolts.push({
@@ -88,6 +122,7 @@ export class CombatSystem {
       vx: Math.cos(angle) * weapon.boltSpeed,
       vy: Math.sin(angle) * weapon.boltSpeed,
       damage: weapon.damage,
+      profile: weapon.profile,
       bornAt: this.scene.time.now,
       gfx,
     });
@@ -112,7 +147,7 @@ export class CombatSystem {
       for (const t of targets) {
         if (Phaser.Math.Distance.Between(b.x, b.y, t.x, t.y) > (t.radius ?? 16) + 6) continue;
         this._impact(b.x, b.y);
-        t.hit(b.damage);
+        t.hit(b.damage, b.profile);
         this._removeBolt(i);
         break;
       }

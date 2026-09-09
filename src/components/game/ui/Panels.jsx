@@ -192,8 +192,11 @@ export const ControlsHint = () => {
       <div><Key>{moveKeys}</Key>move</div>
       <div><Key>F</Key>resolve anomaly</div>
       <div><Key>X</Key>fire</div>
+      <div><Key>R</Key>lance / pulse</div>
       <div><Key>V</Key>scan object</div>
       <div><Key>G</Key>first contact</div>
+      <div><Key>I</Key>materials</div>
+      <div><Key>U</Key>crafting</div>
       <div><Key>SPACE</Key>ability</div>
       <div><Key>SHIFT</Key>boost</div>
       <div><Key>ESC</Key>menu</div>

@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import {
   WEAPONS, weaponFor, HEAT_MAX, HEAT_UNLOCK,
   applyCooling, tryFire, pickTarget, siegeCompositionFor, RIFT_STATS,
+  FIRE_MODE_IDS, DEFAULT_FIRE_MODE, fireModeFor, nextFireMode, weaponInMode,
 } from "./combatModel.js";
+import { applyDamage } from "./fleetModel.js";
 
 const HULLS = ["interceptor", "cutter", "falcon", "cruiser", "bastion", "hauler", "tachyon", "vanguard"];
 
@@ -75,4 +77,102 @@ test("rift stats are complete for both archetypes", () => {
   assert.ok(RIFT_STATS.stinger.hp > 0 && RIFT_STATS.stinger.speed > 0 && RIFT_STATS.stinger.contactDamage > 0);
   assert.ok(RIFT_STATS.tether.hp > RIFT_STATS.stinger.hp, "tether is the tanky one");
   assert.ok(RIFT_STATS.tether.boltDamage > 0 && RIFT_STATS.tether.fireIntervalMs > 0);
+});
+
+// --- fire modes: the counterplay -----------------------------------------
+// The enemy has four roles; the player had one answer. These assert that the
+// two modes are genuinely different tools and that SWITCHING beats committing.
+
+test("both modes are complete, and one key cycles between them", () => {
+  for (const id of FIRE_MODE_IDS) {
+    const m = fireModeFor(id);
+    assert.ok(m.label && m.tell, id);
+    assert.ok(m.vsShield > 0 && m.vsHull > 0, id);
+    assert.ok(m.damageMul > 0 && m.fireIntervalMul > 0 && m.heatMul > 0, id);
+  }
+  assert.equal(nextFireMode("lance"), "pulse");
+  assert.equal(nextFireMode("pulse"), "lance");
+  assert.equal(nextFireMode("nonsense"), FIRE_MODE_IDS[0], "junk never wedges the toggle");
+  assert.equal(fireModeFor("nonsense").id, DEFAULT_FIRE_MODE);
+});
+
+test("the modes are actually opposites, not two flavours of the same gun", () => {
+  const lance = fireModeFor("lance");
+  const pulse = fireModeFor("pulse");
+  assert.ok(pulse.vsShield > lance.vsShield * 2, "pulse must own shields");
+  assert.ok(lance.vsHull > pulse.vsHull * 2, "lance must own hull");
+});
+
+test("every hull keeps its character in both modes", () => {
+  // Modes are multipliers, so a bastion's heavy slow shot stays heavy and slow.
+  for (const id of HULLS) {
+    const base = weaponFor(id);
+    for (const mode of FIRE_MODE_IDS) {
+      const w = weaponInMode(base, mode);
+      assert.ok(w.damage > 0 && w.fireIntervalMs > 0 && w.heatPerShot > 0 && w.boltSpeed > 0, `${id}/${mode}`);
+      assert.ok(w.profile.vsShield > 0 && w.profile.vsHull > 0, `${id}/${mode}`);
+    }
+  }
+  const heavy = weaponInMode(weaponFor("bastion"), "lance");
+  const light = weaponInMode(weaponFor("falcon"), "lance");
+  assert.ok(heavy.damage > light.damage, "bastion still hits harder than falcon");
+  assert.ok(heavy.fireIntervalMs > light.fireIntervalMs, "and still fires slower");
+});
+
+test("a shot is never worth more than its damage budget", () => {
+  // The conversion back out of shield-units is what stops PULSE from being a
+  // strictly better gun that also happens to shred hull.
+  const unshielded = { hp: 100, shields: 0 };
+  const lance = weaponInMode(weaponFor("cruiser"), "lance");
+  const pulse = weaponInMode(weaponFor("cruiser"), "pulse");
+  const byLance = 100 - applyDamage(unshielded, lance.damage, lance.profile).hp;
+  const byPulse = 100 - applyDamage(unshielded, pulse.damage, pulse.profile).hp;
+  assert.ok(byLance > byPulse * 2, "against bare hull, lance must dominate");
+});
+
+test("omitting the profile damages exactly as before", () => {
+  // Ships shooting each other, hazards, and every existing caller.
+  assert.deepEqual(applyDamage({ hp: 30, shields: 10 }, 12), { hp: 28, shields: 0 });
+  assert.deepEqual(applyDamage({ hp: 30, shields: 10 }, 4), { hp: 30, shields: 6 });
+});
+
+test("SWITCHING beats committing to either mode - the whole design claim", () => {
+  // A guardian: 34 hull behind 26 shields, the ship the code says "must be
+  // pressured, not plinked". Count shots for three strategies.
+  const guardian = () => ({ hp: 34, shields: 26 });
+  const lance = weaponInMode(weaponFor("cruiser"), "lance");
+  const pulse = weaponInMode(weaponFor("cruiser"), "pulse");
+
+  const shotsToKill = (plan) => {
+    let s = guardian();
+    for (let i = 1; i <= 200; i++) {
+      const w = plan(s);
+      s = applyDamage(s, w.damage, w.profile);
+      if (s.hp <= 0) return i;
+    }
+    return Infinity;
+  };
+
+  const lanceOnly = shotsToKill(() => lance);
+  const pulseOnly = shotsToKill(() => pulse);
+  // Strip the screen, then switch to kill.
+  const switching = shotsToKill((s) => (s.shields > 0 ? pulse : lance));
+
+  assert.ok(switching < lanceOnly, `switching (${switching}) must beat lance-only (${lanceOnly})`);
+  assert.ok(switching < pulseOnly, `switching (${switching}) must beat pulse-only (${pulseOnly})`);
+});
+
+test("against an unshielded interceptor, committing to LANCE is correct", () => {
+  // Switching must not be a universal answer, or it stops being a decision.
+  const lance = weaponInMode(weaponFor("cruiser"), "lance");
+  const pulse = weaponInMode(weaponFor("cruiser"), "pulse");
+  const shots = (w) => {
+    let s = { hp: 14, shields: 0 };
+    for (let i = 1; i <= 200; i++) {
+      s = applyDamage(s, w.damage, w.profile);
+      if (s.hp <= 0) return i;
+    }
+    return Infinity;
+  };
+  assert.ok(shots(lance) < shots(pulse), "lance kills a bare hull faster");
 });

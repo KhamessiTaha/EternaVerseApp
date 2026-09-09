@@ -24,6 +24,77 @@ export const WEAPONS = {
 
 export const weaponFor = (hullId) => WEAPONS[hullId] ?? WEAPONS.interceptor;
 
+// --- Fire modes ------------------------------------------------------------
+//
+// The enemy has four roles; the player had one answer.
+//
+// SHIP_ROLES gives interceptors no shields at all, guardians 26 that regenerate
+// (the comment there says a guardian "must be pressured, not plinked"), and
+// bombers a screen they hide behind while they burn a world. Against all of
+// that the warden had a single gun, so target priority was the only decision
+// in a fight - and it was always the same decision.
+//
+// Two modes, not a weapon inventory. The shield/hull split is already the axis
+// the enemy is built on, so the counterplay uses it rather than inventing a
+// new system: strip a screen with PULSE, kill with LANCE. Switching mid-fight
+// beats committing to either, which is the whole point.
+//
+// These are MULTIPLIERS over the hull's weapon, so every hull keeps its
+// character - a bastion's slow heavy pulse still feels like a bastion.
+export const FIRE_MODES = {
+  lance: {
+    id: "lance",
+    label: "LANCE",
+    tell: "Punches hull. Bounces off shields.",
+    damageMul: 1.0,
+    vsShield: 0.5,
+    vsHull: 1.35,
+    fireIntervalMul: 1.0,
+    heatMul: 1.0,
+    boltSpeedMul: 1.0,
+    color: 0x4ec9e0,
+  },
+  pulse: {
+    id: "pulse",
+    label: "PULSE",
+    tell: "Tears shields open. Barely scratches hull.",
+    damageMul: 0.85,
+    vsShield: 2.4,
+    vsHull: 0.45,
+    fireIntervalMul: 0.8,
+    heatMul: 1.25,
+    boltSpeedMul: 0.8,
+    color: 0xc77dd8,
+  },
+};
+
+export const FIRE_MODE_IDS = Object.keys(FIRE_MODES);
+export const DEFAULT_FIRE_MODE = "lance";
+
+export const fireModeFor = (id) => FIRE_MODES[id] ?? FIRE_MODES[DEFAULT_FIRE_MODE];
+
+/** The other mode. One key toggles, because a fight is no place for a menu. */
+export function nextFireMode(id) {
+  const i = FIRE_MODE_IDS.indexOf(id);
+  return FIRE_MODE_IDS[(i + 1) % FIRE_MODE_IDS.length] ?? DEFAULT_FIRE_MODE;
+}
+
+/**
+ * The hull's weapon as this mode fires it. Returned shape is a drop-in for
+ * tryFire/_spawnBolt, plus the damage profile the target applies.
+ */
+export function weaponInMode(weapon, modeId) {
+  const m = fireModeFor(modeId);
+  return {
+    damage: weapon.damage * m.damageMul,
+    fireIntervalMs: weapon.fireIntervalMs * m.fireIntervalMul,
+    heatPerShot: weapon.heatPerShot * m.heatMul,
+    boltSpeed: weapon.boltSpeed * m.boltSpeedMul,
+    color: m.color,
+    profile: { vsShield: m.vsShield, vsHull: m.vsHull },
+  };
+}
+
 // Heat: every shot adds heat; heat cools continuously; hitting max locks the
 // gun until it cools below the unlock threshold (the boost-lockout pattern,
 // so the rhythm is already familiar to the player's hands).

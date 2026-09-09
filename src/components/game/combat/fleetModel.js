@@ -212,8 +212,32 @@ export function salvageFor(role, roll = Math.random()) {
   return lo + Math.floor(roll * (hi - lo + 1));
 }
 
-/** Damage applied to a ship, shields first. Returns the new {hp, shields}. */
-export function applyDamage({ hp, shields }, damage) {
-  const absorbed = Math.min(shields, damage);
-  return { hp: hp - (damage - absorbed), shields: shields - absorbed };
+/**
+ * Damage applied to a ship, shields first.
+ *
+ * `profile` is the player's fire mode (combatModel.FIRE_MODES): a shot has one
+ * damage budget that is worth different amounts against a screen and against a
+ * hull. PULSE spends 2.4x on shields and 0.45x on hull; LANCE the reverse. That
+ * asymmetry is the counterplay - it's what makes stripping a guardian's screen
+ * and then switching beat committing to either mode.
+ *
+ * Whatever the shields don't absorb carries through to the hull, converted back
+ * out of shield-units first so a shot is never worth more than its budget.
+ *
+ * Omitted (ships shooting each other, hazards) means neutral 1x/1x, so every
+ * existing caller behaves exactly as before.
+ */
+export function applyDamage({ hp, shields }, damage, profile = null) {
+  const vsShield = profile?.vsShield > 0 ? profile.vsShield : 1;
+  const vsHull = profile?.vsHull > 0 ? profile.vsHull : 1;
+
+  const againstShield = damage * vsShield;
+  const absorbed = Math.min(shields, againstShield);
+  // Unspent budget, back in base units, then re-scaled for hull.
+  const leftover = (againstShield - absorbed) / vsShield;
+
+  return {
+    hp: hp - leftover * vsHull,
+    shields: shields - absorbed,
+  };
 }

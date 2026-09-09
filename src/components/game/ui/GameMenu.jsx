@@ -13,7 +13,7 @@ const ENTRIES = [
   // Materials was missing from this list entirely, which made the whole
   // harvest -> craft -> build loop invisible: ESC is where players look for
   // what exists, and a panel that isn't here doesn't exist to them.
-  { id: 'materials', label: 'Materials & Building', hotkey: 'G' },
+  { id: 'materials', label: 'Materials & Building', hotkey: 'I' },
   // "Outfitting" alone never said "this is where you craft with what you
   // harvested", so players with a full inventory never opened it.
   { id: 'outfitting', label: 'Crafting & Outfitting', hotkey: 'U' },
