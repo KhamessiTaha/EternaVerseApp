@@ -149,15 +149,52 @@ export function certifyProgress(record, bucketId) {
   return Math.min(1, r.calls / CERTIFY_MIN_CALLS);
 }
 
+// --- Hard specimens --------------------------------------------------------
+//
+// What keeps the mechanic alive after certification.
+//
+// Certification retires the easy question, which is right - but on its own it
+// means classification eventually stops existing, and a system that simply
+// ends is a worse ending than a system that quiets down. Hard specimens are
+// the other half: rare objects that are genuinely ambiguous, worth several
+// times as much, and asked EVEN of a certified warden.
+//
+// Today there is exactly one, and it earns the name. A disk galaxy seen from
+// its rim is a flat, near-featureless lens that reads as an elliptical -
+// mistaking the two is the classic error in real morphology. The tell is the
+// DUST LANE the renderer draws through it: the disk's own material, blocking
+// its own light. Anyone who knows what that dark seam means gets it right;
+// anyone who doesn't gets told, once, and then knows forever.
+//
+// Fairness is why only UNBARRED spirals are ever drawn edge-on (see
+// objectGenerator): you cannot see a bar from the rim, so every edge-on disk
+// answers "spiral" and nobody is wrong for a reason the screen never showed.
+
+export const HARD_MULT = 2.4;
+export const HARD_STREAK_BONUS = 2;
+
+export const HARD_DIAGNOSTIC =
+  "A disk seen edge-on. The dark seam splitting it is a DUST LANE - the galaxy's own material blocking its own light, and something only a disk has. Flat and featureless says elliptical; a lane through the middle says you are looking at a spiral from its rim.";
+
+/** Is this object one of the genuinely ambiguous ones? */
+export function isHardSpecimen(discovery) {
+  return !!discovery?.edgeOn && !!answerFor(discovery.objectClass);
+}
+
 /**
  * Should the prompt be OFFERED for this object?
  *
  * No, once you're certified in the family it belongs to - that is the whole
- * point. The bonus still pays; see classifyResult.
+ * point, and the bonus still pays (see classifyResult).
+ *
+ * UNLESS it's a hard specimen, which is asked of everyone forever. That is
+ * what stops certification from ending the mechanic outright.
  */
-export function shouldPrompt(objectClass, record) {
+export function shouldPrompt(discovery, record) {
+  const objectClass = typeof discovery === "string" ? discovery : discovery?.objectClass;
   const answer = answerFor(objectClass);
   if (!answer) return false;
+  if (isHardSpecimen(discovery)) return true;
   return !isCertified(record, answer);
 }
 
@@ -171,13 +208,22 @@ export function shouldPrompt(objectClass, record) {
  *
  * Returns { called, correct, answer, mult, streakBonus, diagnostic, certified }.
  */
-export function classifyResult(guess, objectClass, record = null) {
+export function classifyResult(guess, discovery, record = null) {
+  const objectClass = typeof discovery === "string" ? discovery : discovery?.objectClass;
   const answer = answerFor(objectClass);
-  const none = { called: false, correct: false, answer: null, mult: 1, streakBonus: 0, diagnostic: null, certified: false };
+  const none = {
+    called: false, correct: false, answer: null, mult: 1, streakBonus: 0,
+    diagnostic: null, certified: false, hard: false,
+  };
   if (!answer) return none;
 
+  const hard = isHardSpecimen(discovery);
+  const mult = hard ? HARD_MULT : CLASSIFY_MULT;
+  const streak = hard ? HARD_STREAK_BONUS : CLASSIFY_STREAK_BONUS;
+
   // Certified: they proved this one already. Pay it and stay out of the way.
-  if (isCertified(record, answer)) {
+  // A hard specimen is never auto-passed - it is asked of everyone, forever.
+  if (!hard && isCertified(record, answer)) {
     return {
       called: false,
       correct: true,
@@ -186,11 +232,12 @@ export function classifyResult(guess, objectClass, record = null) {
       streakBonus: CLASSIFY_STREAK_BONUS,
       diagnostic: null,
       certified: true,
+      hard: false,
     };
   }
 
   if (!guess) {
-    return { ...none, answer };
+    return { ...none, answer, hard };
   }
 
   const correct = guess === answer;
@@ -198,10 +245,12 @@ export function classifyResult(guess, objectClass, record = null) {
     called: true,
     correct,
     answer,
-    mult: correct ? CLASSIFY_MULT : 1,
-    streakBonus: correct ? CLASSIFY_STREAK_BONUS : 0,
-    // Wrong calls teach; right calls don't need to.
-    diagnostic: correct ? null : DIAGNOSTICS[answer] ?? null,
+    mult: correct ? mult : 1,
+    streakBonus: correct ? streak : 0,
+    // Wrong calls teach; right calls don't need to. A missed hard specimen
+    // teaches the specific confusion rather than the generic family tell.
+    diagnostic: correct ? null : (hard ? HARD_DIAGNOSTIC : DIAGNOSTICS[answer] ?? null),
     certified: false,
+    hard,
   };
 }

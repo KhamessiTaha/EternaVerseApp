@@ -6,6 +6,7 @@ import {
   DIAGNOSTICS, answerFor, isClassifiable, bucketForKey, classifyResult,
   CERTIFY_MIN_CALLS, CERTIFY_ACCURACY, isCertified, certifiedBuckets,
   recordCall, shouldPrompt, certifyProgress,
+  isHardSpecimen, HARD_MULT, HARD_DIAGNOSTIC,
 } from "./classifyModel.js";
 import { OBJECT_CLASSES } from "./researchValues.js";
 
@@ -185,4 +186,63 @@ test("twelve perfect calls certify, and the thirteenth is silent", () => {
   }
   assert.equal(shouldPrompt("E2", r), false, "it should have gone quiet");
   assert.deepEqual(certifiedBuckets(r), ["elliptical"]);
+});
+
+// --- hard specimens: what keeps the mechanic alive ------------------------
+
+const edgeOn = (objectClass = "Sb") => ({ objectClass, category: "galaxy", edgeOn: true });
+const faceOn = (objectClass = "Sb") => ({ objectClass, category: "galaxy" });
+
+test("an edge-on disk is a hard specimen; an ordinary galaxy is not", () => {
+  assert.equal(isHardSpecimen(edgeOn()), true);
+  assert.equal(isHardSpecimen(faceOn()), false);
+  assert.equal(isHardSpecimen(null), false);
+  assert.equal(isHardSpecimen({ objectClass: "nebula", edgeOn: true }), false);
+});
+
+test("a hard specimen is asked EVEN of a certified warden", () => {
+  // This is the whole reason hard specimens exist: certification retires the
+  // easy question, and without this the mechanic would simply end.
+  const certified = { spiral: { calls: 40, correct: 40 } };
+  assert.equal(shouldPrompt(faceOn("Sb"), certified), false, "ordinary spirals go quiet");
+  assert.equal(shouldPrompt(edgeOn("Sb"), certified), true, "but this one still asks");
+});
+
+test("a hard specimen is never auto-passed for free", () => {
+  const certified = { spiral: { calls: 40, correct: 40 } };
+  const r = classifyResult(null, edgeOn("Sb"), certified);
+  assert.equal(r.certified, false, "certification must not answer it for you");
+  assert.equal(r.mult, 1, "and no call means no bonus");
+});
+
+test("calling a hard specimen right pays more than an ordinary one", () => {
+  const right = classifyResult("spiral", edgeOn("Sb"), {});
+  assert.equal(right.correct, true);
+  assert.equal(right.hard, true);
+  assert.equal(right.mult, HARD_MULT);
+  assert.ok(HARD_MULT > CLASSIFY_MULT);
+  assert.ok(right.streakBonus > CLASSIFY_STREAK_BONUS);
+});
+
+test("missing a hard specimen teaches the SPECIFIC confusion, and never punishes", () => {
+  const wrong = classifyResult("elliptical", edgeOn("Sb"), {});
+  assert.equal(wrong.correct, false);
+  assert.equal(wrong.mult, 1, "wrong is never punished, only unrewarded");
+  assert.equal(wrong.diagnostic, HARD_DIAGNOSTIC);
+  assert.match(wrong.diagnostic, /dust lane/i, "it must name the tell");
+});
+
+test("an edge-on disk still answers as a SPIRAL", () => {
+  // Fairness: you cannot see a bar from the rim, so only unbarred spirals are
+  // ever drawn edge-on (objectGenerator) - every edge-on disk answers the same
+  // way, and nobody is wrong for something the screen never showed them.
+  for (const cls of ["Sa", "Sb", "Sc"]) {
+    assert.equal(answerFor(cls), "spiral");
+    assert.equal(classifyResult("spiral", edgeOn(cls), {}).correct, true);
+  }
+});
+
+test("a hard call still counts toward certification, as itself", () => {
+  const r = classifyResult("spiral", edgeOn("Sb"), {});
+  assert.equal(r.answer, "spiral");
 });

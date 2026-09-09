@@ -14,6 +14,7 @@
 import { CLASSIFY_BUCKETS } from "../world/classifyModel.js";
 
 const CYAN = 0x4ec9e0;
+const GOLD = 0xdfa73f; // hard specimens - the ones asked even of a certified warden
 const GOOD = 0x4fd1a5;
 const INK = 0xc9ccdb;
 const SLOT_W = 62;
@@ -84,11 +85,12 @@ export class ClassifyPrompt {
   }
 
   /** Show (or move) the prompt under a target. Idempotent per target id. */
-  show(targetId, x, y) {
+  show(targetId, x, y, hard = false) {
     if (this.shownFor !== targetId) {
       this.hide();
       this.shownFor = targetId;
       this.guess = null;
+      this.hard = hard;
       this._build();
       this.container.setAlpha(0);
       this.scene.tweens.add({ targets: this.container, alpha: 1, duration: 220 });
@@ -153,10 +155,21 @@ export class ClassifyPrompt {
 
     // Offering: four slots, one keypress each.
     const w = SLOT_W * CLASSIFY_BUCKETS.length + 16;
+    const edge = this.hard ? GOLD : CYAN;
     g.fillStyle(0x0c0f1c, 0.78);
     g.fillRoundedRect(-w / 2, -22, w, 44, 4);
-    g.lineStyle(1, CYAN, 0.35);
+    g.lineStyle(this.hard ? 1.6 : 1, edge, this.hard ? 0.75 : 0.35);
     g.strokeRoundedRect(-w / 2, -22, w, 44, 4);
+
+    // A certified warden who suddenly gets asked again needs to know WHY, or
+    // it reads as the game forgetting what they proved. This says: this one is
+    // genuinely hard, and it is worth more.
+    if (this.hard) {
+      const banner = this.scene.add.text(0, -32, "RARE SPECIMEN · worth the look", {
+        fontFamily: '"IBM Plex Mono", monospace', fontSize: "9px", color: "#dfa73f",
+      }).setOrigin(0.5);
+      c.add(banner);
+    }
 
     CLASSIFY_BUCKETS.forEach((b, i) => {
       const x = -w / 2 + 8 + SLOT_W * i + SLOT_W / 2;

@@ -12,7 +12,7 @@ import { getShipModifiers } from "../content/upgradeCatalog.js";
 import { playSfx } from "../audio.js";
 import { narrate, narrateOnce, pick, CURATOR } from "../narrator.js";
 import {
-  CLASSIFY_BUCKETS, isClassifiable, classifyResult, shouldPrompt,
+  CLASSIFY_BUCKETS, isClassifiable, classifyResult, shouldPrompt, isHardSpecimen,
 } from "../world/classifyModel.js";
 import { getClassifyRecord, recordClassifyCall } from "../wardenProgress.js";
 import { ClassifyPrompt, showClassifyResult } from "../ui/classifyPrompt.js";
@@ -76,7 +76,9 @@ export class ScanSystem {
     // late call still lands.
     if (this.active) {
       const t = this.active.target;
-      if (this._wantsPrompt(t.discovery)) this.classify.show(t.id, t.x, t.y);
+      if (this._wantsPrompt(t.discovery)) {
+        this.classify.show(t.id, t.x, t.y, isHardSpecimen(t.discovery));
+      }
       return;
     }
 
@@ -95,7 +97,7 @@ export class ScanSystem {
     }
 
     if (nearest) {
-      this.classify.show(nearest.id, nearest.x, nearest.y);
+      this.classify.show(nearest.id, nearest.x, nearest.y, isHardSpecimen(nearest.discovery));
       this._maybeTeachPrior(nearest);
     } else {
       this.classify.hide();
@@ -111,7 +113,7 @@ export class ScanSystem {
    * going quiet.
    */
   _wantsPrompt(discovery) {
-    return isClassifiable(discovery) && shouldPrompt(discovery.objectClass, this._record());
+    return isClassifiable(discovery) && shouldPrompt(discovery, this._record());
   }
 
   /** The player's account-wide morphology record; cached per scan cycle. */
@@ -296,7 +298,7 @@ export class ScanSystem {
     // Resolve any Hubble call BEFORE the streak advances, so a correct one can
     // add its extra step and the reported multiplier includes it.
     const guess = this.classify.shownFor === target.id ? this.classify.called : null;
-    const result = classifyResult(guess, target.discovery.objectClass, this._record());
+    const result = classifyResult(guess, target.discovery, this._record());
     this.classify.hide();
 
     // Log it against the family that was actually correct, and say something

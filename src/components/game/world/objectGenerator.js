@@ -20,6 +20,10 @@ const PROFILE = {
               morphWeights: { elliptical: 0.50, lenticular: 0.12, spiral: 0.14, barred: 0.14, irregular: 0.10 } },
 };
 
+// How often a spiral is caught rim-on. Rare enough to stay an event worth
+// stopping for, common enough that a long session meets several.
+export const EDGE_ON_CHANCE = 0.18;
+
 const intIn = (rng, [min, max]) => min + Math.floor(rng() * (max - min + 1));
 
 const pickMorph = (rng, weights) => {
@@ -46,7 +50,7 @@ export function generateChunkObjects(seed, chunkX, chunkY, cp = NEUTRAL_PROFILE)
 
   // Era mood dims proto/late structure; young galaxies also read fainter until
   // their stars ignite.
-  const place = (objectClass, scale, alpha) => {
+  const place = (objectClass, scale, alpha, extra = null) => {
     const info = OBJECT_CLASSES[objectClass];
     const id = `obj:${chunkX}:${chunkY}:${index++}`;
     objects.push({
@@ -62,6 +66,7 @@ export function generateChunkObjects(seed, chunkX, chunkY, cp = NEUTRAL_PROFILE)
       rotation: rng() * Math.PI * 2,
       alpha: Math.max(0.12, alpha * cp.dim),
       webClass,
+      ...(extra || {}),
     });
   };
 
@@ -81,7 +86,25 @@ export function generateChunkObjects(seed, chunkX, chunkY, cp = NEUTRAL_PROFILE)
     const morph = proto ? "irregular" : pickMorph(rng, profile.morphWeights);
     const subtypes = MORPH_SUBTYPES[morph];
     const scale = (0.35 + rng() * 0.5) * (proto ? 0.7 : 1);
-    place(subtypes[Math.floor(rng() * subtypes.length)], scale, 0.8 + rng() * 0.2);
+
+    // EDGE-ON DISKS. A disk galaxy seen from its rim is a flat, near-featureless
+    // lens - it reads as an elliptical, and calling it one is the single most
+    // common mistake in real morphology. What gives it away is a dust lane: the
+    // dark seam of its own obscuring material, cutting the light in half.
+    //
+    // Only UNBARRED spirals get this, deliberately. Edge-on you genuinely
+    // cannot see whether a disk has a bar, so an edge-on SBb would be
+    // indistinguishable from an edge-on Sb while having a different correct
+    // answer - punishing players for something the screen never showed them.
+    // Keeping bars face-on means every edge-on disk answers "spiral", fairly.
+    const edgeOn = morph === "spiral" && rng() < EDGE_ON_CHANCE;
+
+    place(
+      subtypes[Math.floor(rng() * subtypes.length)],
+      scale,
+      0.8 + rng() * 0.2,
+      edgeOn ? { edgeOn: true } : null
+    );
   }
 
   // Gas is more prominent before it condenses into stars.

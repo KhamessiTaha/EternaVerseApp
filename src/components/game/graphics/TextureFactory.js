@@ -14,7 +14,7 @@ const TEX_SIZE = 256;
 const STAR_TEX_SIZE = 512;
 const HULL_TEX_SIZE = 256;
 
-const VARIANTS = { spiral: 3, barred: 2, elliptical: 3, irregular: 2, nebula: 3, quasar: 1, merger: 1 };
+const VARIANTS = { spiral: 3, barred: 2, elliptical: 3, irregular: 2, nebula: 3, quasar: 1, merger: 1, edgeon: 2 };
 
 // Stellar-population palettes: spiral arms are blue-white (young stars),
 // elliptical light is yellow-red (old populations) - real astronomy.
@@ -449,6 +449,11 @@ export class TextureFactory {
     const family = info?.category === "galaxy" ? info.morph
       : info?.category === "nebula" ? "nebula"
       : descriptor.objectClass; // quasar | merger
+    // A disk caught rim-on looks nothing like the same disk face-on, so it
+    // gets its own texture family rather than a variant of the spiral one.
+    if (descriptor.edgeOn && (family === "spiral" || family === "barred")) {
+      return `evtex:edgeon:${stringHash(descriptor.id) % this._variantCount("edgeon")}`;
+    }
     const fam = family === "lenticular" ? "elliptical" : family;
     const count = this._variantCount(fam);
     return `evtex:${fam}:${stringHash(descriptor.id) % count}`;
@@ -468,7 +473,8 @@ export class TextureFactory {
     canvas.height = size;
     const ctx = canvas.getContext("2d");
 
-    if (family === "spiral" || family === "barred") this._drawSpiral(ctx, c, family === "barred");
+    if (family === "edgeon") this._drawEdgeOn(ctx, c);
+    else if (family === "spiral" || family === "barred") this._drawSpiral(ctx, c, family === "barred");
     else if (family === "elliptical") this._drawElliptical(ctx, c);
     else if (family === "irregular") this._drawIrregular(ctx, c);
     else if (family === "nebula") this._drawNebula(ctx, c, variant);
@@ -490,6 +496,36 @@ export class TextureFactory {
     ctx.beginPath();
     ctx.ellipse(x, y, w / 2, h / 2, 0, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  /**
+   * A disk galaxy seen from its rim.
+   *
+   * The whole point is the DUST LANE - the dark seam of the disk's own
+   * obscuring material splitting the light lengthwise. Without it an edge-on
+   * spiral is just a flat smudge and calling it would be a coin flip; with it,
+   * the shape is genuinely readable by anyone who knows what it means. It is
+   * carved with destination-out rather than painted dark, because it is
+   * literally light being blocked.
+   */
+  _drawEdgeOn(ctx, c) {
+    const armColor = ARM_COLORS[Math.floor(this.rng() * ARM_COLORS.length)];
+
+    // The disk: a long thin lens, layered outward-in for a soft falloff.
+    for (let i = 0; i < 16; i++) {
+      const w = 216 - i * 7;
+      const h = Math.max(3, 38 - i * 2.1);
+      this._oval(ctx, armColor, 0.045, c, c, w, h);
+    }
+    // Central bulge - edge-on disks still show a fat, bright middle.
+    for (let r = 24; r > 2; r -= 3) this._disc(ctx, CORE_COLOR, 0.05 + (24 - r) * 0.013, c, c, r);
+    this._oval(ctx, CORE_COLOR, 0.22, c, c, 74, 30);
+
+    // The tell.
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    this._oval(ctx, 0xffffff, 0.9, c, c + 1.5, 208, 8);
+    ctx.restore();
   }
 
   _drawSpiral(ctx, c, barred) {
